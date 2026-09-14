@@ -45,9 +45,9 @@ async function submitVerification(workerUserId, documents) {
 
     for (const doc of documents) {
       await client.query(
-        `INSERT INTO verification_documents (verification_request_id, document_type, storage_path)
-         VALUES ($1, $2, $3)`,
-        [request.id, doc.documentType, doc.storagePath]
+        `INSERT INTO verification_documents (verification_request_id, document_type, storage_path, file_size)
+         VALUES ($1, $2, $3, $4)`,
+        [request.id, doc.documentType, doc.storagePath, doc.fileSize || null]
       );
     }
 

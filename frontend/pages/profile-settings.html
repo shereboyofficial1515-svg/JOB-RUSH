@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Profile Settings — JOB RUSH</title>
+  <title>Settings — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
@@ -23,11 +23,13 @@
       <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
     </aside>
 
-    <div class="dashboard-main" style="max-width: 640px;">
+    <div class="dashboard-main" style="max-width: 760px;">
       <div class="dashboard-topbar">
-        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Profile Settings</h1>
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Settings</h1>
         <div id="notif-bell-mount"></div>
       </div>
+
+      <nav class="settings-tabs" id="settings-tabs" aria-label="Settings sections"></nav>
 
       <div id="settings-content">
         <div class="skeleton" style="height: 300px;"></div>
@@ -35,8 +37,10 @@
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="../js/config/assets.js"></script>
   <script src="../js/config/api.js"></script>
+  <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
@@ -46,6 +50,138 @@
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script>
+    // ============================================================
+    // Shared helpers
+    // ============================================================
+    let currentUser = null;
+    let currentSettings = null;
+
+    function toggleHtml(id, checked, extra = '') {
+      return `
+      <label class="toggle-switch" ${extra}>
+        <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} />
+        <span class="toggle-track"></span>
+      </label>`;
+    }
+
+    function settingsRowHtml(title, desc, controlHtml) {
+      return `
+      <div class="settings-row">
+        <div class="settings-row-text">
+          <div class="settings-row-title">${title}</div>
+          ${desc ? `<div class="settings-row-desc">${desc}</div>` : ''}
+        </div>
+        <div class="settings-row-control">${controlHtml}</div>
+      </div>`;
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 KB';
+      const units = ['bytes', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let n = bytes;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function confirmWithPassword({ title, description, confirmLabel, onConfirm }) {
+      Modal.open({
+        title,
+        bodyHtml: `
+        <p class="text-secondary">${description}</p>
+        <div class="field" id="confirm-password-field">
+          <label for="confirm-password">Confirm your password</label>
+          <input type="password" id="confirm-password" autocomplete="current-password" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-password-action">${confirmLabel}</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('confirm-password-action').addEventListener('click', async () => {
+            const password = document.getElementById('confirm-password').value;
+            if (!password) return FormHelpers.showError(document.getElementById('confirm-password-field'), 'Enter your password.');
+            const btn = document.getElementById('confirm-password-action');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await onConfirm(password);
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('confirm-password-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    async function patchSettings(partial, successMessage) {
+      try {
+        const { settings } = await API.patch('/settings', partial);
+        currentSettings = settings;
+        if (successMessage) Toast.success(successMessage);
+        return settings;
+      } catch (err) {
+        Toast.error(err.message);
+        throw err;
+      }
+    }
+
+    // ============================================================
+    // Tab scaffolding
+    // ============================================================
+    const TABS = [
+      { key: 'profile', label: 'Profile' },
+      { key: 'account', label: 'Account & Security' },
+      { key: 'sessions', label: 'Sessions & Devices' },
+      { key: 'chat', label: 'Chat' },
+      { key: 'storage', label: 'Data & Storage' },
+      { key: 'support', label: 'Support' },
+      { key: 'help', label: 'Help & Feedback' },
+      { key: 'accessibility', label: 'Accessibility' },
+    ];
+
+    function renderTabsNav(activeKey) {
+      const nav = document.getElementById('settings-tabs');
+      nav.innerHTML = TABS.map(
+        (t) => `<button type="button" class="settings-tab ${t.key === activeKey ? 'is-active' : ''}" data-tab-key="${t.key}">${t.label}</button>`
+      ).join('');
+      nav.querySelectorAll('[data-tab-key]').forEach((btn) => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tabKey));
+      });
+    }
+
+    function switchTab(key) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      history.replaceState(null, '', url);
+      renderTabsNav(key);
+      loadTab(key);
+    }
+
+    const TAB_LOADERS = {};
+
+    function loadTab(key) {
+      const content = document.getElementById('settings-content');
+      content.innerHTML = `<div class="skeleton" style="height: 300px;"></div>`;
+      const loader = TAB_LOADERS[key] || TAB_LOADERS.profile;
+      loader(content).catch((err) => {
+        content.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      });
+    }
+
+    async function ensureSettingsLoaded() {
+      if (!currentSettings) {
+        const { settings } = await API.get('/settings');
+        currentSettings = settings;
+      }
+      return currentSettings;
+    }
+
+    // ============================================================
+    // TAB: Profile (professional/company details + verification)
+    // ============================================================
     function workerFormHtml(profile) {
       const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(profile.verification_status);
       return `
@@ -156,6 +292,7 @@
                 pendingDocuments.push({
                   documentType: docType.value,
                   storagePath: result.storagePath,
+                  fileSize: result.sizeBytes,
                   label: DOCUMENT_TYPES.find((t) => t.value === docType.value).label,
                 });
                 renderUploadedDocs();
@@ -176,12 +313,11 @@
         FormHelpers.setLoading(submitBtn, true);
         try {
           await API.post('/verification/submit', {
-            documents: pendingDocuments.map(({ documentType, storagePath }) => ({ documentType, storagePath })),
+            documents: pendingDocuments.map(({ documentType, storagePath, fileSize }) => ({ documentType, storagePath, fileSize })),
           });
           Toast.success('Submitted for review.');
           pendingDocuments = [];
-          const user = await Auth.getCurrentUser();
-          loadProfile(user);
+          loadTab('profile');
         } catch (err) {
           Toast.error(err.message);
         } finally {
@@ -213,85 +349,6 @@
         <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
       </form>
     `;
-    }
-
-    async function loadProfile(user) {
-      const content = document.getElementById('settings-content');
-      try {
-        if (user.role === 'hirer') {
-          const { profile } = await API.get('/profiles/hirer/me');
-          content.innerHTML = hirerFormHtml(profile || {});
-          wireHirerForm();
-        } else {
-          const { profile } = await API.get('/profiles/worker/me');
-          content.innerHTML = workerFormHtml(profile || { verification_status: 'not_submitted' });
-          wireWorkerForm();
-          pendingDocuments = [];
-          wireVerificationUpload();
-        }
-        content.insertAdjacentHTML('beforeend', notificationPreferencesHtml());
-        await loadNotificationPreferences();
-        wireNotificationPreferences();
-      } catch (err) {
-        content.innerHTML = `<p class="text-secondary">${err.message}</p>`;
-      }
-    }
-
-    function notificationPreferencesHtml() {
-      return `
-      <div class="card" style="margin-top: var(--space-6);" id="notif-prefs-card">
-        <h3>Notification preferences</h3>
-        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Choose how you'd like to hear from JOB RUSH. In-app notifications always show your unread count regardless of these settings.</p>
-        <div id="notif-prefs-body">
-          <div class="skeleton" style="height: 16px; width: 60%; margin-bottom: 12px;"></div>
-          <div class="skeleton" style="height: 16px; width: 50%;"></div>
-        </div>
-      </div>
-    `;
-    }
-
-    function prefToggleHtml(id, label, checked) {
-      return `
-      <label style="display:flex; align-items:center; gap: var(--space-3); margin-bottom: var(--space-3);">
-        <input type="checkbox" id="${id}" style="width:auto;" ${checked ? 'checked' : ''} />
-        ${label}
-      </label>
-    `;
-    }
-
-    async function loadNotificationPreferences() {
-      const body = document.getElementById('notif-prefs-body');
-      try {
-        const { preferences } = await API.get('/notifications/preferences');
-        body.innerHTML = `
-        ${prefToggleHtml('pref-in-app', 'In-app notifications', preferences.in_app_enabled)}
-        ${prefToggleHtml('pref-email', 'Email notifications', preferences.email_enabled)}
-        ${prefToggleHtml('pref-sms', 'SMS notifications', preferences.sms_enabled)}
-        <button class="btn btn-primary btn-sm" id="save-prefs-btn" style="margin-top: var(--space-2);">Save preferences</button>
-      `;
-      } catch (err) {
-        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
-      }
-    }
-
-    function wireNotificationPreferences() {
-      document.getElementById('notif-prefs-card')?.addEventListener('click', async (e) => {
-        if (e.target.id !== 'save-prefs-btn') return;
-        const btn = e.target;
-        FormHelpers.setLoading(btn, true);
-        try {
-          await API.patch('/notifications/preferences', {
-            inAppEnabled: document.getElementById('pref-in-app').checked,
-            emailEnabled: document.getElementById('pref-email').checked,
-            smsEnabled: document.getElementById('pref-sms').checked,
-          });
-          Toast.success('Preferences saved.');
-        } catch (err) {
-          Toast.error(err.message);
-        } finally {
-          FormHelpers.setLoading(btn, false);
-        }
-      });
     }
 
     function wireWorkerForm() {
@@ -341,15 +398,1085 @@
       });
     }
 
+    TAB_LOADERS.profile = async function loadProfileTab(content) {
+      if (currentUser.role === 'hirer') {
+        const { profile } = await API.get('/profiles/hirer/me');
+        content.innerHTML = hirerFormHtml(profile || {});
+        wireHirerForm();
+      } else {
+        const { profile } = await API.get('/profiles/worker/me');
+        content.innerHTML = workerFormHtml(profile || { verification_status: 'not_submitted' });
+        wireWorkerForm();
+        pendingDocuments = [];
+        wireVerificationUpload();
+      }
+    };
+
+    // ============================================================
+    // TAB: Account & Security
+    // ============================================================
+    function accountTabHtml(user, settings) {
+      const isHirer = user.role === 'hirer' || user.role === 'both';
+      const isWorker = user.role === 'worker' || user.role === 'both';
+      return `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Account information</h3>
+        ${settingsRowHtml(
+        'Email address',
+        user.email ? `${esc(user.email)} ${user.emailVerified ? '<span class="badge badge-verified" style="margin-left:6px;">Verified</span>' : ''}` : 'Not set',
+        `<button type="button" class="btn btn-sm btn-secondary" id="change-email-btn">${user.email ? 'Change' : 'Add'}</button>`
+      )}
+        ${settingsRowHtml(
+        'Phone number',
+        user.phone ? `${esc(user.phone)} ${user.phoneVerified ? '<span class="badge badge-verified" style="margin-left:6px;">Verified</span>' : ''}` : 'Not set',
+        `<button type="button" class="btn btn-sm btn-secondary" id="change-phone-btn">${user.phone ? 'Change' : 'Add'}</button>`
+      )}
+        ${settingsRowHtml('Password', 'Change the password used to sign in.', `<button type="button" class="btn btn-sm btn-secondary" id="change-password-btn">Change</button>`)}
+      </div>
+
+      <div class="card" style="margin-bottom: var(--space-5);" id="tfa-card">
+        <h3>Two-factor authentication</h3>
+        <div id="tfa-body"><div class="skeleton" style="height: 16px; width: 60%;"></div></div>
+      </div>
+
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Privacy & messaging</h3>
+        ${settingsRowHtml(
+        'Profile visibility',
+        'Control who can find your profile in search and view it.',
+        `<select id="profile-visibility-select">
+            <option value="public" ${settings.profile_visibility === 'public' ? 'selected' : ''}>Public</option>
+            <option value="private" ${settings.profile_visibility === 'private' ? 'selected' : ''}>Private</option>
+          </select>`
+      )}
+        ${settingsRowHtml(
+        'Who can message you',
+        'Choose who is allowed to start a new conversation with you.',
+        `<select id="messaging-permission-select">
+            <option value="everyone" ${settings.messaging_permission === 'everyone' ? 'selected' : ''}>Everyone</option>
+            <option value="connections_only" ${settings.messaging_permission === 'connections_only' ? 'selected' : ''}>Connections only</option>
+            <option value="no_one" ${settings.messaging_permission === 'no_one' ? 'selected' : ''}>No one</option>
+          </select>`
+      )}
+      </div>
+
+      ${isWorker ? `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Job application settings</h3>
+        <div class="field" style="margin-top: var(--space-3);">
+          <label for="default-cover-note">Default cover note</label>
+          <textarea id="default-cover-note" rows="3" placeholder="Pre-fill new applications with a message you reuse often.">${esc(settings.default_cover_note || '')}</textarea>
+          <div class="field-hint">Pre-fills the cover note field whenever you apply to a job — you can still edit it per application.</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="save-cover-note-btn">Save</button>
+      </div>` : ''}
+
+      ${isHirer ? `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Applicant management</h3>
+        ${settingsRowHtml(
+        'Require a cover note',
+        'Workers must include a cover note to apply to your jobs.',
+        toggleHtml('require-cover-note-toggle', settings.require_cover_note)
+      )}
+      </div>` : ''}
+
+      <div class="card" style="border-color: rgba(216, 71, 74, 0.4);">
+        <h3>Danger zone</h3>
+        ${settingsRowHtml('Deactivate account', 'Hide your profile and log out everywhere. Log back in anytime to reactivate.', `<button type="button" class="btn btn-sm btn-secondary" id="deactivate-btn">Deactivate</button>`)}
+        ${settingsRowHtml('Delete account', 'Permanently disable sign-in and remove your personal details. This cannot be undone.', `<button type="button" class="btn btn-sm btn-danger" id="delete-account-btn">Delete account</button>`)}
+      </div>
+    `;
+    }
+
+    function disabledTfaHtml() {
+      return `
+      <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Two-factor authentication is currently <strong style="color: var(--text-primary);">off</strong>. Add an extra layer of security with an authenticator app (Google Authenticator, Authy, etc).</p>
+      <button class="btn btn-primary btn-sm" id="enable-tfa-btn">Enable two-factor authentication</button>
+    `;
+    }
+    function enabledTfaHtml() {
+      return `
+      <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);"><span class="badge badge-verified">Enabled</span> Your account is protected with two-factor authentication.</p>
+      <button class="btn btn-danger btn-sm" id="disable-tfa-btn">Disable two-factor authentication</button>
+    `;
+    }
+
+    async function loadTfaStatus() {
+      const body = document.getElementById('tfa-body');
+      try {
+        const { enabled } = await API.get('/auth/2fa/status');
+        body.innerHTML = enabled ? enabledTfaHtml() : disabledTfaHtml();
+        const enableBtn = document.getElementById('enable-tfa-btn');
+        if (enableBtn) enableBtn.addEventListener('click', startTfaSetup);
+        const disableBtn = document.getElementById('disable-tfa-btn');
+        if (disableBtn) disableBtn.addEventListener('click', openDisableTfaModal);
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    async function startTfaSetup() {
+      try {
+        const { secret, otpauthUrl } = await API.post('/auth/2fa/setup');
+        Modal.open({
+          title: 'Set up two-factor authentication',
+          bodyHtml: `
+          <p class="text-secondary text-sm">Scan this QR code with your authenticator app, or enter the code manually.</p>
+          <div id="qr-container" style="display:flex; justify-content:center; margin: var(--space-4) 0; background:#fff; padding: var(--space-4); border-radius: var(--radius-md);"></div>
+          <p class="text-xs text-secondary" style="text-align:center; word-break:break-all; margin-bottom: var(--space-4);">${secret}</p>
+          <div class="field" id="setup-code-field">
+            <label for="setup-code">Enter the 6-digit code from your app</label>
+            <input type="text" id="setup-code" inputmode="numeric" maxlength="6" placeholder="123456" />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="confirm-setup-btn">Confirm &amp; enable</button>
+          </div>
+        `,
+          onMount: () => {
+            try {
+              new QRCode(document.getElementById('qr-container'), { text: otpauthUrl, width: 180, height: 180 });
+            } catch {
+              document.getElementById('qr-container').innerHTML = '<p class="text-xs">QR rendering unavailable — enter the code above manually.</p>';
+            }
+            document.getElementById('confirm-setup-btn').addEventListener('click', async () => {
+              const code = document.getElementById('setup-code').value.trim();
+              if (!/^[0-9]{6}$/.test(code)) return FormHelpers.showError(document.getElementById('setup-code-field'), 'Enter the 6-digit code.');
+              const btn = document.getElementById('confirm-setup-btn');
+              FormHelpers.setLoading(btn, true);
+              try {
+                const { backupCodes } = await API.post('/auth/2fa/confirm-setup', { code });
+                showBackupCodes(backupCodes);
+              } catch (err) {
+                FormHelpers.showError(document.getElementById('setup-code-field'), err.message);
+              } finally {
+                FormHelpers.setLoading(btn, false);
+              }
+            });
+          },
+        });
+      } catch (err) {
+        Toast.error(err.message);
+      }
+    }
+
+    function showBackupCodes(codes) {
+      Modal.open({
+        title: 'Save your backup codes',
+        bodyHtml: `
+        <p class="text-secondary text-sm">Store these somewhere safe. Each code works once. <strong style="color: var(--text-primary);">This is the only time they'll be shown.</strong></p>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-family: monospace; background: var(--bg-elevated); padding: var(--space-4); border-radius: var(--radius-md); margin: var(--space-4) 0;">
+          ${codes.map((c) => `<div>${c}</div>`).join('')}
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" id="done-backup-codes">I've saved these codes</button>
+        </div>
+      `,
+        onMount: () => {
+          document.getElementById('done-backup-codes').addEventListener('click', () => {
+            Modal.close();
+            Toast.success('Two-factor authentication enabled.');
+            loadTfaStatus();
+          });
+        },
+      });
+    }
+
+    function openDisableTfaModal() {
+      Modal.open({
+        title: 'Disable two-factor authentication',
+        bodyHtml: `
+        <p class="text-secondary text-sm">Enter a current code from your authenticator app (or a backup code) to confirm.</p>
+        <div class="field" id="disable-code-field">
+          <label for="disable-code">Verification code</label>
+          <input type="text" id="disable-code" placeholder="123456 or XXXX-XXXX" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-disable-btn">Disable</button>
+        </div>
+      `,
+        onMount: () => {
+          document.getElementById('confirm-disable-btn').addEventListener('click', async () => {
+            const code = document.getElementById('disable-code').value.trim();
+            if (!code) return FormHelpers.showError(document.getElementById('disable-code-field'), 'Enter your code.');
+            const btn = document.getElementById('confirm-disable-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post('/auth/2fa/disable', { code });
+              Modal.close();
+              Toast.success('Two-factor authentication disabled.');
+              loadTfaStatus();
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('disable-code-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function openChangeEmailModal() {
+      Modal.open({
+        title: 'Change email address',
+        bodyHtml: `
+        <div class="field" id="new-email-field">
+          <label for="new-email">New email address</label>
+          <input type="email" id="new-email" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="send-email-code-btn">Send code</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('send-email-code-btn').addEventListener('click', async () => {
+            const newEmail = document.getElementById('new-email').value.trim();
+            if (!newEmail) return FormHelpers.showError(document.getElementById('new-email-field'), 'Enter an email address.');
+            const btn = document.getElementById('send-email-code-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post('/auth/email/change/request', { newEmail });
+              openConfirmChangeModal({
+                title: 'Enter the code sent to your new email',
+                onConfirm: async (code) => {
+                  const { user } = await API.post('/auth/email/change/confirm', { newEmail, code });
+                  currentUser = user;
+                  Toast.success('Email address updated.');
+                  loadTab('account');
+                },
+              });
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('new-email-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function openChangePhoneModal() {
+      Modal.open({
+        title: 'Change phone number',
+        bodyHtml: `
+        <div class="field" id="new-phone-field">
+          <label for="new-phone">New phone number</label>
+          <input type="tel" id="new-phone" placeholder="+234..." />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="send-phone-code-btn">Send code</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('send-phone-code-btn').addEventListener('click', async () => {
+            const newPhone = document.getElementById('new-phone').value.trim();
+            if (!newPhone) return FormHelpers.showError(document.getElementById('new-phone-field'), 'Enter a phone number.');
+            const btn = document.getElementById('send-phone-code-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post('/auth/phone/change/request', { newPhone });
+              openConfirmChangeModal({
+                title: 'Enter the code sent to your new number',
+                onConfirm: async (code) => {
+                  const { user } = await API.post('/auth/phone/change/confirm', { newPhone, code });
+                  currentUser = user;
+                  Toast.success('Phone number updated.');
+                  loadTab('account');
+                },
+              });
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('new-phone-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function openConfirmChangeModal({ title, onConfirm }) {
+      Modal.open({
+        title,
+        bodyHtml: `
+        <div class="field" id="change-code-field">
+          <label for="change-code">Verification code</label>
+          <input type="text" id="change-code" inputmode="numeric" maxlength="8" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-change-code-btn">Confirm</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('confirm-change-code-btn').addEventListener('click', async () => {
+            const code = document.getElementById('change-code').value.trim();
+            if (!code) return FormHelpers.showError(document.getElementById('change-code-field'), 'Enter the code.');
+            const btn = document.getElementById('confirm-change-code-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await onConfirm(code);
+              Modal.close();
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('change-code-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function openChangePasswordModal() {
+      Modal.open({
+        title: 'Change password',
+        bodyHtml: `
+        <div class="field" id="current-password-field">
+          <label for="current-password">Current password</label>
+          <input type="password" id="current-password" autocomplete="current-password" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="new-password-field">
+          <label for="new-password">New password</label>
+          <input type="password" id="new-password" autocomplete="new-password" />
+          <div class="field-hint">At least 8 characters, with a letter and a number.</div>
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-change-password-btn">Update password</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('confirm-change-password-btn').addEventListener('click', async () => {
+            const currentPassword = document.getElementById('current-password').value;
+            const newPassword = document.getElementById('new-password').value;
+            if (!currentPassword) return FormHelpers.showError(document.getElementById('current-password-field'), 'Enter your current password.');
+            if (newPassword.length < 8) return FormHelpers.showError(document.getElementById('new-password-field'), 'Password must be at least 8 characters.');
+            const btn = document.getElementById('confirm-change-password-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post('/auth/password/change', { currentPassword, newPassword });
+              Modal.close();
+              Toast.success('Password updated. Your other devices have been logged out.');
+            } catch (err) {
+              FormHelpers.showError(document.getElementById('current-password-field'), err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function openDeactivateModal() {
+      confirmWithPassword({
+        title: 'Deactivate your account?',
+        description: "Your profile will be hidden and you'll be logged out on every device. Log back in anytime to reactivate.",
+        confirmLabel: 'Deactivate',
+        onConfirm: async (password) => {
+          await API.post('/auth/account/deactivate', { password });
+          window.location.href = '../index.html';
+        },
+      });
+    }
+
+    function openDeleteAccountModal() {
+      confirmWithPassword({
+        title: 'Delete your account?',
+        description: 'This permanently disables sign-in and removes your personal details. This cannot be undone.',
+        confirmLabel: 'Delete my account',
+        onConfirm: async (password) => {
+          await API.post('/auth/account/delete', { password });
+          window.location.href = '../index.html';
+        },
+      });
+    }
+
+    TAB_LOADERS.account = async function loadAccountTab(content) {
+      const settings = await ensureSettingsLoaded();
+      content.innerHTML = accountTabHtml(currentUser, settings);
+      loadTfaStatus();
+
+      document.getElementById('change-email-btn').addEventListener('click', openChangeEmailModal);
+      document.getElementById('change-phone-btn').addEventListener('click', openChangePhoneModal);
+      document.getElementById('change-password-btn').addEventListener('click', openChangePasswordModal);
+      document.getElementById('deactivate-btn').addEventListener('click', openDeactivateModal);
+      document.getElementById('delete-account-btn').addEventListener('click', openDeleteAccountModal);
+
+      document.getElementById('profile-visibility-select').addEventListener('change', (e) => {
+        patchSettings({ profileVisibility: e.target.value }, 'Profile visibility updated.');
+      });
+      document.getElementById('messaging-permission-select').addEventListener('change', (e) => {
+        patchSettings({ messagingPermission: e.target.value }, 'Messaging preference updated.');
+      });
+
+      const coverNoteBtn = document.getElementById('save-cover-note-btn');
+      if (coverNoteBtn) {
+        coverNoteBtn.addEventListener('click', async () => {
+          FormHelpers.setLoading(coverNoteBtn, true);
+          try {
+            await patchSettings({ defaultCoverNote: document.getElementById('default-cover-note').value.trim() }, 'Default cover note saved.');
+          } finally {
+            FormHelpers.setLoading(coverNoteBtn, false);
+          }
+        });
+      }
+
+      const requireCoverNoteToggle = document.getElementById('require-cover-note-toggle');
+      if (requireCoverNoteToggle) {
+        requireCoverNoteToggle.addEventListener('change', (e) => {
+          patchSettings({ requireCoverNote: e.target.checked }, 'Applicant setting updated.');
+        });
+      }
+    };
+
+    // ============================================================
+    // TAB: Sessions & Devices
+    // ============================================================
+    function sessionRowHtml(s) {
+      const label = `${s.browser} on ${s.os}${s.deviceType && s.deviceType !== 'desktop' ? ` (${s.deviceType})` : ''}`;
+      return `
+      <div class="ledger-row">
+        <div>
+          <div>${esc(label)} ${s.is_current ? '<span class="badge badge-verified">This device</span>' : ''}</div>
+          <div class="text-xs text-secondary">${s.ip_address || ''} · Signed in ${new Date(s.created_at).toLocaleDateString()} · Last active ${new Date(s.last_seen_at).toLocaleString()}</div>
+        </div>
+        ${!s.is_current ? `<button type="button" class="btn btn-sm btn-ghost" data-revoke-session="${s.id}">Log out</button>` : ''}
+      </div>
+    `;
+    }
+
+    async function loadSessionsList() {
+      const body = document.getElementById('sessions-body');
+      try {
+        const { sessions } = await API.get('/auth/sessions');
+        body.innerHTML = sessions.length ? sessions.map(sessionRowHtml).join('') : '<p class="text-secondary text-sm">No active sessions.</p>';
+        body.querySelectorAll('[data-revoke-session]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post(`/auth/sessions/${btn.dataset.revokeSession}/revoke`);
+              Toast.success('Device logged out.');
+              loadSessionsList();
+            } catch (err) {
+              Toast.error(err.message);
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    function deviceRowHtml(d) {
+      return `
+      <div class="ledger-row">
+        <div>
+          <div>${d.user_agent ? esc(d.user_agent.slice(0, 60)) : 'Unknown device'}</div>
+          <div class="text-xs text-secondary">First seen ${new Date(d.first_seen_at).toLocaleDateString()} · Last seen ${new Date(d.last_seen_at).toLocaleString()}</div>
+        </div>
+      </div>
+    `;
+    }
+
+    async function loadDevicesList() {
+      const body = document.getElementById('devices-body');
+      try {
+        const { devices } = await API.get('/auth/devices');
+        body.innerHTML = devices.length ? devices.map(deviceRowHtml).join('') : '<p class="text-secondary text-sm">No recognized devices yet.</p>';
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    TAB_LOADERS.sessions = async function loadSessionsTab(content) {
+      content.innerHTML = `
+      <div class="card" style="margin-bottom: var(--space-5);" id="sessions-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
+          <h3 style="margin-bottom:0;">Active sessions</h3>
+          <button class="btn btn-sm btn-danger" id="logout-all-btn">Log out of all devices</button>
+        </div>
+        <div id="sessions-body"><div class="skeleton" style="height: 16px; width: 70%; margin-bottom: 8px;"></div></div>
+      </div>
+      <div class="card" id="devices-card">
+        <h3>Recognized devices</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">We'll email you whenever your account signs in from a device we haven't seen before. Approximate location isn't tracked — only IP address and browser/device.</p>
+        <div id="devices-body"><div class="skeleton" style="height: 16px; width: 70%; margin-bottom: 8px;"></div></div>
+      </div>`;
+
+      document.getElementById('logout-all-btn').addEventListener('click', () => {
+        Modal.open({
+          title: 'Log out of all devices?',
+          bodyHtml: `
+          <p class="text-secondary">You'll need to log in again on every device, including this one.</p>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirm-logout-all">Log out everywhere</button>
+          </div>`,
+          onMount: () => {
+            document.getElementById('confirm-logout-all').addEventListener('click', async () => {
+              try {
+                await API.post('/auth/logout-all');
+                window.location.href = 'login.html';
+              } catch (err) { Toast.error(err.message); }
+            });
+          },
+        });
+      });
+
+      loadSessionsList();
+      loadDevicesList();
+    };
+
+    // ============================================================
+    // TAB: Chat settings
+    // ============================================================
+    function blockedUserRowHtml(u) {
+      return `
+      <div class="ledger-row">
+        <div>${esc(u.full_name || u.blocked_user_id)}</div>
+        <button type="button" class="btn btn-sm btn-ghost" data-unblock="${u.blocked_user_id}">Unblock</button>
+      </div>`;
+    }
+
+    function archivedChatRowHtml(c) {
+      return `
+      <div class="ledger-row">
+        <div>
+          <div>${esc(c.last_message_preview || 'No messages yet')}</div>
+          <div class="text-xs text-secondary">Archived ${new Date(c.archived_at).toLocaleDateString()}</div>
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" data-unarchive="${c.id}">Unarchive</button>
+      </div>`;
+    }
+
+    TAB_LOADERS.chat = async function loadChatTab(content) {
+      const settings = await ensureSettingsLoaded();
+      content.innerHTML = `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Appearance</h3>
+        ${settingsRowHtml('Chat theme', 'How the chat page looks.', `
+          <select id="chat-theme-select">
+            <option value="dark" ${settings.chat_theme === 'dark' ? 'selected' : ''}>Dark</option>
+            <option value="light" ${settings.chat_theme === 'light' ? 'selected' : ''}>Light</option>
+            <option value="system" ${settings.chat_theme === 'system' ? 'selected' : ''}>Match system</option>
+          </select>`)}
+        ${settingsRowHtml('Chat wallpaper', 'Background shown behind your conversations.', `
+          <select id="chat-wallpaper-select">
+            <option value="default" ${settings.chat_wallpaper === 'default' ? 'selected' : ''}>Default</option>
+            <option value="solid" ${settings.chat_wallpaper === 'solid' ? 'selected' : ''}>Solid</option>
+            <option value="geometric" ${settings.chat_wallpaper === 'geometric' ? 'selected' : ''}>Geometric</option>
+          </select>`)}
+        ${settingsRowHtml('Message text size', '', `
+          <select id="chat-font-size-select">
+            <option value="small" ${settings.chat_font_size === 'small' ? 'selected' : ''}>Small</option>
+            <option value="default" ${settings.chat_font_size === 'default' ? 'selected' : ''}>Default</option>
+            <option value="large" ${settings.chat_font_size === 'large' ? 'selected' : ''}>Large</option>
+            <option value="extra_large" ${settings.chat_font_size === 'extra_large' ? 'selected' : ''}>Extra large</option>
+          </select>`)}
+      </div>
+
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Notifications & media</h3>
+        ${settingsRowHtml('Message previews', "Show the message text in notifications, not just “New message.”", toggleHtml('chat-previews-toggle', settings.chat_message_previews))}
+        ${settingsRowHtml('Media auto-download', 'When to automatically download photos/videos sent to you.', `
+          <select id="media-auto-download-select">
+            <option value="never" ${settings.media_auto_download === 'never' ? 'selected' : ''}>Never</option>
+            <option value="wifi_only" ${settings.media_auto_download === 'wifi_only' ? 'selected' : ''}>Wi-Fi only</option>
+            <option value="always" ${settings.media_auto_download === 'always' ? 'selected' : ''}>Always</option>
+          </select>`)}
+      </div>
+
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Blocked users</h3>
+        <div id="blocked-users-body"><div class="skeleton" style="height: 16px; width: 50%;"></div></div>
+      </div>
+
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Archived chats</h3>
+        <div id="archived-chats-body"><div class="skeleton" style="height: 16px; width: 50%;"></div></div>
+      </div>
+
+      <div class="card">
+        <h3>Export your data</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Download a copy of your conversations and messages as a JSON file.</p>
+        <button type="button" class="btn btn-sm btn-secondary" id="export-chats-btn">Export chat data</button>
+      </div>
+    `;
+
+      document.getElementById('chat-theme-select').addEventListener('change', (e) => patchSettings({ chatTheme: e.target.value }, 'Chat theme updated.'));
+      document.getElementById('chat-wallpaper-select').addEventListener('change', (e) => patchSettings({ chatWallpaper: e.target.value }, 'Wallpaper updated.'));
+      document.getElementById('chat-font-size-select').addEventListener('change', (e) => patchSettings({ chatFontSize: e.target.value }, 'Message text size updated.'));
+      document.getElementById('chat-previews-toggle').addEventListener('change', (e) => patchSettings({ chatMessagePreviews: e.target.checked }, 'Preference updated.'));
+      document.getElementById('media-auto-download-select').addEventListener('change', (e) => patchSettings({ mediaAutoDownload: e.target.value }, 'Preference updated.'));
+
+      loadBlockedUsers();
+      loadArchivedChats();
+
+      document.getElementById('export-chats-btn').addEventListener('click', exportChatData);
+    };
+
+    async function loadBlockedUsers() {
+      const body = document.getElementById('blocked-users-body');
+      try {
+        const { blocked } = await API.get('/messaging/block');
+        body.innerHTML = blocked && blocked.length ? blocked.map(blockedUserRowHtml).join('') : '<p class="text-secondary text-sm">You haven\'t blocked anyone.</p>';
+        body.querySelectorAll('[data-unblock]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.delete(`/messaging/block/${btn.dataset.unblock}`);
+              Toast.success('User unblocked.');
+              loadBlockedUsers();
+            } catch (err) {
+              Toast.error(err.message);
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    async function loadArchivedChats() {
+      const body = document.getElementById('archived-chats-body');
+      try {
+        const { conversations } = await API.get('/messaging/conversations?archived=true');
+        body.innerHTML = conversations.length ? conversations.map(archivedChatRowHtml).join('') : '<p class="text-secondary text-sm">No archived chats.</p>';
+        body.querySelectorAll('[data-unarchive]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post(`/messaging/conversations/${btn.dataset.unarchive}/unarchive`);
+              Toast.success('Chat unarchived.');
+              loadArchivedChats();
+            } catch (err) {
+              Toast.error(err.message);
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    async function exportChatData() {
+      const btn = document.getElementById('export-chats-btn');
+      FormHelpers.setLoading(btn, true);
+      try {
+        const { conversations } = await API.get('/messaging/conversations');
+        const exportData = [];
+        for (const c of conversations) {
+          const { messages } = await API.get(`/messaging/conversations/${c.id}/messages`);
+          exportData.push({ conversationId: c.id, messages });
+        }
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `jobrush-chat-export-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        Toast.success('Export downloaded.');
+      } catch (err) {
+        Toast.error(err.message);
+      } finally {
+        FormHelpers.setLoading(btn, false);
+      }
+    }
+
+    // ============================================================
+    // TAB: Data & Storage
+    // ============================================================
+    function storageRowHtml(label, entry) {
+      return `
+      <div class="ledger-row">
+        <div>${label}</div>
+        <div class="text-secondary text-sm">${formatBytes(entry.bytes)} · ${entry.count} file${entry.count === 1 ? '' : 's'}</div>
+      </div>`;
+    }
+
+    TAB_LOADERS.storage = async function loadStorageTab(content) {
+      content.innerHTML = `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Storage usage</h3>
+        <div id="storage-usage-body"><div class="skeleton" style="height: 80px;"></div></div>
+      </div>
+      <div class="card">
+        <h3>Free up space</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Clearing a chat removes its history from your view only — the other person's copy is unaffected.</p>
+        <div style="display:flex; gap: var(--space-3); flex-wrap:wrap;">
+          <a href="portfolio.html" class="btn btn-sm btn-secondary">Manage portfolio media</a>
+          <button type="button" class="btn btn-sm btn-secondary" id="clear-chat-btn">Clear a chat's history</button>
+        </div>
+      </div>
+    `;
+
+      try {
+        const { usage } = await API.get('/settings/storage-usage');
+        document.getElementById('storage-usage-body').innerHTML = `
+        <div class="text-lg" style="font-weight:700; margin-bottom: var(--space-4);">${formatBytes(usage.totalBytes)} total</div>
+        ${storageRowHtml('Photos', usage.photos)}
+        ${storageRowHtml('Videos', usage.videos)}
+        ${storageRowHtml('Documents (portfolio & verification)', usage.documents)}
+        ${storageRowHtml('Audio (voice notes)', usage.audio)}
+      `;
+      } catch (err) {
+        document.getElementById('storage-usage-body').innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+
+      document.getElementById('clear-chat-btn').addEventListener('click', openClearChatModal);
+    };
+
+    async function openClearChatModal() {
+      let conversations = [];
+      try {
+        ({ conversations } = await API.get('/messaging/conversations'));
+      } catch (err) {
+        Toast.error(err.message);
+        return;
+      }
+      if (conversations.length === 0) {
+        Toast.error('You have no chats to clear.');
+        return;
+      }
+      Modal.open({
+        title: "Clear a chat's history",
+        bodyHtml: `
+        <div class="field">
+          <label for="clear-chat-select">Choose a conversation</label>
+          <select id="clear-chat-select">
+            ${conversations.map((c) => `<option value="${c.id}">${esc((c.last_message_preview || 'Conversation').slice(0, 60))}</option>`).join('')}
+          </select>
+        </div>
+        <p class="text-secondary text-sm">This only clears your own view of the conversation — it can't be undone, and the other participant's history is unaffected.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-clear-chat-btn">Clear history</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('confirm-clear-chat-btn').addEventListener('click', async () => {
+            const id = document.getElementById('clear-chat-select').value;
+            const btn = document.getElementById('confirm-clear-chat-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post(`/messaging/conversations/${id}/clear`);
+              Modal.close();
+              Toast.success('Chat history cleared.');
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    // ============================================================
+    // TAB: Support
+    // ============================================================
+    const TICKET_STATUS_LABELS = {
+      open: 'Open',
+      in_progress: 'In Progress',
+      awaiting_response: 'Awaiting Response',
+      resolved: 'Resolved',
+      closed: 'Closed',
+    };
+
+    function ticketRowHtml(t) {
+      return `
+      <div class="ledger-row" data-view-ticket="${t.id}" style="cursor:pointer;">
+        <div>
+          <div>${esc(t.subject)}</div>
+          <div class="text-xs text-secondary">Opened ${new Date(t.created_at).toLocaleDateString()} · Updated ${new Date(t.updated_at).toLocaleDateString()}</div>
+        </div>
+        <span class="badge badge-neutral">${TICKET_STATUS_LABELS[t.status] || t.status}</span>
+      </div>`;
+    }
+
+    function viewTicketModal(ticket) {
+      Modal.open({
+        title: ticket.subject,
+        bodyHtml: `
+        <p class="text-xs text-secondary" style="margin-bottom: var(--space-3);">
+          Status: <strong style="color:var(--text-primary);">${TICKET_STATUS_LABELS[ticket.status] || ticket.status}</strong>
+          · Category: ${esc(ticket.category || 'other')}
+          · Opened ${new Date(ticket.created_at).toLocaleString()}
+        </p>
+        <p style="white-space:pre-wrap;">${esc(ticket.description)}</p>
+        ${ticket.admin_response ? `
+          <div class="card" style="margin-top: var(--space-4);">
+            <div class="text-xs text-secondary" style="margin-bottom: var(--space-2);">Support team response</div>
+            <p style="white-space:pre-wrap; margin-bottom:0;">${esc(ticket.admin_response)}</p>
+          </div>` : ''}
+      `,
+      });
+    }
+
+    TAB_LOADERS.support = async function loadSupportTab(content) {
+      content.innerHTML = `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
+          <h3 style="margin-bottom:0;">Your support tickets</h3>
+          <button type="button" class="btn btn-sm btn-primary" id="new-ticket-btn">New ticket</button>
+        </div>
+        <div id="tickets-body"><div class="skeleton" style="height: 16px; width: 70%;"></div></div>
+      </div>
+      <div class="card">
+        <h3>Quick actions</h3>
+        <div style="display:flex; gap: var(--space-3); flex-wrap:wrap;">
+          <button type="button" class="btn btn-sm btn-secondary" id="report-suspicious-btn">Report suspicious activity</button>
+          <button type="button" class="btn btn-sm btn-secondary" id="report-user-btn">Report another user</button>
+        </div>
+      </div>
+    `;
+      loadTickets();
+      document.getElementById('new-ticket-btn').addEventListener('click', () => openTicketModal());
+      document.getElementById('report-suspicious-btn').addEventListener('click', () => openTicketModal('suspicious_activity'));
+      document.getElementById('report-user-btn').addEventListener('click', () => openTicketModal('report_user'));
+    };
+
+    async function loadTickets() {
+      const body = document.getElementById('tickets-body');
+      try {
+        const { tickets } = await API.get('/support/tickets');
+        body.innerHTML = tickets.length ? tickets.map(ticketRowHtml).join('') : '<p class="text-secondary text-sm">No support tickets yet.</p>';
+        body.querySelectorAll('[data-view-ticket]').forEach((row) => {
+          row.addEventListener('click', async () => {
+            try {
+              const { ticket } = await API.get(`/support/tickets/${row.dataset.viewTicket}`);
+              viewTicketModal(ticket);
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    const TICKET_CATEGORY_LABELS = {
+      account: 'Account',
+      payment: 'Payment',
+      technical: 'Technical problem',
+      suspicious_activity: 'Suspicious activity',
+      report_user: 'Report a user',
+      other: 'Other',
+    };
+
+    function openTicketModal(presetCategory) {
+      const isReportUser = presetCategory === 'report_user';
+      Modal.open({
+        title: isReportUser ? 'Report another user' : 'Contact support',
+        bodyHtml: `
+        <div class="field" id="ticket-subject-field">
+          <label for="ticket-subject">Subject</label>
+          <input type="text" id="ticket-subject" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field">
+          <label for="ticket-category">Category</label>
+          <select id="ticket-category" ${presetCategory ? 'disabled' : ''}>
+            ${Object.entries(TICKET_CATEGORY_LABELS).map(([v, l]) => `<option value="${v}" ${v === (presetCategory || 'other') ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
+        </div>
+        ${isReportUser ? `
+        <div class="field" id="reported-user-field">
+          <label for="reported-user">Who are you reporting? (name or email)</label>
+          <input type="text" id="reported-user" />
+          <div class="field-error" hidden></div>
+        </div>` : ''}
+        <div class="field" id="ticket-description-field">
+          <label for="ticket-description">${isReportUser ? 'What happened?' : 'Description'}</label>
+          <textarea id="ticket-description" rows="5"></textarea>
+          <div class="field-hint">Attachments aren't supported yet — describe the issue in as much detail as you can.</div>
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="submit-ticket-btn">Submit</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('submit-ticket-btn').addEventListener('click', async () => {
+            const subject = document.getElementById('ticket-subject').value.trim();
+            let description = document.getElementById('ticket-description').value.trim();
+            const category = document.getElementById('ticket-category').value;
+            if (subject.length < 3) return FormHelpers.showError(document.getElementById('ticket-subject-field'), 'Enter a subject.');
+            if (isReportUser) {
+              const reportedWho = document.getElementById('reported-user').value.trim();
+              if (!reportedWho) return FormHelpers.showError(document.getElementById('reported-user-field'), 'Enter who you\'re reporting.');
+              description = `Reported user: ${reportedWho}\n\n${description}`;
+            }
+            if (description.length < 10) return FormHelpers.showError(document.getElementById('ticket-description-field'), 'Please add a bit more detail (at least 10 characters).');
+
+            const btn = document.getElementById('submit-ticket-btn');
+            FormHelpers.setLoading(btn, true);
+            try {
+              await API.post('/support/tickets', { subject, description, category });
+              Modal.close();
+              Toast.success('Support ticket submitted.');
+              loadTickets();
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(btn, false);
+            }
+          });
+        },
+      });
+    }
+
+    // ============================================================
+    // TAB: Help & Feedback
+    // ============================================================
+    const FAQS = [
+      { q: 'Getting started', a: 'Create a profile, choose whether you’re finding work or hiring, and complete your profile — verified, complete profiles get discovered faster.' },
+      { q: 'Account help', a: 'Update your email, phone, or password from the Account & Security tab. Two-factor authentication adds an extra layer of protection to your login.' },
+      { q: 'Profile help', a: 'Workers: add a professional title, bio, skills, and get verified for a trust badge. Hirers: add your display name and a short description of what you’re looking for.' },
+      { q: 'Jobs & hiring', a: 'Workers browse and apply to open jobs from Find Work. Hirers post jobs from My Jobs and review applicants from the Applicants tab.' },
+      { q: 'Chat help', a: 'Message another user once you have an open conversation. Your messaging permission (Account & Security) controls who can start a new conversation with you.' },
+      { q: 'Calls help', a: 'Audio/video interviews are scheduled from the Interviews page and joined from a link on the interview’s detail view.' },
+      { q: 'Payments help', a: 'Hirers fund a contract’s escrow after hiring; funds release to the worker’s wallet on completion. See the Wallet page for balance and withdrawals.' },
+      { q: 'Privacy & security', a: 'Control who can see your profile and message you from Account & Security. Report suspicious activity or another user from the Support tab.' },
+      { q: 'Location & map help', a: 'JOB RUSH currently covers Delta State — set your state/LGA/area on your profile so nearby hirers and workers can find each other.' },
+    ];
+
+    function faqItemHtml(item, index) {
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);">
+        <button type="button" class="faq-toggle" data-faq="${index}" style="all:unset; cursor:pointer; display:flex; justify-content:space-between; align-items:center; width:100%; font-weight:600;">
+          <span>${item.q}</span>
+          <span aria-hidden="true">+</span>
+        </button>
+        <div class="text-secondary text-sm" id="faq-answer-${index}" hidden style="margin-top: var(--space-3);">${item.a}</div>
+      </div>`;
+    }
+
+    TAB_LOADERS.help = async function loadHelpTab(content) {
+      content.innerHTML = `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <h3>Frequently asked questions</h3>
+        <div style="margin-top: var(--space-4);">${FAQS.map(faqItemHtml).join('')}</div>
+      </div>
+      <div class="card">
+        <h3>Send feedback</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Feature requests, bugs, complaints, or anything else — we read all of it.</p>
+        <div class="field">
+          <label for="feedback-type">Type</label>
+          <select id="feedback-type">
+            <option value="feature_request">Feature request</option>
+            <option value="bug_report">Bug report</option>
+            <option value="complaint">Complaint</option>
+            <option value="general">General feedback</option>
+          </select>
+        </div>
+        <div class="field" id="feedback-message-field">
+          <label for="feedback-message">Message</label>
+          <textarea id="feedback-message" rows="4"></textarea>
+          <div class="field-error" hidden></div>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" id="submit-feedback-btn">Send feedback</button>
+      </div>
+    `;
+
+      content.querySelectorAll('[data-faq]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const answer = document.getElementById(`faq-answer-${btn.dataset.faq}`);
+          answer.hidden = !answer.hidden;
+        });
+      });
+
+      document.getElementById('submit-feedback-btn').addEventListener('click', async () => {
+        const message = document.getElementById('feedback-message').value.trim();
+        if (message.length < 5) return FormHelpers.showError(document.getElementById('feedback-message-field'), 'Tell us a bit more.');
+        const btn = document.getElementById('submit-feedback-btn');
+        FormHelpers.setLoading(btn, true);
+        try {
+          await API.post('/feedback', { type: document.getElementById('feedback-type').value, message });
+          document.getElementById('feedback-message').value = '';
+          Toast.success('Thanks — feedback sent.');
+        } catch (err) {
+          FormHelpers.showError(document.getElementById('feedback-message-field'), err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
+        }
+      });
+    };
+
+    // ============================================================
+    // TAB: Accessibility
+    // ============================================================
+    TAB_LOADERS.accessibility = async function loadAccessibilityTab(content) {
+      const settings = await ensureSettingsLoaded();
+      content.innerHTML = `
+      <div class="card">
+        <h3>Display & motion</h3>
+        ${settingsRowHtml('Text size', 'Scales text across the entire app.', `
+          <select id="text-size-select">
+            <option value="small" ${settings.text_size === 'small' ? 'selected' : ''}>Small</option>
+            <option value="default" ${settings.text_size === 'default' ? 'selected' : ''}>Default</option>
+            <option value="large" ${settings.text_size === 'large' ? 'selected' : ''}>Large</option>
+            <option value="extra_large" ${settings.text_size === 'extra_large' ? 'selected' : ''}>Extra large</option>
+          </select>`)}
+        ${settingsRowHtml('High contrast', 'Increases contrast between text, borders, and backgrounds.', toggleHtml('high-contrast-toggle', settings.high_contrast))}
+        ${settingsRowHtml('Reduced motion', 'Turns off animations and transitions throughout the app.', toggleHtml('reduced-motion-toggle', settings.reduced_motion))}
+      </div>
+      <div class="card" style="margin-top: var(--space-5);">
+        <h3>Built for accessibility</h3>
+        <ul class="text-secondary text-sm" style="margin: 0; padding-left: 20px;">
+          <li>Every interactive control has a visible keyboard focus outline.</li>
+          <li>Forms report errors as text next to the field, not by color alone.</li>
+          <li>Touch targets (buttons, links, form controls) meet a minimum comfortable tap size.</li>
+          <li>All images used for decoration are hidden from screen readers; meaningful images have alt text.</li>
+        </ul>
+      </div>
+    `;
+
+      document.getElementById('text-size-select').addEventListener('change', async (e) => {
+        Accessibility.apply({ textSize: e.target.value, highContrast: currentSettings.high_contrast, reducedMotion: currentSettings.reduced_motion });
+        const settings = await patchSettings({ textSize: e.target.value }, 'Text size updated.');
+        Accessibility.writeCache({ textSize: settings.text_size, highContrast: settings.high_contrast, reducedMotion: settings.reduced_motion });
+      });
+      document.getElementById('high-contrast-toggle').addEventListener('change', async (e) => {
+        Accessibility.apply({ textSize: currentSettings.text_size, highContrast: e.target.checked, reducedMotion: currentSettings.reduced_motion });
+        const settings = await patchSettings({ highContrast: e.target.checked }, 'High contrast updated.');
+        Accessibility.writeCache({ textSize: settings.text_size, highContrast: settings.high_contrast, reducedMotion: settings.reduced_motion });
+      });
+      document.getElementById('reduced-motion-toggle').addEventListener('change', async (e) => {
+        Accessibility.apply({ textSize: currentSettings.text_size, highContrast: currentSettings.high_contrast, reducedMotion: e.target.checked });
+        const settings = await patchSettings({ reducedMotion: e.target.checked }, 'Reduced motion updated.');
+        Accessibility.writeCache({ textSize: settings.text_size, highContrast: settings.high_contrast, reducedMotion: settings.reduced_motion });
+      });
+    };
+
+    // ============================================================
+    // Init
+    // ============================================================
     (async function init() {
       const user = await Auth.requireSession('login.html');
       if (!user) return;
-      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      currentUser = user;
 
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
       SidebarNav.render(user, 'settings');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
-      loadProfile(user);
+      const params = new URLSearchParams(window.location.search);
+      const initialTab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'profile';
+      renderTabsNav(initialTab);
+      loadTab(initialTab);
     })();
   </script>
 </body>

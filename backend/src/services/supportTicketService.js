@@ -3,10 +3,11 @@ const AppError = require('../utils/AppError');
 const notificationService = require('./notificationService');
 const { recordAuditEvent } = require('../security/auditLogger');
 
-async function createTicket(userId, { subject, description, category }) {
+async function createTicket(userId, { subject, description, category, attachmentPath, reportedUserId }) {
   const { rows } = await query(
-    `INSERT INTO support_tickets (user_id, subject, description, category) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [userId, subject, description, category || null]
+    `INSERT INTO support_tickets (user_id, subject, description, category, attachment_path, reported_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+    [userId, subject, description, category || null, attachmentPath || null, reportedUserId || null]
   );
   return rows[0];
 }

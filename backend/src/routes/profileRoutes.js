@@ -1,6 +1,6 @@
 const express = require('express');
 const controller = require('../controllers/profileController');
-const { authenticate } = require('../middleware/authenticate');
+const { authenticate, attachUserIfPresent } = require('../middleware/authenticate');
 const { requireRole } = require('../middleware/authorize');
 const {
   validateBody,
@@ -34,7 +34,7 @@ router.patch(
   controller.updateOwnHirerProfile
 );
 
-router.get('/worker/:userId', controller.getWorkerProfile);
+router.get('/worker/:userId', attachUserIfPresent, controller.getWorkerProfile);
 router.get('/hirer/:userId', controller.getHirerProfile);
 
 module.exports = router;

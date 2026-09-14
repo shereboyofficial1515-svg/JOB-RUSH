@@ -66,6 +66,15 @@ async function applyToJob(workerUserId, jobId, { coverNote, proposedRate }) {
     throw new AppError('This job is no longer accepting applications.', 400, 'JOB_NOT_OPEN');
   }
 
+  const { rows: settingsRows } = await query(
+    `SELECT COALESCE(us.require_cover_note, false) AS require_cover_note
+       FROM user_settings us WHERE us.user_id = $1`,
+    [job.hirer_user_id]
+  );
+  if (settingsRows[0]?.require_cover_note && !coverNote?.trim()) {
+    throw new AppError('This hirer requires a cover note with applications.', 400, 'COVER_NOTE_REQUIRED');
+  }
+
   try {
     const { rows } = await query(
       `INSERT INTO applications (job_id, worker_user_id, source, status, cover_note, proposed_rate)

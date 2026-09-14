@@ -23,6 +23,8 @@ router.get('/conversations', conversationController.listConversations);
 router.post('/conversations', validateBody(startConversationSchema), conversationController.startConversation);
 router.post('/conversations/:id/read', conversationController.markRead);
 router.post('/conversations/:id/clear', conversationController.clearChat);
+router.post('/conversations/:id/archive', conversationController.archiveConversation);
+router.post('/conversations/:id/unarchive', conversationController.unarchiveConversation);
 
 // Messages
 router.get('/conversations/:id/messages', conversationController.listMessages);

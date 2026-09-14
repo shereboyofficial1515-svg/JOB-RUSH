@@ -63,7 +63,7 @@ async function uploadToBucket({ bucket, ownerUserId, buffer, mimeType, limitProf
     publicUrl = data?.publicUrl || null;
   }
 
-  return { storagePath, publicUrl, bucket: bucket.name };
+  return { storagePath, publicUrl, bucket: bucket.name, sizeBytes: buffer.length };
 }
 
 async function uploadPortfolioImage(workerUserId, file) {
@@ -109,7 +109,7 @@ async function uploadVerificationDocument(workerUserId, file) {
     mimeType: file.mimeType,
     limitProfile: file.mimeType.startsWith('image/') ? 'image' : 'document',
   });
-  return { storagePath: result.storagePath };
+  return { storagePath: result.storagePath, sizeBytes: result.sizeBytes };
 }
 
 /**

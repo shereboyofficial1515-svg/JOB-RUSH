@@ -42,6 +42,7 @@ const addPortfolioMediaSchema = z.object({
   mediaType: z.enum(['image', 'video', 'document']),
   storagePath: z.string().trim().min(1).max(500),
   isPrimary: z.boolean().optional(),
+  fileSize: z.number().int().positive().max(200 * 1024 * 1024).optional(),
 });
 
 const submitVerificationSchema = z.object({
@@ -50,6 +51,7 @@ const submitVerificationSchema = z.object({
       z.object({
         documentType: z.string().trim().min(2).max(60),
         storagePath: z.string().trim().min(1).max(500),
+        fileSize: z.number().int().positive().max(200 * 1024 * 1024).optional(),
       })
     )
     .min(1)

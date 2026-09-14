@@ -5,6 +5,8 @@ const { hashPassword, verifyPassword, isPasswordStrongEnough } = require('../uti
 const { generateOpaqueToken, sha256Hex } = require('../utils/tokenUtils');
 const { sendPasswordResetEmail } = require('./emailService');
 const { recordAuditEvent } = require('../security/auditLogger');
+const otpService = require('./otpService');
+const sessionService = require('./sessionService');
 
 const PUBLIC_USER_FIELDS = `
   id, email, phone, full_name, role, account_status,
@@ -136,6 +138,8 @@ async function authenticateWithPassword({ identifier, password, ipAddress }) {
     [user.id, ipAddress]
   );
 
+  const reactivated = await reactivateIfNeeded(user.id, user.deactivated_at, ipAddress);
+
   await recordAuditEvent({
     actorUserId: user.id,
     action: 'LOGIN_SUCCESS',
@@ -145,7 +149,29 @@ async function authenticateWithPassword({ identifier, password, ipAddress }) {
     ipAddress,
   });
 
-  return toPublicUser(user);
+  return { ...toPublicUser(user), reactivated };
+}
+
+/**
+ * A self-deactivated account reactivates on the next successful
+ * login, the same way most consumer apps handle it — no separate
+ * "reactivate" flow to build or for the person to remember. Shared by
+ * every login-completion path (password, 2FA verify, Google) so a
+ * deactivated account doesn't stay silently hidden just because it
+ * came back through a path other than plain password login.
+ */
+async function reactivateIfNeeded(userId, deactivatedAt, ipAddress) {
+  if (!deactivatedAt) return false;
+  await query('UPDATE users SET deactivated_at = NULL WHERE id = $1', [userId]);
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'ACCOUNT_REACTIVATED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+    ipAddress,
+  });
+  return true;
 }
 
 async function getUserById(userId) {
@@ -309,6 +335,180 @@ async function findOrCreateGoogleUser({ googleId, email, fullName }) {
   return toPublicUser(rows[0]);
 }
 
+/**
+ * Change password while logged in (distinct from the forgot/reset
+ * flow, which has no "current password" to check). Every other
+ * session is revoked so a stolen session elsewhere is cut off the
+ * moment the real owner changes their password — but the session that
+ * just made this request stays alive, since logging the person out of
+ * the tab they're using right now would be a worse experience than
+ * the security benefit is worth.
+ */
+async function changePassword(userId, { currentPassword, newPassword }, currentSessionId) {
+  const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+  if (rows.length === 0) throw new AppError('Account not found.', 404, 'NOT_FOUND');
+
+  const matches = await verifyPassword(currentPassword, rows[0].password_hash);
+  if (!matches) {
+    throw new AppError('Current password is incorrect.', 401, 'INVALID_CREDENTIALS');
+  }
+  if (!isPasswordStrongEnough(newPassword)) {
+    throw new AppError(
+      'Password must be at least 8 characters and include a letter and a number.',
+      400,
+      'WEAK_PASSWORD'
+    );
+  }
+
+  const passwordHash = await hashPassword(newPassword);
+  await query(
+    `UPDATE users SET password_hash = $2, password_changed_at = now() WHERE id = $1`,
+    [userId, passwordHash]
+  );
+  await sessionService.revokeAllSessionsForUser(userId, 'password_change', currentSessionId);
+
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'PASSWORD_CHANGED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+}
+
+/**
+ * Step 1 of changing the account's email: send a code to the *new*
+ * address before anything is written, so a typo'd email can never
+ * lock someone out or get silently attached to the wrong account.
+ */
+async function requestEmailChange(userId, newEmail) {
+  const { rows } = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [newEmail, userId]);
+  if (rows.length > 0) {
+    throw new AppError('That email address is already in use.', 409, 'EMAIL_TAKEN');
+  }
+  await otpService.issueOtp({ userId, destination: newEmail, purpose: 'change_email', channel: 'email' });
+}
+
+/** Step 2: verify the code, then actually move the account to the new email. */
+async function confirmEmailChange(userId, newEmail, code) {
+  await otpService.verifyOtp({ destination: newEmail, purpose: 'change_email', code });
+
+  const { rows } = await query('SELECT id FROM users WHERE email = $1 AND id != $2', [newEmail, userId]);
+  if (rows.length > 0) {
+    throw new AppError('That email address is already in use.', 409, 'EMAIL_TAKEN');
+  }
+
+  await query('UPDATE users SET email = $2, email_verified_at = now() WHERE id = $1', [userId, newEmail]);
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'EMAIL_CHANGED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+  return getUserById(userId);
+}
+
+/** Same two-step pattern as email, over SMS. */
+async function requestPhoneChange(userId, newPhone) {
+  const { rows } = await query('SELECT id FROM users WHERE phone = $1 AND id != $2', [newPhone, userId]);
+  if (rows.length > 0) {
+    throw new AppError('That phone number is already in use.', 409, 'PHONE_TAKEN');
+  }
+  await otpService.issueOtp({ userId, destination: newPhone, purpose: 'change_phone', channel: 'sms' });
+}
+
+async function confirmPhoneChange(userId, newPhone, code) {
+  await otpService.verifyOtp({ destination: newPhone, purpose: 'change_phone', code });
+
+  const { rows } = await query('SELECT id FROM users WHERE phone = $1 AND id != $2', [newPhone, userId]);
+  if (rows.length > 0) {
+    throw new AppError('That phone number is already in use.', 409, 'PHONE_TAKEN');
+  }
+
+  await query('UPDATE users SET phone = $2, phone_verified_at = now() WHERE id = $1', [userId, newPhone]);
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'PHONE_CHANGED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+  return getUserById(userId);
+}
+
+/**
+ * Re-checks the password for any destructive/sensitive account action
+ * (deactivate, delete) — a live session cookie alone isn't enough
+ * confirmation for something this consequential.
+ */
+async function assertPasswordConfirmed(userId, password) {
+  const { rows } = await query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+  if (rows.length === 0) throw new AppError('Account not found.', 404, 'NOT_FOUND');
+  const matches = await verifyPassword(password, rows[0].password_hash);
+  if (!matches) {
+    throw new AppError('Incorrect password.', 401, 'INVALID_CREDENTIALS');
+  }
+}
+
+/**
+ * Deactivate: reversible by simply logging back in (see
+ * authenticateWithPassword). Hides the profile from search/public
+ * view the same way a private profile does, without touching the
+ * person's own visibility preference — see profileService.
+ */
+async function deactivateAccount(userId, password) {
+  await assertPasswordConfirmed(userId, password);
+  await query('UPDATE users SET deactivated_at = now() WHERE id = $1', [userId]);
+  await sessionService.revokeAllSessionsForUser(userId, 'deactivated');
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'ACCOUNT_DEACTIVATED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+}
+
+/**
+ * Delete: irreversible from the user's side, but implemented as
+ * redaction rather than a hard row delete. Many tables (messages,
+ * reviews, job reports, ...) reference users(id) without ON DELETE
+ * CASCADE, by design — another person's message thread, review, or
+ * job history shouldn't corrupt or vanish because the other party
+ * deleted their account. Redacting PII and permanently disabling
+ * sign-in achieves the same real-world outcome ("this account is
+ * gone") without breaking referential integrity for everyone else.
+ */
+async function deleteAccount(userId, password) {
+  await assertPasswordConfirmed(userId, password);
+
+  const anonymizedEmail = `deleted-${userId}@deleted.jobrush.ng`;
+  const unusablePasswordHash = await hashPassword(generateOpaqueToken(32));
+
+  await withTransaction(async (client) => {
+    await client.query(
+      `UPDATE users
+          SET email = $2, phone = NULL, full_name = 'Deleted user',
+              password_hash = $3, account_status = 'disabled', deleted_at = now()
+        WHERE id = $1`,
+      [userId, anonymizedEmail, unusablePasswordHash]
+    );
+    await client.query(
+      `UPDATE sessions SET revoked_at = now(), revoked_reason = 'account_deleted' WHERE user_id = $1 AND revoked_at IS NULL`,
+      [userId]
+    );
+  });
+
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'ACCOUNT_DELETED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+}
+
 module.exports = {
   toPublicUser,
   registerUser,
@@ -319,4 +519,12 @@ module.exports = {
   requestPasswordReset,
   resetPasswordWithToken,
   findOrCreateGoogleUser,
+  reactivateIfNeeded,
+  changePassword,
+  requestEmailChange,
+  confirmEmailChange,
+  requestPhoneChange,
+  confirmPhoneChange,
+  deactivateAccount,
+  deleteAccount,
 };

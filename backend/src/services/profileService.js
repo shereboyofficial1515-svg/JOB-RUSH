@@ -70,9 +70,11 @@ async function ensureHirerProfileRow(userId) {
 
 async function getWorkerProfile(userId) {
   const { rows } = await query(
-    `SELECT wp.*, u.full_name, u.email, u.phone
+    `SELECT wp.*, u.full_name, u.email, u.phone, u.account_status, u.deactivated_at,
+            COALESCE(us.profile_visibility, 'public') AS profile_visibility
        FROM worker_profiles wp
        JOIN users u ON u.id = wp.user_id
+       LEFT JOIN user_settings us ON us.user_id = wp.user_id
       WHERE wp.user_id = $1`,
     [userId]
   );
@@ -172,7 +174,12 @@ async function searchWorkers({
   page = 1,
   pageSize = 20,
 }) {
-  const conditions = [`wp.availability_status != 'unavailable'`];
+  const conditions = [
+    `wp.availability_status != 'unavailable'`,
+    `u.account_status = 'active'`,
+    `u.deactivated_at IS NULL`,
+    `COALESCE(us.profile_visibility, 'public') = 'public'`,
+  ];
   const params = [];
 
   if (stateId) {
@@ -212,6 +219,7 @@ async function searchWorkers({
             wp.completed_jobs_count, wp.availability_status, u.full_name
        FROM worker_profiles wp
        JOIN users u ON u.id = wp.user_id
+       LEFT JOIN user_settings us ON us.user_id = wp.user_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY wp.is_pro DESC, wp.rating_avg DESC, wp.profile_completion_percent DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,

@@ -11,6 +11,7 @@ const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 const { recordAuditEvent } = require('../security/auditLogger');
+const { parseUserAgent } = require('../utils/uaParser');
 
 function getClientIp(req) {
   return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
@@ -138,6 +139,10 @@ const login = asyncHandler(async (req, res) => {
 const verifyLoginTwoFactor = asyncHandler(async (req, res) => {
   const { challengeToken, code } = req.body;
   const userId = await twoFactorService.verifyLoginChallenge(challengeToken, code);
+
+  const { rows } = await query('SELECT deactivated_at FROM users WHERE id = $1', [userId]);
+  await authService.reactivateIfNeeded(userId, rows[0]?.deactivated_at, getClientIp(req));
+
   const user = await authService.getUserById(userId);
   return issueSessionAndRespond(req, res, user);
 });
@@ -173,11 +178,29 @@ const logoutAllDevices = asyncHandler(async (req, res) => {
 /**
  * GET /api/auth/sessions
  * Lists the current user's own active sessions for the "device
- * management" settings screen.
+ * management" settings screen, enriched with a parsed device/browser/
+ * OS label and which one is the request being made right now — the
+ * raw rows only have an opaque User-Agent string and no notion of
+ * "current."
  */
 const listSessions = asyncHandler(async (req, res) => {
   const sessions = await sessionService.listActiveSessionsForUser(req.user.id);
-  res.status(200).json({ sessions });
+  const enriched = sessions.map((s) => ({
+    ...s,
+    ...parseUserAgent(s.user_agent),
+    is_current: s.id === req.sessionId,
+  }));
+  res.status(200).json({ sessions: enriched });
+});
+
+/**
+ * POST /api/auth/sessions/:id/revoke
+ * "Log out this device" for one specific session in the list.
+ * Ownership is checked in sessionService, not assumed from the ID.
+ */
+const revokeSession = asyncHandler(async (req, res) => {
+  await sessionService.revokeOwnSession(req.params.id, req.user.id);
+  res.status(200).json({ message: 'Device logged out.' });
 });
 
 /**
@@ -281,6 +304,59 @@ const googleCallback = asyncHandler(async (req, res) => {
   }
 });
 
+/**
+ * POST /api/auth/password/change
+ * Distinct from /password/forgot + /password/reset — this is for a
+ * logged-in user who knows their current password and wants a new
+ * one, not someone locked out.
+ */
+const changePassword = asyncHandler(async (req, res) => {
+  await authService.changePassword(req.user.id, req.body, req.sessionId);
+  res.status(200).json({ message: 'Password updated.' });
+});
+
+/** POST /api/auth/email/change/request */
+const requestEmailChange = asyncHandler(async (req, res) => {
+  await authService.requestEmailChange(req.user.id, req.body.newEmail);
+  res.status(200).json({ message: 'Verification code sent to the new email address.' });
+});
+
+/** POST /api/auth/email/change/confirm */
+const confirmEmailChange = asyncHandler(async (req, res) => {
+  const user = await authService.confirmEmailChange(req.user.id, req.body.newEmail, req.body.code);
+  res.status(200).json({ user });
+});
+
+/** POST /api/auth/phone/change/request */
+const requestPhoneChange = asyncHandler(async (req, res) => {
+  await authService.requestPhoneChange(req.user.id, req.body.newPhone);
+  res.status(200).json({ message: 'Verification code sent to the new phone number.' });
+});
+
+/** POST /api/auth/phone/change/confirm */
+const confirmPhoneChange = asyncHandler(async (req, res) => {
+  const user = await authService.confirmPhoneChange(req.user.id, req.body.newPhone, req.body.code);
+  res.status(200).json({ user });
+});
+
+/**
+ * POST /api/auth/account/deactivate
+ * Revokes every session (including this one) and clears the cookie —
+ * the frontend redirects to a logged-out state right after this call.
+ */
+const deactivateAccount = asyncHandler(async (req, res) => {
+  await authService.deactivateAccount(req.user.id, req.body.password);
+  res.clearCookie(env.SESSION_COOKIE_NAME, { ...sessionService.COOKIE_OPTIONS });
+  res.status(200).json({ message: 'Account deactivated. Log back in anytime to reactivate it.' });
+});
+
+/** POST /api/auth/account/delete */
+const deleteAccount = asyncHandler(async (req, res) => {
+  await authService.deleteAccount(req.user.id, req.body.password);
+  res.clearCookie(env.SESSION_COOKIE_NAME, { ...sessionService.COOKIE_OPTIONS });
+  res.status(200).json({ message: 'Account deleted.' });
+});
+
 module.exports = {
   register,
   requestOtp,
@@ -292,8 +368,16 @@ module.exports = {
   logout,
   logoutAllDevices,
   listSessions,
+  revokeSession,
   listDevices,
   getCurrentUser,
   requestPasswordReset,
   resetPassword,
+  changePassword,
+  requestEmailChange,
+  confirmEmailChange,
+  requestPhoneChange,
+  confirmPhoneChange,
+  deactivateAccount,
+  deleteAccount,
 };

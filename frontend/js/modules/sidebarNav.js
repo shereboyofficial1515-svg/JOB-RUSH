@@ -13,8 +13,8 @@ const SidebarNav = (function () {
     { key: 'messages', label: 'Messages', icon: '\u25A4', href: 'messages.html' },
     { key: 'wallet', label: 'Wallet', icon: '\u20A6', href: 'wallet.html' },
     { key: 'pro', label: 'JOB RUSH PRO', icon: '\u2605', href: 'pro.html' },
-    { key: 'settings', label: 'Profile settings', icon: '\u2699', href: 'profile-settings.html' },
-    { key: 'security', label: 'Security', icon: '\u{1F512}', href: 'security-settings.html' },
+    { key: 'settings', label: 'Settings', icon: '\u2699', href: 'profile-settings.html' },
+    { key: 'security', label: 'Security', icon: '\u{1F512}', href: 'profile-settings.html?tab=account' },
     { key: 'support', label: 'Support', icon: '\u2753', href: 'support.html' },
     { key: 'visit-site', label: 'Visit JOB RUSH site', icon: '\u2197', href: '../index.html' },
   ];
@@ -26,8 +26,8 @@ const SidebarNav = (function () {
     { key: 'interviews', label: 'Interviews', icon: '\u25C9', href: 'interviews.html' },
     { key: 'messages', label: 'Messages', icon: '\u25A4', href: 'messages.html' },
     { key: 'contracts', label: 'Contracts & Payments', icon: '\u20A6', href: 'contracts.html' },
-    { key: 'settings', label: 'Profile settings', icon: '\u2699', href: 'profile-settings.html' },
-    { key: 'security', label: 'Security', icon: '\u{1F512}', href: 'security-settings.html' },
+    { key: 'settings', label: 'Settings', icon: '\u2699', href: 'profile-settings.html' },
+    { key: 'security', label: 'Security', icon: '\u{1F512}', href: 'profile-settings.html?tab=account' },
     { key: 'support', label: 'Support', icon: '\u2753', href: 'support.html' },
     { key: 'visit-site', label: 'Visit JOB RUSH site', icon: '\u2197', href: '../index.html' },
   ];

@@ -65,6 +65,21 @@ button, input, select, textarea {
 
 button { cursor: pointer; }
 
+/* Baseline dark styling for any <select> not already inside a .field
+   wrapper (which styles its own) — without this, a bare select falls
+   back to the browser's light system chrome, which reads as broken
+   against this app's dark theme everywhere else. */
+select {
+  background: var(--color-primary-navy);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+}
+select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 fieldset { border: none; padding: 0; margin: 0; }
 
 /* Visible keyboard focus everywhere — never removed, only restyled */

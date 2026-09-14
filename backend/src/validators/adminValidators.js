@@ -37,11 +37,15 @@ const adminRemoveJobSchema = z.object({ reason: z.string().trim().max(500).optio
 const createTicketSchema = z.object({
   subject: z.string().trim().min(3).max(200),
   description: z.string().trim().min(10).max(3000),
-  category: z.enum(['account', 'payment', 'technical', 'other']).optional(),
+  category: z
+    .enum(['account', 'payment', 'technical', 'other', 'suspicious_activity', 'report_user'])
+    .optional(),
+  attachmentPath: z.string().trim().max(500).optional(),
+  reportedUserId: uuid.optional(),
 });
 const respondTicketSchema = z.object({
   response: z.string().trim().min(3).max(3000),
-  status: z.enum(['in_progress', 'resolved', 'closed']).optional(),
+  status: z.enum(['in_progress', 'awaiting_response', 'resolved', 'closed']).optional(),
 });
 
 const createPlacementSchema = z.object({

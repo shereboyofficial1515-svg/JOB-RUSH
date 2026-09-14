@@ -3,6 +3,62 @@ const AppError = require('../utils/AppError');
 const blockService = require('./blockService');
 
 /**
+ * "Connection" for the purposes of the connections_only messaging
+ * permission: the two people have an existing application (in either
+ * direction — worker applied, or hirer invited) on a job, or an
+ * existing contract together. There's no separate "follow"/"connect"
+ * feature in this app to point at, so this is defined from the real
+ * relationships that already exist rather than inventing a new one.
+ */
+async function haveExistingRelationship(userIdA, userIdB) {
+  const { rows } = await query(
+    `SELECT 1
+       FROM applications a
+       JOIN jobs j ON j.id = a.job_id
+      WHERE (j.hirer_user_id = $1 AND a.worker_user_id = $2)
+         OR (j.hirer_user_id = $2 AND a.worker_user_id = $1)
+      UNION
+     SELECT 1 FROM contracts c
+      WHERE (c.hirer_user_id = $1 AND c.worker_user_id = $2)
+         OR (c.hirer_user_id = $2 AND c.worker_user_id = $1)
+      LIMIT 1`,
+    [userIdA, userIdB]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Checks the *recipient's* messaging_permission before a new
+ * conversation is created. 'everyone' behaves as before; 'no_one'
+ * refuses any new conversation; 'connections_only' requires an
+ * existing application/contract relationship. This only gates
+ * *starting* a conversation — it never affects one that already
+ * exists, the same scoping as the block check right below it.
+ */
+async function assertMessagingAllowed(senderUserId, recipientUserId) {
+  const { rows } = await query(
+    `SELECT COALESCE(us.messaging_permission, 'everyone') AS messaging_permission
+       FROM user_settings us WHERE us.user_id = $1`,
+    [recipientUserId]
+  );
+  const permission = rows[0]?.messaging_permission || 'everyone';
+
+  if (permission === 'no_one') {
+    throw new AppError('This user is not accepting new messages.', 403, 'MESSAGING_NOT_ALLOWED');
+  }
+  if (permission === 'connections_only') {
+    const connected = await haveExistingRelationship(senderUserId, recipientUserId);
+    if (!connected) {
+      throw new AppError(
+        'This user only accepts messages from people they have an existing job or application with.',
+        403,
+        'MESSAGING_NOT_ALLOWED'
+      );
+    }
+  }
+}
+
+/**
  * Loads a conversation and verifies the given user is a participant
  * — this is the authorization source for every conversation/message
  * operation, checked fresh on every call.
@@ -51,6 +107,8 @@ async function getOrCreateConversation(userIdA, userIdB, jobId) {
   );
   if (existing.length > 0) return existing[0];
 
+  await assertMessagingAllowed(userIdA, userIdB);
+
   return withTransaction(async (client) => {
     const { rows } = await client.query(
       `INSERT INTO conversations (job_id) VALUES ($1) RETURNING *`,
@@ -65,9 +123,15 @@ async function getOrCreateConversation(userIdA, userIdB, jobId) {
   });
 }
 
-async function listConversationsForUser(userId) {
+/**
+ * `archived` filters the list: false (default) is the normal inbox
+ * and excludes archived chats, true returns only the archived ones —
+ * mirroring how the Chat Settings "Archived chats" screen and the
+ * main conversation list both read from the same endpoint.
+ */
+async function listConversationsForUser(userId, { archived = false } = {}) {
   const { rows } = await query(
-    `SELECT c.*, cp.last_read_at,
+    `SELECT c.*, cp.last_read_at, cp.archived_at,
             (SELECT m.content FROM messages m WHERE m.conversation_id = c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) AS last_message_preview,
             (SELECT COUNT(*) FROM messages m2
                WHERE m2.conversation_id = c.id AND m2.sender_id != $1 AND m2.deleted_at IS NULL
@@ -75,11 +139,20 @@ async function listConversationsForUser(userId) {
             )::int AS unread_count
        FROM conversations c
        JOIN conversation_participants cp ON cp.conversation_id = c.id
-      WHERE cp.user_id = $1
+      WHERE cp.user_id = $1 AND cp.archived_at IS ${archived ? 'NOT NULL' : 'NULL'}
       ORDER BY c.last_message_at DESC NULLS LAST`,
     [userId]
   );
   return rows;
+}
+
+/** Archives/unarchives a conversation for this participant only. */
+async function setArchived(conversationId, userId, archived) {
+  await assertParticipant(conversationId, userId);
+  await query(
+    `UPDATE conversation_participants SET archived_at = $3 WHERE conversation_id = $1 AND user_id = $2`,
+    [conversationId, userId, archived ? new Date() : null]
+  );
 }
 
 async function markRead(conversationId, userId) {
@@ -106,4 +179,5 @@ module.exports = {
   listConversationsForUser,
   markRead,
   clearChat,
+  setArchived,
 };

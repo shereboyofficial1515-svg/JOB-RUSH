@@ -2,10 +2,22 @@ const profileService = require('../services/profileService');
 const asyncHandler = require('../utils/asyncHandler');
 const { toSnakeCaseProfileInput } = require('../validators/profileValidators');
 
-/** GET /api/profiles/worker/:userId — public profile view */
+/**
+ * GET /api/profiles/worker/:userId — public profile view.
+ * A private profile (or a deactivated/disabled account) reads as
+ * "not found" to anyone but the profile's own owner — never revealed
+ * as "exists but hidden," which would itself leak information.
+ */
 const getWorkerProfile = asyncHandler(async (req, res) => {
   const profile = await profileService.getWorkerProfile(req.params.userId);
-  if (!profile) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
+  const isOwner = req.user?.id === req.params.userId;
+  const isHidden =
+    !profile ||
+    profile.account_status !== 'active' ||
+    profile.deactivated_at ||
+    (profile.profile_visibility === 'private' && !isOwner);
+
+  if (isHidden) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
   res.status(200).json({ profile });
 });
 

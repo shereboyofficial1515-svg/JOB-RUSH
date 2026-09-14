@@ -1,6 +1,7 @@
 const { query } = require('../config/db');
 const env = require('../config/env');
 const { generateOpaqueToken, sha256Hex } = require('../utils/tokenUtils');
+const AppError = require('../utils/AppError');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -66,13 +67,35 @@ async function revokeSession(sessionId, reason = 'logout') {
   );
 }
 
-/** Revokes every active session for a user (logout-all-devices, password change, suspension). */
-async function revokeAllSessionsForUser(userId, reason = 'logout_all') {
+/**
+ * Revokes every active session for a user (logout-all-devices,
+ * password change, deactivation, deletion). `exceptSessionId` is used
+ * by change-password so the tab that just made the request isn't
+ * logged out along with everything else.
+ */
+async function revokeAllSessionsForUser(userId, reason = 'logout_all', exceptSessionId = null) {
   await query(
     `UPDATE sessions SET revoked_at = now(), revoked_reason = $2
-      WHERE user_id = $1 AND revoked_at IS NULL`,
-    [userId, reason]
+      WHERE user_id = $1 AND revoked_at IS NULL AND id != COALESCE($3, '00000000-0000-0000-0000-000000000000'::uuid)`,
+    [userId, reason, exceptSessionId]
   );
+}
+
+/**
+ * Revokes exactly one of the caller's own sessions ("log out this
+ * device" from the sessions list) — ownership is checked in the same
+ * query, never assumed from the ID alone.
+ */
+async function revokeOwnSession(sessionId, userId, reason = 'logout') {
+  const { rows } = await query(
+    `UPDATE sessions SET revoked_at = now(), revoked_reason = $3
+      WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+      RETURNING id`,
+    [sessionId, userId, reason]
+  );
+  if (rows.length === 0) {
+    throw new AppError('Session not found.', 404, 'NOT_FOUND');
+  }
 }
 
 async function listActiveSessionsForUser(userId) {
@@ -92,5 +115,6 @@ module.exports = {
   getActiveSessionByToken,
   revokeSession,
   revokeAllSessionsForUser,
+  revokeOwnSession,
   listActiveSessionsForUser,
 };

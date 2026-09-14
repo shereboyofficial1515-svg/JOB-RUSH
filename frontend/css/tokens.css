@@ -89,3 +89,45 @@
     --duration-modal: 0ms;
   }
 }
+
+/* ============================================================
+   Accessibility settings (Settings → Accessibility)
+   Applied via data-* attributes on <html>, set by
+   js/modules/accessibility.js from the user's saved preferences —
+   real, app-wide effects, not settings-page-only cosmetics.
+   ============================================================ */
+
+/* Text size: every type-scale token above is already rem-based, so
+   scaling the root font-size scales headings, body copy, buttons,
+   labels — everything — proportionally in one place. */
+html[data-text-size="small"] { font-size: 14px; }
+html[data-text-size="default"] { font-size: 16px; }
+html[data-text-size="large"] { font-size: 18px; }
+html[data-text-size="extra_large"] { font-size: 21px; }
+
+/* High contrast: widen the gap between text/borders and the navy
+   background beyond the default palette. */
+html[data-high-contrast="true"] {
+  --text-secondary: #F5F5F5;
+  --border-subtle: rgba(240, 240, 240, 0.35);
+  --border-gold: rgba(240, 176, 0, 0.9);
+  --bg-surface: #001428;
+  --bg-elevated: #14274a;
+}
+html[data-high-contrast="true"] :focus-visible {
+  outline-width: 3px;
+}
+
+/* Reduced motion: stronger than the OS-level media query above —
+   this is an explicit in-app choice, so it wins regardless of what
+   the OS preference is, and also kills raw `animation`/`transition`
+   declarations that don't go through the duration tokens (the
+   floating hero card, skeleton shimmer, modal/toast entrances). */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}

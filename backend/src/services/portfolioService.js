@@ -78,7 +78,7 @@ async function deletePortfolio(portfolioId, workerUserId) {
  * service does not itself touch Supabase Storage; that belongs to the
  * dedicated storage module referenced in the JOB RUSH spec section 5/22.
  */
-async function addPortfolioMedia(portfolioId, workerUserId, { mediaType, storagePath, isPrimary = false }) {
+async function addPortfolioMedia(portfolioId, workerUserId, { mediaType, storagePath, isPrimary = false, fileSize }) {
   await getOwnedPortfolio(portfolioId, workerUserId);
 
   if (!ALLOWED_MEDIA_TYPES.includes(mediaType)) {
@@ -98,10 +98,10 @@ async function addPortfolioMedia(portfolioId, workerUserId, { mediaType, storage
       await client.query('UPDATE portfolio_media SET is_primary = false WHERE portfolio_id = $1', [portfolioId]);
     }
     const { rows } = await client.query(
-      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary, file_size)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [portfolioId, mediaType, storagePath, isPrimary]
+      [portfolioId, mediaType, storagePath, isPrimary, fileSize || null]
     );
     return rows[0];
   });

@@ -31,6 +31,8 @@ const adminLocationRoutes = require('./routes/adminLocationRoutes');
 const { userRouter: jobReportUserRoutes, adminRouter: jobReportAdminRoutes } = require('./routes/jobReportRoutes');
 const { router: supportTicketRoutes, adminRouter: supportTicketAdminRoutes } = require('./routes/supportTicketRoutes');
 const { router: promotionRoutes, adminRouter: promotionAdminRoutes } = require('./routes/promotionRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+const feedbackRoutes = require('./routes/feedbackRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 
@@ -92,6 +94,8 @@ app.use('/api/admin/locations', adminLocationRoutes);
 app.use('/api/admin/jobs', jobReportAdminRoutes);
 app.use('/api/admin/support/tickets', supportTicketAdminRoutes);
 app.use('/api/admin/promotions', promotionAdminRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/feedback', feedbackRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -42,6 +42,33 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(128),
+});
+
+const requestEmailChangeSchema = z.object({
+  newEmail: emailSchema,
+});
+
+const confirmEmailChangeSchema = z.object({
+  newEmail: emailSchema,
+  code: z.string().trim().regex(/^[0-9]{4,8}$/),
+});
+
+const requestPhoneChangeSchema = z.object({
+  newPhone: phoneSchema,
+});
+
+const confirmPhoneChangeSchema = z.object({
+  newPhone: phoneSchema,
+  code: z.string().trim().regex(/^[0-9]{4,8}$/),
+});
+
+const accountPasswordConfirmSchema = z.object({
+  password: z.string().min(1),
+});
+
 /**
  * Express middleware factory: validates req.body against a zod schema,
  * replaces req.body with the parsed/coerced result, or returns 400.
@@ -67,5 +94,11 @@ module.exports = {
   verifyOtpSchema,
   requestPasswordResetSchema,
   resetPasswordSchema,
+  changePasswordSchema,
+  requestEmailChangeSchema,
+  confirmEmailChangeSchema,
+  requestPhoneChangeSchema,
+  confirmPhoneChangeSchema,
+  accountPasswordConfirmSchema,
   validateBody,
 };
