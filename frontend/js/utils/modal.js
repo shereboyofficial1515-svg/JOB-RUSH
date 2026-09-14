@@ -33,7 +33,16 @@ const Modal = (function () {
     backdrop.addEventListener('click', (e) => {
       if (e.target === backdrop) close();
     });
-    backdrop.querySelector('[data-action="close-modal"]').addEventListener('click', close);
+    // Every modal has the header's X button with this same
+    // data-action, but many callers also put a "Cancel" button with
+    // it in their own bodyHtml (see auth.js confirmLogout, and every
+    // page using Modal.open). querySelector (singular) only ever
+    // wired the first match in DOM order — always the X button in
+    // the header, which comes before the body — so every Cancel
+    // button in the app was silently inert. Wire all of them.
+    backdrop.querySelectorAll('[data-action="close-modal"]').forEach((btn) => {
+      btn.addEventListener('click', close);
+    });
 
     document.addEventListener('keydown', escHandler);
 
