@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contracts &amp; Payments — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Contracts &amp; Payments</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div id="contracts-list" aria-live="polite">
+        <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function formatNaira(n) { return `\u20A6${Number(n).toLocaleString()}`; }
+
+    function contractRowHtml(c) {
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);" data-contract-id="${c.id}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
+          <div>
+            <h4 style="margin-bottom: var(--space-1);">Contract for ${formatNaira(c.agreed_amount)}</h4>
+            <div class="text-secondary text-sm">Created ${new Date(c.created_at).toLocaleDateString()}</div>
+          </div>
+          <span class="badge badge-neutral">${c.status}</span>
+        </div>
+        <div class="escrow-section" style="margin-top: var(--space-4);">
+          <div class="skeleton" style="height:20px; width:200px;"></div>
+        </div>
+      </div>
+    `;
+    }
+
+    function escrowSectionHtml(escrowTransactions, contractId) {
+      if (!escrowTransactions || escrowTransactions.length === 0) {
+        return `<button class="btn btn-sm btn-primary" data-action="fund" data-contract-id="${contractId}">Fund escrow</button>`;
+      }
+      const escrow = escrowTransactions[0];
+      if (escrow.status === 'pending_funding') {
+        return `<span class="badge badge-neutral">Awaiting payment confirmation</span>`;
+      }
+      if (escrow.status === 'released') {
+        return `
+        <span class="badge badge-verified">Released \u2014 payment complete</span>
+        <button class="btn btn-sm btn-secondary" data-action="review" data-contract-id="${contractId}" style="margin-left: var(--space-2);">Leave a review</button>
+      `;
+      }
+      if (escrow.status === 'refunded') return `<span class="badge badge-neutral">Refunded</span>`;
+      if (escrow.status === 'disputed') return `<span class="badge badge-neutral">Escrow frozen \u2014 dispute in progress</span>`;
+      if (escrow.status === 'funded') {
+        return `
+        <div class="text-sm text-secondary" style="margin-bottom: var(--space-2);">
+          ${formatNaira(escrow.amount)} secured in escrow. Worker receives ${formatNaira(escrow.worker_payout_amount)} after your platform fee.
+        </div>
+        <button class="btn btn-sm btn-primary" data-action="release" data-escrow-id="${escrow.id}">Release to worker</button>
+        <button class="btn btn-sm btn-ghost" data-action="dispute" data-contract-id="${contractId}" data-escrow-id="${escrow.id}">Open a dispute</button>
+      `;
+      }
+      return '';
+    }
+
+    async function loadContracts() {
+      const list = document.getElementById('contracts-list');
+      try {
+        const { contracts } = await API.get('/contracts');
+        if (contracts.length === 0) {
+          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No contracts yet</h3><p>Contracts appear here once you hire an applicant.</p></div>`;
+          return;
+        }
+        list.innerHTML = contracts.map(contractRowHtml).join('');
+
+        for (const c of contracts) {
+          try {
+            const { escrowTransactions } = await API.get(`/escrow/contract/${c.id}`);
+            const section = document.querySelector(`[data-contract-id="${c.id}"] .escrow-section`);
+            if (section) section.innerHTML = escrowSectionHtml(escrowTransactions, c.id);
+          } catch {
+            // leave the skeleton if this specific lookup fails; the rest of the list still works
+          }
+        }
+        wireActions();
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function wireActions() {
+      document.querySelectorAll('[data-action="fund"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            const result = await API.post('/escrow/fund', {
+              contractId: btn.dataset.contractId,
+              callbackUrl: `${window.location.origin}${window.location.pathname}?funded=1`,
+            });
+            window.location.href = result.authorizationUrl;
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-action="release"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const escrowId = btn.dataset.escrowId;
+          Modal.open({
+            title: 'Release funds to the worker?',
+            bodyHtml: `
+            <p class="text-secondary">Only do this once you're satisfied the work is complete. This can't be undone.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="confirm-release">Release funds</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-release').addEventListener('click', async () => {
+                try {
+                  await API.post(`/escrow/${escrowId}/release`);
+                  Toast.success('Funds released to the worker.');
+                  Modal.close();
+                  loadContracts();
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="review"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const contractId = btn.dataset.contractId;
+          let selectedRating = 5;
+          Modal.open({
+            title: 'Leave a review',
+            bodyHtml: `
+            <form id="review-form" novalidate>
+              <div class="field">
+                <label>Rating</label>
+                <div id="star-picker" style="display:flex; gap: var(--space-2); font-size: var(--text-2xl); cursor:pointer;">
+                  ${[1, 2, 3, 4, 5].map((n) => `<span data-star="${n}" class="text-gold">\u2605</span>`).join('')}
+                </div>
+              </div>
+              <div class="field" id="reviewText-field">
+                <label for="reviewText">Review (optional)</label>
+                <textarea id="reviewText" name="reviewText" rows="4" placeholder="How did the work go?"></textarea>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="review-submit">Submit review</button>
+              </div>
+            </form>
+          `,
+            onMount: () => {
+              const stars = document.querySelectorAll('#star-picker [data-star]');
+              const paintStars = () => stars.forEach((s) => { s.style.opacity = Number(s.dataset.star) <= selectedRating ? '1' : '0.3'; });
+              paintStars();
+              stars.forEach((s) => s.addEventListener('click', () => { selectedRating = Number(s.dataset.star); paintStars(); }));
+
+              document.getElementById('review-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const submitBtn = document.getElementById('review-submit');
+                FormHelpers.setLoading(submitBtn, true);
+                try {
+                  await API.post('/reviews', {
+                    contractId,
+                    rating: selectedRating,
+                    reviewText: document.getElementById('reviewText').value.trim() || undefined,
+                  });
+                  Toast.success('Review submitted.');
+                  Modal.close();
+                } catch (err) {
+                  Toast.error(err.code === 'REVIEW_EXISTS' ? 'You already reviewed this contract.' : err.message);
+                } finally {
+                  FormHelpers.setLoading(submitBtn, false);
+                }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="dispute"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const contractId = btn.dataset.contractId;
+          Modal.open({
+            title: 'Open a dispute',
+            bodyHtml: `
+            <form id="dispute-form" novalidate>
+              <div class="field" id="reason-field">
+                <label for="reason">Reason</label>
+                <input type="text" id="reason" name="reason" placeholder="e.g. Work not delivered as agreed" required />
+                <div class="field-error" hidden></div>
+              </div>
+              <div class="field" id="description-field">
+                <label for="description">Details</label>
+                <textarea id="description" name="description" rows="4" required placeholder="Explain what happened, with as much detail as you can."></textarea>
+                <div class="field-error" hidden></div>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="dispute-submit">Open dispute</button>
+              </div>
+            </form>
+          `,
+            onMount: () => {
+              const form = document.getElementById('dispute-form');
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                FormHelpers.clearErrors(form);
+                const reason = form.reason.value.trim();
+                const description = form.description.value.trim();
+                if (reason.length < 3) return FormHelpers.showError(document.getElementById('reason-field'), 'Enter a reason.');
+                if (description.length < 10) return FormHelpers.showError(document.getElementById('description-field'), 'Add a bit more detail (at least 10 characters).');
+
+                const submitBtn = document.getElementById('dispute-submit');
+                FormHelpers.setLoading(submitBtn, true);
+                try {
+                  await API.post('/disputes', { contractId, reason, description });
+                  Toast.success('Dispute opened. Escrow is frozen until this is resolved.');
+                  Modal.close();
+                  loadContracts();
+                } catch (err) {
+                  Toast.error(err.message);
+                } finally {
+                  FormHelpers.setLoading(submitBtn, false);
+                }
+              });
+            },
+          });
+        });
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role !== 'hirer') { window.location.href = 'dashboard.html'; return; }
+
+      SidebarNav.render(user, 'contracts');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      loadContracts();
+    })();
+  </script>
+</body>
+
+</html>

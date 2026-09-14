@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Platform Settings — JOB RUSH Admin</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="../index.html" class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+      <span>JOB RUSH</span>
+    </a>
+    <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+    <nav class="sidebar-nav" aria-label="Settings sections">
+      <a href="#categories">Categories</a>
+      <a href="#skills">Skills</a>
+      <a href="#locations">Locations</a>
+      <a href="#promotions">Featured placements</a>
+    </nav>
+
+    <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+  </aside>
+
+  <div class="admin-main">
+    <div class="dashboard-topbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Platform Settings</h1>
+    </div>
+
+    <div id="settings-content">
+      <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function sectionShell(id, title, actionHtml, bodyHtml) {
+    return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header">
+          <h3 style="margin-bottom:0;">${title}</h3>
+          ${actionHtml || ''}
+        </div>
+        ${bodyHtml}
+      </section>
+    `;
+  }
+
+  function emptyRow(colspan, message) {
+    return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  async function loadCategoriesSection() {
+    try {
+      const { categories } = await API.get('/admin/categories');
+      const rows = categories.length
+        ? categories.map((c) => `
+            <tr data-category-id="${c.id}">
+              <td>${esc(c.name)}</td>
+              <td>${c.sort_order}</td>
+              <td><span class="badge ${c.is_active ? 'badge-verified' : 'badge-neutral'}">${c.is_active ? 'active' : 'inactive'}</span></td>
+              <td><button class="btn btn-sm btn-secondary" data-toggle-category="${c.id}" data-active="${c.is_active}">${c.is_active ? 'Disable' : 'Enable'}</button></td>
+            </tr>`).join('')
+        : emptyRow(4, 'No categories yet.');
+      return sectionShell('categories', `Categories (${categories.length})`,
+        `<button class="btn btn-sm btn-primary" id="add-category-btn">Add category</button>`,
+        `<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Name</th><th>Order</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      );
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function openAddCategoryModal() {
+    Modal.open({
+      title: 'Add category',
+      bodyHtml: `
+        <div class="field" id="cat-name-field"><label for="cat-name">Name</label><input type="text" id="cat-name" /><div class="field-error" hidden></div></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-add-category">Add</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-add-category').addEventListener('click', async () => {
+          const name = document.getElementById('cat-name').value.trim();
+          if (name.length < 2) return FormHelpers.showError(document.getElementById('cat-name-field'), 'Enter a name.');
+          try {
+            await API.post('/admin/categories', { name });
+            Toast.success('Category added.');
+            Modal.close();
+            refreshSection('categories', loadCategoriesSection);
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  async function loadSkillsSection() {
+    try {
+      const [{ skills }, { categories }] = await Promise.all([API.get('/admin/skills'), API.get('/admin/categories')]);
+      const rows = skills.length
+        ? skills.map((s) => `
+            <tr>
+              <td>${esc(s.name)}</td>
+              <td>${esc(categories.find((c) => c.id === s.category_id)?.name) || '\u2014'}</td>
+              <td><span class="badge ${s.is_active ? 'badge-verified' : 'badge-neutral'}">${s.is_active ? 'active' : 'inactive'}</span></td>
+              <td><button class="btn btn-sm btn-secondary" data-toggle-skill="${s.id}" data-active="${s.is_active}">${s.is_active ? 'Disable' : 'Enable'}</button></td>
+            </tr>`).join('')
+        : emptyRow(4, 'No skills yet.');
+      return sectionShell('skills', `Skills (${skills.length})`,
+        `<button class="btn btn-sm btn-primary" id="add-skill-btn">Add skill</button>`,
+        `<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Name</th><th>Category</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      );
+    } catch (err) {
+      return '';
+    }
+  }
+
+  async function openAddSkillModal() {
+    const { categories } = await API.get('/admin/categories').catch(() => ({ categories: [] }));
+    const options = categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    Modal.open({
+      title: 'Add skill',
+      bodyHtml: `
+        <div class="field" id="skill-name-field"><label for="skill-name">Name</label><input type="text" id="skill-name" /><div class="field-error" hidden></div></div>
+        <div class="field"><label for="skill-category">Category (optional)</label><select id="skill-category"><option value="">None</option>${options}</select></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-add-skill">Add</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-add-skill').addEventListener('click', async () => {
+          const name = document.getElementById('skill-name').value.trim();
+          if (name.length < 2) return FormHelpers.showError(document.getElementById('skill-name-field'), 'Enter a name.');
+          try {
+            await API.post('/admin/skills', { name, categoryId: document.getElementById('skill-category').value || undefined });
+            Toast.success('Skill added.');
+            Modal.close();
+            refreshSection('skills', loadSkillsSection);
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  async function loadLocationsSection() {
+    try {
+      const { states } = await API.get('/admin/locations/states');
+      const rows = states.map((s) => `
+        <tr>
+          <td>${esc(s.name)}</td>
+          <td><span class="badge ${s.is_active ? 'badge-verified' : 'badge-neutral'}">${s.is_active ? 'enabled' : 'disabled'}</span></td>
+          <td><button class="btn btn-sm btn-secondary" data-toggle-state="${s.id}" data-active="${s.is_active}">${s.is_active ? 'Disable' : 'Enable'}</button></td>
+        </tr>`).join('');
+      return sectionShell('locations', 'Nigerian states', '', `
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Enabling a state makes it selectable across registration, profiles, and job search platform-wide \u2014 the entire nationwide expansion mechanism is this toggle.</p>
+        <div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>State</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      `);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  async function loadPromotionsSection() {
+    try {
+      const { placements } = await API.get('/admin/promotions');
+      const rows = placements.length
+        ? placements.filter((p) => !p.ends_at || new Date(p.ends_at) > new Date()).map((p) => `
+            <tr data-placement-id="${p.id}">
+              <td>${esc(p.full_name)}</td>
+              <td><span class="badge badge-pro">${p.placement_type}</span></td>
+              <td>${new Date(p.created_at).toLocaleDateString()}</td>
+              <td><button class="btn btn-sm btn-danger" data-remove-placement="${p.id}">Remove</button></td>
+            </tr>`).join('')
+        : emptyRow(4, 'No active placements.');
+      return sectionShell('promotions', 'Featured placements',
+        `<button class="btn btn-sm btn-primary" id="add-placement-btn">Add placement</button>`,
+        `<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Worker</th><th>Section</th><th>Since</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      );
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function openAddPlacementModal() {
+    Modal.open({
+      title: 'Add featured placement',
+      bodyHtml: `
+        <div class="field" id="worker-id-field">
+          <label for="worker-id">Worker user ID</label>
+          <input type="text" id="worker-id" placeholder="UUID" />
+          <div class="field-hint">Find this from the user management search on the main dashboard.</div>
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field">
+          <label for="placement-type">Section</label>
+          <select id="placement-type">
+            <option value="homepage">Homepage</option>
+            <option value="spotlight">Professional Spotlight</option>
+            <option value="category">Category page</option>
+            <option value="location">Location page</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-add-placement">Add</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-add-placement').addEventListener('click', async () => {
+          const workerUserId = document.getElementById('worker-id').value.trim();
+          if (!workerUserId) return FormHelpers.showError(document.getElementById('worker-id-field'), 'Enter a worker user ID.');
+          try {
+            await API.post('/admin/promotions', {
+              workerUserId,
+              placementType: document.getElementById('placement-type').value,
+            });
+            Toast.success('Placement added.');
+            Modal.close();
+            refreshSection('promotions', loadPromotionsSection);
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  async function refreshSection(id, loader) {
+    const html = await loader();
+    const existing = document.getElementById(id);
+    if (existing && html) {
+      existing.outerHTML = html;
+      wireAll();
+    }
+  }
+
+  function wireAll() {
+    document.querySelectorAll('[data-toggle-category]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.patch(`/admin/categories/${btn.dataset.toggleCategory}`, { isActive: btn.dataset.active !== 'true' });
+          Toast.success('Updated.');
+          refreshSection('categories', loadCategoriesSection);
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+
+    document.querySelectorAll('[data-toggle-skill]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.patch(`/admin/skills/${btn.dataset.toggleSkill}`, { isActive: btn.dataset.active !== 'true' });
+          Toast.success('Updated.');
+          refreshSection('skills', loadSkillsSection);
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+
+    document.querySelectorAll('[data-toggle-state]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.patch(`/admin/locations/states/${btn.dataset.toggleState}`, { isActive: btn.dataset.active !== 'true' });
+          Toast.success('Updated.');
+          refreshSection('locations', loadLocationsSection);
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+
+    document.querySelectorAll('[data-remove-placement]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.delete(`/admin/promotions/${btn.dataset.removePlacement}`);
+          Toast.success('Placement removed.');
+          btn.closest('tr').remove();
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+
+    const addCategoryBtn = document.getElementById('add-category-btn');
+    if (addCategoryBtn) addCategoryBtn.addEventListener('click', openAddCategoryModal);
+    const addSkillBtn = document.getElementById('add-skill-btn');
+    if (addSkillBtn) addSkillBtn.addEventListener('click', openAddSkillModal);
+    const addPlacementBtn = document.getElementById('add-placement-btn');
+    if (addPlacementBtn) addPlacementBtn.addEventListener('click', openAddPlacementModal);
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('admin-login.html');
+    if (!user) return;
+
+    const sections = await Promise.all([
+      loadCategoriesSection(),
+      loadSkillsSection(),
+      loadLocationsSection(),
+      loadPromotionsSection(),
+    ]);
+
+    const rendered = sections.filter(Boolean);
+    const content = document.getElementById('settings-content');
+
+    if (rendered.length === 0) {
+      content.innerHTML = `
+        <div class="admin-no-access">
+          <h3>No access</h3>
+          <p>Platform settings require the content_admin role.</p>
+        </div>`;
+      return;
+    }
+
+    content.innerHTML = rendered.join('');
+    wireAll();
+  })();
+</script>
+</body>
+</html>

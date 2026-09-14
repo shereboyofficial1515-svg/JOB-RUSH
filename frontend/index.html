@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JOB RUSH — Find the right professional, fast</title>
+  <meta name="description"
+    content="JOB RUSH connects hirers with verified professionals across Delta State. Post a job, interview, hire, and pay securely — all in one place." />
+  <link rel="icon" type="image/png" href="assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/home.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main">
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <h1>Find the right professional, before the job can't wait.</h1>
+          <p class="lede">JOB RUSH connects Delta State hirers with verified artisans, freelancers, and professionals —
+            search, message, interview, and pay securely in one place.</p>
+
+          <form class="hero-search" id="hero-search-form">
+            <input type="text" name="keyword" placeholder="What do you need done? e.g. plumber, graphic designer"
+              aria-label="Search for a service or skill" />
+            <button type="submit" class="btn btn-primary">Search</button>
+          </form>
+
+          <div class="hero-trust">
+            <span><strong>2,400+</strong> verified professionals</span>
+            <span><strong>10%</strong> platform fee, paid on delivery</span>
+          </div>
+        </div>
+
+        <div class="hero-visual" aria-hidden="true">
+          <div class="floating-card card card-notched">
+            <div class="floating-card-top">
+              <img src="assets/images/profile-placeholder.svg" alt="" width="52" height="52"
+                style="border-radius: 50%;" />
+              <div>
+                <strong>Chidinma A.</strong>
+                <div class="text-sm text-secondary">Electrical Installation</div>
+              </div>
+            </div>
+            <div class="floating-card-badges">
+              <span class="badge badge-verified">Verified</span>
+              <span class="badge badge-pro">PRO</span>
+            </div>
+            <div class="floating-card-rating">★★★★★ <span class="text-secondary text-sm">4.9 (128 jobs)</span></div>
+            <div class="floating-card-status"><span class="status-dot"></span> Available now</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIES -->
+    <section class="container section">
+      <h2>Popular categories</h2>
+      <div class="category-strip">
+        <a class="category-chip" href="pages/jobs.html?category=artisans">Artisans &amp; Trades</a>
+        <a class="category-chip" href="pages/jobs.html?category=tech">Tech &amp; Digital</a>
+        <a class="category-chip" href="pages/jobs.html?category=home-services">Home Services</a>
+        <a class="category-chip" href="pages/jobs.html?category=events">Events &amp; Media</a>
+        <a class="category-chip" href="pages/jobs.html?category=beauty">Beauty &amp; Wellness</a>
+        <a class="category-chip" href="pages/jobs.html?category=logistics">Logistics &amp; Delivery</a>
+        <a class="category-chip" href="pages/jobs.html?category=admin">Admin &amp; Support</a>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="container section" id="how-it-works">
+      <h2>From "I need this done" to paid, in five steps</h2>
+      <ol class="how-it-works">
+        <li>
+          <span class="step-index">1</span>
+          <h3>Search or post</h3>
+          <p class="text-secondary">Hirers search for a professional, or post a job for people to apply to.</p>
+        </li>
+        <li>
+          <span class="step-index">2</span>
+          <h3>Message &amp; interview</h3>
+          <p class="text-secondary">Chat directly, then schedule a video, audio, or in-person interview.</p>
+        </li>
+        <li>
+          <span class="step-index">3</span>
+          <h3>Hire &amp; fund</h3>
+          <p class="text-secondary">Create a contract and fund it through Paystack — held securely in escrow.</p>
+        </li>
+        <li>
+          <span class="step-index">4</span>
+          <h3>Work gets done</h3>
+          <p class="text-secondary">The professional completes the job. Either side can raise a dispute if needed.</p>
+        </li>
+        <li>
+          <span class="step-index">5</span>
+          <h3>Release &amp; review</h3>
+          <p class="text-secondary">Approve the work, funds release automatically, and you leave a review.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- PRO CALLOUT -->
+    <section class="container section">
+      <div class="pro-band card-notched">
+        <div>
+          <span class="badge badge-pro">JOB RUSH PRO</span>
+          <h2>Get discovered faster. Showcase your work.</h2>
+          <p class="text-secondary">Priority placement in search, advanced analytics, and a featured portfolio — for
+            ₦4,000/month.</p>
+        </div>
+        <a href="pages/pro.html" class="btn btn-primary">See PRO benefits</a>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="js/config/assets.js"></script>
+  <script src="js/config/api.js"></script>
+  <script src="js/utils/sanitize.js"></script>
+  <script src="js/utils/toast.js"></script>
+  <script src="js/modules/notificationBell.js"></script>
+  <script src="js/utils/modal.js"></script>
+  <script src="js/modules/chrome.js"></script>
+  <script src="js/modules/auth.js"></script>
+  <script>
+    (async function init() {
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'home', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      document.getElementById('hero-search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const keyword = e.target.keyword.value.trim();
+        window.location.href = `pages/jobs.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
+      });
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Portfolio — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <div>
+          <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-1);">My Portfolio</h1>
+          <p class="text-secondary text-sm">Showcase your best work to hirers browsing your profile.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap: var(--space-3);">
+          <div id="notif-bell-mount"></div>
+          <button class="btn btn-primary" id="add-project-btn">Add project</button>
+        </div>
+      </div>
+
+      <div id="portfolio-grid" class="portfolio-grid" aria-live="polite">
+        <div class="skeleton" style="height:220px;"></div>
+        <div class="skeleton" style="height:220px;"></div>
+        <div class="skeleton" style="height:220px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/upload.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function projectCardHtml(p) {
+      const primaryMedia = (p.media || []).find((m) => m.is_primary) || (p.media || [])[0];
+      const mediaCount = (p.media || []).length;
+      return `
+      <div class="card portfolio-card" data-project-id="${p.id}">
+        <img src="${ASSETS.portfolioPlaceholder}" alt="" class="portfolio-thumb" />
+        <div class="portfolio-card-body">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <h4 style="margin-bottom: var(--space-1);">${esc(p.title)}</h4>
+            ${p.is_featured ? '<span class="badge badge-pro">Featured</span>' : ''}
+          </div>
+          <p class="text-secondary text-sm portfolio-desc">${esc((p.description || 'No description yet.').slice(0, 100))}</p>
+          <div class="text-xs text-secondary" style="margin-bottom: var(--space-2);">${mediaCount} media item${mediaCount === 1 ? '' : 's'}</div>
+          <div class="portfolio-actions">
+            <button class="btn btn-sm btn-secondary" data-action="add-media">Add photo/video</button>
+            <button class="btn btn-sm btn-secondary" data-action="edit">Edit</button>
+            <button class="btn btn-sm btn-danger" data-action="delete">Delete</button>
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
+    function projectFormHtml(project) {
+      return `
+      <form id="project-form" novalidate>
+        <div class="field" id="title-field">
+          <label for="title">Project title</label>
+          <input type="text" id="title" name="title" value="${esc(project?.title || '')}" required />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="description-field">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4">${esc(project?.description || '')}</textarea>
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="projectType-field">
+          <label for="projectType">Project type</label>
+          <input type="text" id="projectType" name="projectType" value="${esc(project?.project_type || '')}" placeholder="e.g. Residential wiring" />
+        </div>
+        <div class="field" id="externalLink-field">
+          <label for="externalLink">External link (optional)</label>
+          <input type="url" id="externalLink" name="externalLink" value="${esc(project?.external_link || '')}" placeholder="https://" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="project-submit">${project ? 'Save changes' : 'Add project'}</button>
+        </div>
+      </form>
+    `;
+    }
+
+    function openProjectModal(project, onSaved) {
+      Modal.open({
+        title: project ? 'Edit project' : 'Add a portfolio project',
+        bodyHtml: projectFormHtml(project),
+        onMount: () => {
+          const form = document.getElementById('project-form');
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+            const title = form.title.value.trim();
+            if (title.length < 2) return FormHelpers.showError(document.getElementById('title-field'), 'Enter a project title.');
+
+            const payload = {
+              title,
+              description: form.description.value.trim() || undefined,
+              projectType: form.projectType.value.trim() || undefined,
+              externalLink: form.externalLink.value.trim() || undefined,
+            };
+
+            const submitBtn = document.getElementById('project-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              if (project) {
+                await API.patch(`/portfolio/${project.id}`, payload);
+                Toast.success('Project updated.');
+              } else {
+                await API.post('/portfolio', payload);
+                Toast.success('Project added.');
+              }
+              Modal.close();
+              onSaved();
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    async function loadPortfolio() {
+      const grid = document.getElementById('portfolio-grid');
+      try {
+        const { portfolios } = await API.get('/portfolio/me');
+        if (portfolios.length === 0) {
+          grid.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <img src="${ASSETS.emptyState}" alt="" />
+            <h3>No projects yet</h3>
+            <p>Add your first project so hirers can see your work.</p>
+          </div>`;
+          return;
+        }
+        grid.innerHTML = portfolios.map(projectCardHtml).join('');
+        wireCardActions(portfolios);
+      } catch (err) {
+        grid.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function wireCardActions(portfolios) {
+      document.querySelectorAll('.portfolio-card').forEach((card) => {
+        const id = card.dataset.projectId;
+        const project = portfolios.find((p) => p.id === id);
+
+        card.querySelector('[data-action="edit"]').addEventListener('click', () => {
+          openProjectModal(project, loadPortfolio);
+        });
+
+        card.querySelector('[data-action="add-media"]').addEventListener('click', async () => {
+          const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4' });
+          if (!file) return;
+          Toast.show('Uploading...', { duration: 1500 });
+          try {
+            const uploaded = await Upload.uploadPortfolioMedia(file);
+            const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
+            await API.post(`/portfolio/${id}/media`, {
+              mediaType,
+              storagePath: uploaded.storagePath,
+              isPrimary: (project.media || []).length === 0,
+            });
+            Toast.success('Media added.');
+            loadPortfolio();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+
+        card.querySelector('[data-action="delete"]').addEventListener('click', () => {
+          Modal.open({
+            title: 'Delete this project?',
+            bodyHtml: `
+            <p class="text-secondary">This removes "${esc(project.title)}" and its media from your portfolio. This can't be undone.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-delete">Delete project</button>
+            </div>
+          `,
+            onMount: () => {
+              document.getElementById('confirm-delete').addEventListener('click', async () => {
+                try {
+                  await API.delete(`/portfolio/${id}`);
+                  Toast.success('Project deleted.');
+                  Modal.close();
+                  loadPortfolio();
+                } catch (err) {
+                  Toast.error(err.message);
+                }
+              });
+            },
+          });
+        });
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role === 'hirer') {
+        window.location.href = 'dashboard.html';
+        return;
+      }
+
+      SidebarNav.render(user, 'portfolio');
+
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.getElementById('add-project-btn').addEventListener('click', () => {
+        openProjectModal(null, loadPortfolio);
+      });
+
+      loadPortfolio();
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Dashboard — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+
+<body>
+  <div class="admin-shell">
+    <aside class="admin-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+      <nav class="sidebar-nav" aria-label="Admin sections">
+        <a href="#analytics">Analytics</a>
+        <a href="#users">User management</a>
+        <a href="#verification">Verification queue</a>
+        <a href="#withdrawals">Withdrawals</a>
+        <a href="#disputes">Disputes</a>
+        <a href="#subscriptions">PRO subscriptions</a>
+        <a href="#reviews">Reported reviews</a>
+        <a href="#jobs">Reported jobs</a>
+        <a href="#tickets">Support tickets</a>
+      </nav>
+
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+      <a href="admin-settings.html" class="btn btn-secondary btn-block" style="margin-top: var(--space-2);">Categories
+        &amp; Locations</a>
+    </aside>
+
+    <div class="admin-main">
+      <div class="dashboard-topbar">
+        <div>
+          <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-1);">Admin Dashboard</h1>
+          <p class="text-secondary text-sm" id="admin-identity"></p>
+        </div>
+      </div>
+
+      <div id="admin-content">
+        <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+        <div class="skeleton" style="height: 200px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script>
+    function sectionShell(id, title, bodyHtml) {
+      return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header"><h3 style="margin-bottom:0;">${title}</h3></div>
+        ${bodyHtml}
+      </section>
+    `;
+    }
+
+    function emptyRow(colspan, message) {
+      return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+    }
+
+    async function loadAnalyticsSection() {
+      try {
+        const { summary } = await API.get('/admin/analytics/summary');
+        const stat = (label, value) => `<div class="card stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
+        const body = `
+        <div class="stat-grid" style="margin-bottom:0;">
+          ${stat('Total users', summary.totalUsers)}
+          ${stat('Active users', summary.activeUsers)}
+          ${stat('Workers', summary.workers)}
+          ${stat('Hirers', summary.hirers)}
+          ${stat('Verified pros', summary.verifiedProfessionals)}
+          ${stat('PRO subscribers', summary.proProfessionals)}
+          ${stat('Subscription revenue', `\u20A6${Number(summary.subscriptionRevenue).toLocaleString()}`)}
+          ${stat('Open jobs', summary.openJobPostings)}
+          ${stat('Total applications', summary.totalApplications)}
+          ${stat('Completed contracts', summary.completedContracts)}
+          ${stat('Platform fees earned', `\u20A6${Number(summary.platformFeesCollected).toLocaleString()}`)}
+          ${stat('Pending withdrawals', summary.pendingWithdrawals)}
+          ${stat('Open disputes', summary.openDisputes)}
+          ${stat('New users (30d)', summary.newUsersLast30Days)}
+        </div>
+      `;
+        return sectionShell('analytics', 'Platform overview', body);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadUserManagementSection() {
+      // Probe access with an empty search rather than a dedicated
+      // permission-check endpoint — a 403 here means this admin simply
+      // doesn't hold support_admin, so the section stays hidden.
+      try {
+        await API.get('/admin/users?pageSize=1');
+      } catch (err) {
+        return '';
+      }
+      return sectionShell('users', 'User management', `
+      <form id="user-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
+        <input type="text" name="keyword" placeholder="Search name, email, or phone" style="flex:1; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+        <select name="accountStatus" style="background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
+          <option value="">Any status</option>
+          <option value="active">Active</option>
+          <option value="suspended">Suspended</option>
+          <option value="disabled">Disabled</option>
+          <option value="pending_verification">Pending verification</option>
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+      </form>
+      <div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Status</th><th></th></tr></thead>
+        <tbody id="user-results-body">${emptyRow(5, 'Search for a user above.')}</tbody>
+      </table></div>
+    `);
+    }
+
+    function userRowHtml(u) {
+      const actions = [];
+      if (u.account_status !== 'suspended') actions.push(`<button class="btn btn-sm btn-secondary" data-suspend-user="${u.id}">Suspend</button>`);
+      if (u.account_status !== 'disabled') actions.push(`<button class="btn btn-sm btn-danger" data-disable-user="${u.id}">Disable</button>`);
+      if (['suspended', 'disabled'].includes(u.account_status)) actions.push(`<button class="btn btn-sm btn-primary" data-reactivate-user="${u.id}">Reactivate</button>`);
+      return `
+      <tr data-user-row="${u.id}">
+        <td>${esc(u.full_name)}</td>
+        <td>${esc(u.email || u.phone) || '\u2014'}</td>
+        <td>${u.role}</td>
+        <td><span class="badge badge-neutral">${u.account_status}</span></td>
+        <td style="display:flex; gap: var(--space-2);">${actions.join('')}</td>
+      </tr>
+    `;
+    }
+
+    async function runUserSearch(params) {
+      const tbody = document.getElementById('user-results-body');
+      tbody.innerHTML = emptyRow(5, 'Searching\u2026');
+      try {
+        const { users } = await API.get(`/admin/users?${params.toString()}`);
+        tbody.innerHTML = users.length ? users.map(userRowHtml).join('') : emptyRow(5, 'No users match.');
+        wireUserActions();
+      } catch (err) {
+        tbody.innerHTML = emptyRow(5, err.message);
+      }
+    }
+
+    function wireUserActions() {
+      document.querySelectorAll('[data-suspend-user]').forEach((btn) => {
+        btn.addEventListener('click', () => confirmUserAction(btn.dataset.suspendUser, 'suspend', 'Suspend this user?', 'They will be logged out everywhere immediately.'));
+      });
+      document.querySelectorAll('[data-disable-user]').forEach((btn) => {
+        btn.addEventListener('click', () => confirmUserAction(btn.dataset.disableUser, 'disable', 'Disable this account?', 'This is intended for confirmed serious violations.'));
+      });
+      document.querySelectorAll('[data-reactivate-user]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/users/${btn.dataset.reactivateUser}/reactivate`);
+            Toast.success('User reactivated.');
+            document.getElementById('user-search-form').requestSubmit();
+          } catch (err) { Toast.error(err.message); }
+        });
+      });
+    }
+
+    function confirmUserAction(userId, action, title, description) {
+      Modal.open({
+        title,
+        bodyHtml: `
+        <p class="text-secondary">${description}</p>
+        <div class="field"><label for="action-reason">Reason (optional)</label><input type="text" id="action-reason" /></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-user-action">Confirm</button>
+        </div>
+      `,
+        onMount: () => {
+          document.getElementById('confirm-user-action').addEventListener('click', async () => {
+            try {
+              const reason = document.getElementById('action-reason').value.trim() || undefined;
+              await API.post(`/admin/users/${userId}/${action}`, { reason });
+              Toast.success('Done.');
+              Modal.close();
+              document.getElementById('user-search-form').requestSubmit();
+            } catch (err) { Toast.error(err.message); }
+          });
+        },
+      });
+    }
+
+    async function loadJobModerationSection() {
+      try {
+        const { jobs } = await API.get('/admin/jobs/reported');
+        const rows = jobs.length
+          ? jobs.map((j) => `
+            <tr>
+              <td>${esc(j.title)}</td>
+              <td>${j.report_count}</td>
+              <td><span class="badge badge-neutral">${j.status}</span></td>
+              <td>${new Date(j.last_reported_at).toLocaleDateString()}</td>
+              <td>${j.status !== 'cancelled' ? `<button class="btn btn-sm btn-danger" data-remove-job="${j.job_id}">Remove job</button>` : '\u2014'}</td>
+            </tr>`).join('')
+          : emptyRow(5, 'No reported jobs.');
+        return sectionShell('jobs', `Reported jobs (${jobs.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Title</th><th>Reports</th><th>Status</th><th>Last reported</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadSupportTicketsSection() {
+      try {
+        const { tickets } = await API.get('/admin/support/tickets?status=open');
+        const rows = tickets.length
+          ? tickets.map((t) => `
+            <tr data-ticket-id="${t.id}">
+              <td>${esc(t.subject)}</td>
+              <td>${esc(t.full_name)}</td>
+              <td><span class="badge badge-neutral">${t.category || 'other'}</span></td>
+              <td>${new Date(t.created_at).toLocaleDateString()}</td>
+              <td><button class="btn btn-sm btn-secondary" data-respond-ticket="${t.id}">Respond</button></td>
+            </tr>`).join('')
+          : emptyRow(5, 'No open tickets.');
+        return sectionShell('tickets', `Open support tickets (${tickets.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Subject</th><th>From</th><th>Category</th><th>Opened</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    function wireTicketActions() {
+      document.querySelectorAll('[data-respond-ticket]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const ticketId = btn.dataset.respondTicket;
+          const { ticket } = await API.get(`/admin/support/tickets/${ticketId}`);
+          Modal.open({
+            title: esc(ticket.subject),
+            bodyHtml: `
+            <p class="text-secondary text-sm" style="max-width:none;">${esc(ticket.description)}</p>
+            <div class="field">
+              <label for="ticket-response">Your response</label>
+              <textarea id="ticket-response" rows="4"></textarea>
+            </div>
+            <div class="field">
+              <label for="ticket-status">Status</label>
+              <select id="ticket-status">
+                <option value="resolved">Resolved</option>
+                <option value="in_progress">In progress</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="send-ticket-response">Send response</button>
+            </div>
+          `,
+            onMount: () => {
+              document.getElementById('send-ticket-response').addEventListener('click', async () => {
+                const response = document.getElementById('ticket-response').value.trim();
+                if (!response) { Toast.error('Write a response first.'); return; }
+                try {
+                  await API.post(`/admin/support/tickets/${ticketId}/respond`, {
+                    response,
+                    status: document.getElementById('ticket-status').value,
+                  });
+                  Toast.success('Response sent.');
+                  Modal.close();
+                  document.querySelector(`[data-ticket-id="${ticketId}"]`)?.remove();
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+    }
+
+    async function loadVerificationSection() {
+      try {
+        const { requests } = await API.get('/admin/verification/pending');
+        const rows = requests.length
+          ? requests.map((r) => `
+            <tr>
+              <td>${esc(r.full_name)}</td>
+              <td>${esc(r.email) || '—'}</td>
+              <td>${new Date(r.submitted_at).toLocaleDateString()}</td>
+              <td><span class="badge badge-neutral">${r.status}</span></td>
+              <td><button class="btn btn-sm btn-secondary" data-approve="${r.id}">Review</button></td>
+            </tr>`).join('')
+          : emptyRow(5, 'No pending verification requests.');
+        return sectionShell('verification', `Verification queue (${requests.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadWithdrawalsSection() {
+      try {
+        const { withdrawals } = await API.get('/admin/finance/withdrawals/pending');
+        const rows = withdrawals.length
+          ? withdrawals.map((w) => `
+            <tr>
+              <td>${esc(w.full_name)}</td>
+              <td>₦${Number(w.amount).toLocaleString()}</td>
+              <td>${esc(w.bank_account_name)} (••••${w.bank_account_number_last4})</td>
+              <td>${new Date(w.requested_at).toLocaleDateString()}</td>
+              <td>
+                <button class="btn btn-sm btn-secondary" data-approve-withdrawal="${w.id}">Approve</button>
+                <button class="btn btn-sm btn-danger" data-reject-withdrawal="${w.id}">Reject</button>
+              </td>
+            </tr>`).join('')
+          : emptyRow(5, 'No pending withdrawal requests.');
+        return sectionShell('withdrawals', `Pending withdrawals (${withdrawals.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Worker</th><th>Amount</th><th>Bank details</th><th>Requested</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadDisputesSection() {
+      try {
+        const { disputes } = await API.get('/admin/disputes?status=open');
+        const rows = disputes.length
+          ? disputes.map((d) => `
+            <tr>
+              <td>${esc(d.reason)}</td>
+              <td><span class="badge badge-neutral">${d.status}</span></td>
+              <td>${new Date(d.created_at).toLocaleDateString()}</td>
+              <td><button class="btn btn-sm btn-secondary" data-view-dispute="${d.id}">Review</button></td>
+            </tr>`).join('')
+          : emptyRow(4, 'No open disputes.');
+        return sectionShell('disputes', `Open disputes (${disputes.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Reason</th><th>Status</th><th>Opened</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadSubscriptionsSection() {
+      try {
+        const [{ subscriptions }, { summary }] = await Promise.all([
+          API.get('/admin/subscriptions?status=active'),
+          API.get('/admin/subscriptions/revenue'),
+        ]);
+        const rows = subscriptions.length
+          ? subscriptions.slice(0, 10).map((s) => `
+            <tr>
+              <td>${esc(s.full_name)}</td>
+              <td>${new Date(s.expiry_date).toLocaleDateString()}</td>
+              <td>${s.auto_renew ? 'Yes' : 'No'}</td>
+            </tr>`).join('')
+          : emptyRow(3, 'No active PRO subscriptions.');
+        return sectionShell('subscriptions', `PRO subscriptions — ₦${Number(summary.total_revenue).toLocaleString()} total revenue`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Worker</th><th>Renews / expires</th><th>Auto-renew</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadReviewsSection() {
+      try {
+        const { reviews } = await API.get('/admin/reviews/reported');
+        const rows = reviews.length
+          ? reviews.map((r) => `
+            <tr>
+              <td>${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
+              <td>${esc((r.review_text || '').slice(0, 80))}</td>
+              <td><button class="btn btn-sm btn-danger" data-hide-review="${r.id}">Hide</button></td>
+            </tr>`).join('')
+          : emptyRow(3, 'No reported reviews.');
+        return sectionShell('reviews', `Reported reviews (${reviews.length})`, `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Rating</th><th>Review</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function wireActions(container) {
+      container.querySelectorAll('[data-approve-withdrawal]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/finance/withdrawals/${btn.dataset.approveWithdrawal}/approve`);
+            Toast.success('Withdrawal approved and transfer initiated.');
+            btn.closest('tr').remove();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-reject-withdrawal]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/finance/withdrawals/${btn.dataset.rejectWithdrawal}/reject`, {});
+            Toast.success("Withdrawal rejected — funds returned to the worker's wallet.");
+            btn.closest('tr').remove();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-hide-review]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/reviews/${btn.dataset.hideReview}/hide`, {});
+            Toast.success('Review hidden.');
+            btn.closest('tr').remove();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      });
+
+      container.querySelectorAll('[data-remove-job]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const jobId = btn.dataset.removeJob;
+          Modal.open({
+            title: 'Remove this job?',
+            bodyHtml: `
+            <p class="text-secondary">This cancels the listing regardless of who posted it.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-remove-job">Remove job</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-remove-job').addEventListener('click', async () => {
+                try {
+                  await API.post(`/admin/jobs/${jobId}/remove`, {});
+                  Toast.success('Job removed.');
+                  Modal.close();
+                  btn.closest('tr').querySelector('td:nth-child(3)').innerHTML = '<span class="badge badge-neutral">cancelled</span>';
+                  btn.remove();
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+
+      wireTicketActions();
+
+      const userSearchForm = document.getElementById('user-search-form');
+      if (userSearchForm) {
+        userSearchForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          runUserSearch(new URLSearchParams(new FormData(userSearchForm)));
+        });
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('admin-login.html');
+      if (!user) return;
+
+      document.getElementById('admin-identity').textContent = `Signed in as ${user.fullName}`;
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('admin-login.html'));
+
+      const sections = await Promise.all([
+        loadAnalyticsSection(),
+        loadUserManagementSection(),
+        loadVerificationSection(),
+        loadWithdrawalsSection(),
+        loadDisputesSection(),
+        loadSubscriptionsSection(),
+        loadReviewsSection(),
+        loadJobModerationSection(),
+        loadSupportTicketsSection(),
+      ]);
+
+      const rendered = sections.filter(Boolean);
+      const content = document.getElementById('admin-content');
+
+      if (rendered.length === 0) {
+        content.innerHTML = `
+        <div class="admin-no-access">
+          <h3>No administrative access</h3>
+          <p>Your account is signed in, but doesn't hold any admin permissions yet. Ask a super admin to grant you one.</p>
+        </div>`;
+        return;
+      }
+
+      content.innerHTML = rendered.join('');
+      wireActions(content);
+    })();
+  </script>
+</body>
+
+</html>

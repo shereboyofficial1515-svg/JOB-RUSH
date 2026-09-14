@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard">
+        <!-- populated by JS based on role -->
+      </nav>
+
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">
+        Log out
+      </button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <div>
+          <h1 id="welcome-heading" style="font-size: var(--text-2xl); margin-bottom: var(--space-1);"></h1>
+          <p class="text-secondary text-sm" id="welcome-sub"></p>
+        </div>
+        <div id="topbar-badges" style="display:flex; gap: var(--space-2); align-items:center;"></div>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div class="stat-grid" id="stat-grid">
+        <!-- populated by JS -->
+      </div>
+
+      <section class="card" id="activity-card">
+        <h3>Recent activity</h3>
+        <div id="activity-body">
+          <div class="skeleton" style="height: 16px; width: 80%; margin-bottom: 12px;"></div>
+          <div class="skeleton" style="height: 16px; width: 60%;"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function statCard(label, value) {
+      return `<div class="card stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
+    }
+
+    async function loadWorkerDashboard(user) {
+      SidebarNav.render(user, 'overview');
+      document.getElementById('welcome-heading').textContent = `Welcome back, ${user.fullName.split(' ')[0]}`;
+      document.getElementById('welcome-sub').textContent = "Here's what's happening with your profile.";
+
+      const statGrid = document.getElementById('stat-grid');
+      statGrid.innerHTML = [statCard('Applications', '—'), statCard('Upcoming interviews', '—'), statCard('Wallet balance', '—'), statCard('Profile completion', '—')].join('');
+
+      try {
+        const [applications, interviews, wallet, profile] = await Promise.all([
+          API.get('/applications/me').catch(() => ({ applications: [] })),
+          API.get('/interviews/upcoming').catch(() => ({ interviews: [] })),
+          API.get('/wallet').catch(() => ({ wallet: { available_balance: 0 } })),
+          API.get('/profiles/worker/me').catch(() => ({ profile: null })),
+        ]);
+
+        statGrid.innerHTML = [
+          statCard('Applications', applications.applications.length),
+          statCard('Upcoming interviews', interviews.interviews.length),
+          statCard('Wallet balance', `₦${Number(wallet.wallet.available_balance).toLocaleString()}`),
+          statCard('Profile completion', `${profile.profile?.profile_completion_percent ?? 0}%`),
+        ].join('');
+
+        const badges = document.getElementById('topbar-badges');
+        if (profile.profile?.verification_status === 'approved') badges.innerHTML += '<span class="badge badge-verified">Verified</span>';
+        if (profile.profile?.is_pro) badges.innerHTML += '<span class="badge badge-pro">PRO</span>';
+
+        const activityBody = document.getElementById('activity-body');
+        if (applications.applications.length === 0) {
+          activityBody.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No applications yet</h3><p>Browse open jobs and apply to get started.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`;
+        } else {
+          activityBody.innerHTML = applications.applications.slice(0, 5).map((a) =>
+            `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
+             <span>${esc(a.job_title)}</span>
+             <span class="badge badge-neutral">${a.status}</span>
+           </div>`
+          ).join('');
+        }
+      } catch (err) {
+        Toast.error('Could not load your dashboard right now.');
+      }
+    }
+
+    async function loadHirerDashboard(user) {
+      SidebarNav.render(user, 'overview');
+      document.getElementById('welcome-heading').textContent = `Welcome back, ${user.fullName.split(' ')[0]}`;
+      document.getElementById('welcome-sub').textContent = "Here's an overview of your hiring activity.";
+
+      const statGrid = document.getElementById('stat-grid');
+      statGrid.innerHTML = [statCard('Open jobs', '—'), statCard('Total applicants', '—'), statCard('Upcoming interviews', '—'), statCard('Active contracts', '—')].join('');
+
+      try {
+        const [jobs, interviews, contracts] = await Promise.all([
+          API.get('/jobs/mine').catch(() => ({ jobs: [] })),
+          API.get('/interviews/upcoming').catch(() => ({ interviews: [] })),
+          API.get('/contracts').catch(() => ({ contracts: [] })),
+        ]);
+
+        const openJobs = jobs.jobs.filter((j) => j.status === 'open');
+
+        statGrid.innerHTML = [
+          statCard('Open jobs', openJobs.length),
+          statCard('Total postings', jobs.jobs.length),
+          statCard('Upcoming interviews', interviews.interviews.length),
+          statCard('Active contracts', contracts.contracts.filter((c) => c.status === 'active').length),
+        ].join('');
+
+        const activityBody = document.getElementById('activity-body');
+        if (jobs.jobs.length === 0) {
+          activityBody.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>You haven't posted a job yet</h3><p>Post your first job to start receiving applications.</p><a href="my-jobs.html" class="btn btn-primary btn-sm">Post a job</a></div>`;
+        } else {
+          activityBody.innerHTML = jobs.jobs.slice(0, 5).map((j) =>
+            `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
+             <span>${esc(j.title)}</span>
+             <span class="badge badge-neutral">${j.status}</span>
+           </div>`
+          ).join('');
+        }
+      } catch (err) {
+        Toast.error('Could not load your dashboard right now.');
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      if (user.role === 'hirer') {
+        await loadHirerDashboard(user);
+      } else {
+        await loadWorkerDashboard(user);
+      }
+    })();
+  </script>
+</body>
+
+</html>

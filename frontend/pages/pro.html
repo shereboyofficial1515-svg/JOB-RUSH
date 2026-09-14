@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JOB RUSH PRO — Get discovered faster</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/pro.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main">
+    <section class="pro-hero container">
+      <span class="badge badge-pro">JOB RUSH PRO</span>
+      <h1>Get discovered faster. Showcase your work. Reach more customers.</h1>
+      <p class="lede">₦4,000/month. Cancel anytime — you keep PRO until the period you already paid for ends.</p>
+      <button class="btn btn-primary" id="subscribe-btn">Subscribe to PRO</button>
+      <p class="text-xs text-secondary" style="margin-top: var(--space-4);">PRO improves visibility and unlocks premium
+        features. It does not guarantee jobs, customers, employment, or income.</p>
+    </section>
+
+    <section class="container pro-benefits">
+      <div class="card">
+        <h3>Priority discovery</h3>
+        <p class="text-secondary text-sm">Increased visibility in relevant searches — without burying more relevant,
+          non-PRO professionals.</p>
+      </div>
+      <div class="card">
+        <h3>Featured placement</h3>
+        <p class="text-secondary text-sm">Appear in Featured Professionals, Recommended, and Popular Near You sections.
+        </p>
+      </div>
+      <div class="card">
+        <h3>Advanced analytics</h3>
+        <p class="text-secondary text-sm">Profile views, search appearances, enquiries, and applications — tracked over
+          time.</p>
+      </div>
+      <div class="card">
+        <h3>Featured portfolio</h3>
+        <p class="text-secondary text-sm">Pin your best work to the top of your profile so it's the first thing hirers
+          see.</p>
+      </div>
+      <div class="card">
+        <h3>Profile customization</h3>
+        <p class="text-secondary text-sm">Highlight a professional headline, a featured certification, and a featured
+          review.</p>
+      </div>
+      <div class="card">
+        <h3>Subscription management</h3>
+        <p class="text-secondary text-sm">See billing history, renewal date, and cancel or restore anytime from your
+          dashboard.</p>
+      </div>
+    </section>
+
+    <section class="container pro-faq">
+      <h2>A few things to know</h2>
+      <div class="card">
+        <h4>Does PRO replace the Verified badge?</h4>
+        <p class="text-secondary text-sm">No. Verified is free and requires admin approval of your identity. PRO is a
+          paid visibility subscription. You can have neither, either, or both.</p>
+      </div>
+      <div class="card">
+        <h4>Will PRO guarantee me jobs?</h4>
+        <p class="text-secondary text-sm">No. PRO improves your visibility in relevant searches — it does not override
+          relevance, ratings, or your profile completeness.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script>
+    (async function init() {
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'pro', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      document.getElementById('subscribe-btn').addEventListener('click', async () => {
+        if (!user) { window.location.href = `login.html?returnTo=${encodeURIComponent(window.location.pathname)}`; return; }
+        if (user.role === 'hirer') { Toast.error('PRO is a worker subscription. Switch to a worker account to subscribe.'); return; }
+
+        try {
+          const result = await API.post('/subscriptions', { callbackUrl: `${window.location.origin}/pages/dashboard.html?subscribed=1` });
+          window.location.href = result.authorizationUrl;
+        } catch (err) {
+          Toast.error(err.message);
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>

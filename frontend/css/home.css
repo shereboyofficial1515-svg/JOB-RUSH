@@ -1,0 +1,126 @@
+/* JOB RUSH — Homepage */
+
+.section { padding: var(--space-9) 0; }
+
+.hero {
+  padding: var(--space-9) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+.hero-copy h1 { max-width: 15ch; }
+.hero-copy p.lede { max-width: 48ch; }
+
+.hero-search {
+  display: flex;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-5);
+  max-width: 520px;
+}
+.hero-search input {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-primary);
+}
+.hero-search input:focus { border-color: var(--accent); outline: none; }
+
+.hero-trust {
+  display: flex;
+  gap: var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.hero-trust strong { color: var(--text-primary); }
+
+.hero-visual { display: flex; justify-content: center; }
+
+.floating-card {
+  width: 280px;
+  animation: float 5s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .floating-card { animation: none; }
+}
+
+.floating-card-top { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.floating-card-badges { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
+.floating-card-rating { margin-bottom: var(--space-3); color: var(--accent); }
+.floating-card-status { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-success); display: inline-block; }
+
+.category-strip {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  margin-top: var(--space-5);
+}
+.category-chip {
+  flex: none;
+  padding: var(--space-3) var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: border-color var(--duration-micro) var(--ease-standard), color var(--duration-micro) var(--ease-standard);
+}
+.category-chip:hover { border-color: var(--border-gold); color: var(--accent); }
+
+.how-it-works {
+  list-style: none;
+  margin: var(--space-7) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-5);
+  counter-reset: step;
+}
+.how-it-works li { position: relative; padding-top: var(--space-6); }
+.step-index {
+  position: absolute;
+  top: 0; left: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0.5;
+}
+.how-it-works h3 { font-size: var(--text-base); margin-top: var(--space-2); }
+.how-it-works p { font-size: var(--text-sm); margin-bottom: 0; }
+
+.pro-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-surface));
+  padding: var(--space-7);
+}
+.pro-band h2 { margin: var(--space-3) 0; font-size: var(--text-2xl); }
+.pro-band p { margin: 0; }
+
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; }
+  .hero-visual { order: -1; }
+  .how-it-works { grid-template-columns: repeat(2, 1fr); }
+  .pro-band { flex-direction: column; text-align: center; }
+}
+
+@media (max-width: 560px) {
+  .hero-search { flex-direction: column; }
+  .how-it-works { grid-template-columns: 1fr; }
+}

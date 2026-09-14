@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Interviews — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Interviews</h1>
+        <div style="display:flex; align-items:center; gap: var(--space-3);">
+          <div id="notif-bell-mount"></div>
+          <button class="btn btn-primary" id="schedule-btn" hidden>Schedule interview</button>
+        </div>
+      </div>
+
+      <div class="wallet-tabs">
+        <button class="wallet-tab is-active" data-tab="upcoming">Upcoming</button>
+        <button class="wallet-tab" data-tab="past">Past</button>
+      </div>
+
+      <div id="interviews-list" aria-live="polite">
+        <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    let currentUser = null;
+
+    function statusBadge(status) {
+      const map = { scheduled: 'badge-verified', completed: 'badge-verified', cancelled: 'badge-neutral', declined: 'badge-neutral', no_show: 'badge-neutral' };
+      return map[status] || 'badge-neutral';
+    }
+
+    function interviewRowHtml(iv) {
+      const isHirer = currentUser.role === 'hirer';
+      const canRespond = !isHirer && iv.status === 'pending';
+      const canJoin = ['scheduled', 'in_progress'].includes(iv.status) && ['video', 'audio'].includes(iv.interview_type);
+      const canCancel = ['pending', 'accepted', 'scheduled', 'reschedule_requested'].includes(iv.status);
+      const canComplete = isHirer && ['scheduled', 'in_progress'].includes(iv.status);
+
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);" data-interview-id="${iv.id}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
+          <div>
+            <h4 style="margin-bottom: var(--space-1); text-transform:capitalize;">${iv.interview_type} interview</h4>
+            <div class="text-secondary text-sm">${new Date(iv.scheduled_start_at).toLocaleString()} \u00B7 ${iv.duration_minutes} min</div>
+          </div>
+          <span class="badge ${statusBadge(iv.status)}">${iv.status.replace('_', ' ')}</span>
+        </div>
+        ${iv.location_address ? `<p class="text-sm text-secondary" style="margin-top: var(--space-3); max-width:none;">${esc(iv.location_address)}</p>` : ''}
+        <div style="display:flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap:wrap;">
+          ${canRespond ? `<button class="btn btn-sm btn-primary" data-action="accept">Accept</button><button class="btn btn-sm btn-ghost" data-action="decline">Decline</button>` : ''}
+          ${canJoin ? `<button class="btn btn-sm btn-primary" data-action="join">Join call</button>` : ''}
+          ${canComplete ? `<button class="btn btn-sm btn-secondary" data-action="complete">Mark completed</button>` : ''}
+          ${canCancel ? `<button class="btn btn-sm btn-danger" data-action="cancel">Cancel</button>` : ''}
+        </div>
+        <div class="call-info" hidden style="margin-top: var(--space-3); padding: var(--space-3); background: var(--bg-elevated); border-radius: var(--radius-md); font-size: var(--text-xs);"></div>
+      </div>
+    `;
+    }
+
+    async function loadInterviews(tab) {
+      const list = document.getElementById('interviews-list');
+      try {
+        const { interviews } = await API.get(`/interviews/${tab}`);
+        if (interviews.length === 0) {
+          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No ${tab} interviews</h3></div>`;
+          return;
+        }
+        list.innerHTML = interviews.map(interviewRowHtml).join('');
+        wireActions(tab);
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function wireActions(tab) {
+      document.querySelectorAll('[data-action="accept"], [data-action="decline"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('[data-interview-id]').dataset.interviewId;
+          try {
+            await API.post(`/interviews/${id}/respond`, { accept: btn.dataset.action === 'accept' });
+            Toast.success(btn.dataset.action === 'accept' ? 'Interview accepted.' : 'Interview declined.');
+            loadInterviews(tab);
+          } catch (err) { Toast.error(err.message); }
+        });
+      });
+
+      document.querySelectorAll('[data-action="cancel"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-interview-id]').dataset.interviewId;
+          Modal.open({
+            title: 'Cancel this interview?',
+            bodyHtml: `
+            <p class="text-secondary">The other participant will be notified.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Never mind</button>
+              <button type="button" class="btn btn-danger" id="confirm-cancel">Cancel interview</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-cancel').addEventListener('click', async () => {
+                try {
+                  await API.post(`/interviews/${id}/cancel`, {});
+                  Toast.success('Interview cancelled.');
+                  Modal.close();
+                  loadInterviews(tab);
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="complete"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('[data-interview-id]').dataset.interviewId;
+          try {
+            await API.post(`/interviews/${id}/complete`);
+            Toast.success('Interview marked completed.');
+            loadInterviews(tab);
+          } catch (err) { Toast.error(err.message); }
+        });
+      });
+
+      document.querySelectorAll('[data-action="join"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-interview-id]').dataset.interviewId;
+          window.location.href = `call-room.html?type=interview&id=${id}`;
+        });
+      });
+    }
+
+    function scheduleFormHtml() {
+      return `
+      <form id="schedule-form" novalidate>
+        <div class="field" id="type-field">
+          <label for="interviewType">Interview type</label>
+          <select id="interviewType" name="interviewType">
+            <option value="video">Video call</option>
+            <option value="audio">Audio call</option>
+            <option value="text">Text (messaging)</option>
+            <option value="in_person">In person</option>
+          </select>
+        </div>
+        <div class="field" id="start-field">
+          <label for="scheduledStartAt">Date &amp; time</label>
+          <input type="datetime-local" id="scheduledStartAt" name="scheduledStartAt" required />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field">
+          <label for="durationMinutes">Duration (minutes)</label>
+          <input type="number" id="durationMinutes" name="durationMinutes" value="30" min="10" max="240" />
+        </div>
+        <div class="field" id="location-field" hidden>
+          <label for="locationAddress">Address</label>
+          <input type="text" id="locationAddress" name="locationAddress" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="schedule-submit">Schedule</button>
+        </div>
+      </form>
+    `;
+    }
+
+    function openScheduleModal(applicationId) {
+      Modal.open({
+        title: 'Schedule an interview',
+        bodyHtml: scheduleFormHtml(),
+        onMount: () => {
+          const form = document.getElementById('schedule-form');
+          const locationField = document.getElementById('location-field');
+          form.interviewType.addEventListener('change', () => {
+            locationField.hidden = form.interviewType.value !== 'in_person';
+          });
+
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+
+            if (!form.scheduledStartAt.value) return FormHelpers.showError(document.getElementById('start-field'), 'Choose a date and time.');
+            if (form.interviewType.value === 'in_person' && !form.locationAddress.value.trim()) {
+              return FormHelpers.showError(document.getElementById('location-field'), 'An address is required for in-person interviews.');
+            }
+
+            const payload = {
+              applicationId,
+              interviewType: form.interviewType.value,
+              scheduledStartAt: new Date(form.scheduledStartAt.value).toISOString(),
+              durationMinutes: Number(form.durationMinutes.value) || 30,
+              locationAddress: form.locationAddress.value.trim() || undefined,
+            };
+
+            const submitBtn = document.getElementById('schedule-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              await API.post('/interviews', payload);
+              Toast.success('Interview scheduled \u2014 invitation sent.');
+              Modal.close();
+              loadInterviews('upcoming');
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      currentUser = user;
+
+      SidebarNav.render(user, 'interviews');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      if (user.role === 'hirer') {
+        const scheduleBtn = document.getElementById('schedule-btn');
+        scheduleBtn.hidden = false;
+        const applicationId = new URLSearchParams(window.location.search).get('scheduleForApplication');
+        scheduleBtn.addEventListener('click', () => openScheduleModal(applicationId || null));
+        if (applicationId) openScheduleModal(applicationId);
+      }
+
+      document.querySelectorAll('.wallet-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.wallet-tab').forEach((t) => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          loadInterviews(tab.dataset.tab);
+        });
+      });
+
+      loadInterviews('upcoming');
+    })();
+  </script>
+</body>
+
+</html>

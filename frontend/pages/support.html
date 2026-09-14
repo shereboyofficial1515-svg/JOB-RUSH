@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Support — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main" class="container"
+    style="padding-top: var(--space-7); padding-bottom: var(--space-9); max-width: 640px;">
+    <h1>How can we help?</h1>
+    <p class="lede">Get help with your account, a job, a payment, or report a problem.</p>
+
+    <div class="card" style="margin-bottom: var(--space-6);">
+      <h3>Submit a ticket</h3>
+      <form id="ticket-form" novalidate>
+        <div class="field">
+          <label for="category">Category</label>
+          <select id="category" name="category">
+            <option value="account">Account</option>
+            <option value="payment">Payment</option>
+            <option value="technical">Technical issue</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="field" id="subject-field">
+          <label for="subject">Subject</label>
+          <input type="text" id="subject" name="subject" required />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="description-field">
+          <label for="description">Describe the issue</label>
+          <textarea id="description" name="description" rows="5" required></textarea>
+          <div class="field-error" hidden></div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="ticket-submit">Submit ticket</button>
+      </form>
+    </div>
+
+    <div id="own-tickets"></div>
+
+    <div class="card" style="margin-bottom: var(--space-4);">
+      <h3>Report an issue</h3>
+      <p class="text-secondary text-sm">For a problem with a specific message, review, or user, use the Report option
+        where it appears in the app — those go straight to our moderation queue.</p>
+    </div>
+
+    <div class="card">
+      <h3>Payment or escrow issue</h3>
+      <p class="text-secondary text-sm">If you have an active contract, open a dispute from your Contracts page so it's
+        tied to the right escrow transaction and reviewed by our finance team.</p>
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script>
+    function ticketRowHtml(t) {
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);">
+        <div style="display:flex; justify-content:space-between;">
+          <strong>${esc(t.subject)}</strong>
+          <span class="badge badge-neutral">${t.status.replace('_', ' ')}</span>
+        </div>
+        ${t.admin_response ? `<p class="text-secondary text-sm" style="margin-top: var(--space-3); max-width:none;"><strong>Response:</strong> ${esc(t.admin_response)}</p>` : ''}
+      </div>
+    `;
+    }
+
+    async function loadOwnTickets() {
+      try {
+        const { tickets } = await API.get('/support/tickets');
+        if (tickets.length === 0) return;
+        document.getElementById('own-tickets').innerHTML = `<h3 style="margin-bottom: var(--space-3);">Your tickets</h3>${tickets.map(ticketRowHtml).join('')}`;
+      } catch {
+        // Not signed in or nothing to show — the form above still works for signed-in users.
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      const form = document.getElementById('ticket-form');
+      const submitBtn = document.getElementById('ticket-submit');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        FormHelpers.clearErrors(form);
+
+        if (!user) {
+          Toast.error('Please log in to submit a support ticket.');
+          window.location.href = `login.html?returnTo=${encodeURIComponent(window.location.pathname)}`;
+          return;
+        }
+
+        const subject = form.subject.value.trim();
+        const description = form.description.value.trim();
+        if (subject.length < 3) return FormHelpers.showError(document.getElementById('subject-field'), 'Enter a subject.');
+        if (description.length < 10) return FormHelpers.showError(document.getElementById('description-field'), 'Add a bit more detail.');
+
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.post('/support/tickets', { subject, description, category: form.category.value });
+          Toast.success("Ticket submitted — we'll get back to you soon.");
+          form.reset();
+          loadOwnTickets();
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+
+      if (user) loadOwnTickets();
+    })();
+  </script>
+</body>
+
+</html>

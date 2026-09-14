@@ -1,0 +1,82 @@
+/* JOB RUSH — Admin portal */
+
+.admin-auth-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(240,176,0,0.06), transparent 60%),
+    var(--color-primary-navy);
+}
+
+.admin-auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: var(--space-7);
+}
+
+.admin-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.admin-auth-brand strong { display: block; font-family: var(--font-display); font-size: var(--text-lg); }
+.admin-badge { margin-top: var(--space-1); }
+
+/* ---------- Admin dashboard shell ---------- */
+.admin-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+.admin-sidebar {
+  background: #000A14;
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+}
+.admin-sidebar .brand { margin-bottom: var(--space-2); }
+.admin-sidebar .admin-badge { margin-bottom: var(--space-6); }
+
+.admin-main { padding: var(--space-6) var(--space-7); }
+
+.admin-section { margin-bottom: var(--space-8); }
+.admin-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); }
+
+.admin-table { width: 100%; border-collapse: collapse; min-width: 480px; }
+/* Tables can have 4-5 columns of real content (names, amounts, dates,
+   actions) that simply can't compress to a phone width without
+   becoming illegible — scope the horizontal scroll to just the table
+   itself rather than letting it force the whole page to scroll
+   sideways or break the surrounding card layout. */
+.admin-table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.admin-table th {
+  text-align: left;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.admin-table td {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+.admin-table tr:last-child td { border-bottom: none; }
+
+.admin-no-access {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .admin-shell { grid-template-columns: 1fr; }
+  .admin-sidebar { display: none; }
+  .admin-main { padding: var(--space-5); }
+}

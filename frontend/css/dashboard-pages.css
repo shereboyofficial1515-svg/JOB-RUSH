@@ -1,0 +1,92 @@
+/* JOB RUSH — Dashboard sub-pages */
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.portfolio-card { padding: 0; overflow: hidden; }
+.portfolio-thumb { width: 100%; height: 140px; object-fit: cover; }
+.portfolio-card-body { padding: var(--space-4); }
+.portfolio-desc { min-height: 36px; }
+.portfolio-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* ---------- Wallet ---------- */
+.wallet-balance-card {
+  background: linear-gradient(135deg, var(--bg-elevated), var(--bg-surface));
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+.wallet-balance-label { font-size: var(--text-sm); color: var(--text-secondary); }
+.wallet-balance-value { font-family: var(--font-display); font-size: var(--text-3xl); font-weight: 700; margin: var(--space-2) 0 var(--space-5); }
+
+.wallet-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+.wallet-tab {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.wallet-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ledger-row:last-child { border-bottom: none; }
+.ledger-amount.credit { color: #6FD79B; }
+.ledger-amount.debit { color: var(--text-secondary); }
+
+/* ---------- Messaging ---------- */
+.messages-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: calc(100vh - 48px);
+  margin: calc(var(--space-6) * -1) calc(var(--space-7) * -1);
+}
+.conversation-list {
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+.conversation-item {
+  display: block;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+.conversation-item:hover { background: rgba(240,240,240,0.04); }
+.conversation-item.is-active { background: rgba(240,176,0,0.08); border-left: 2px solid var(--accent); }
+.conversation-item .preview { color: var(--text-secondary); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.thread-panel { display: flex; flex-direction: column; }
+.thread-header { padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-subtle); display:flex; justify-content:space-between; align-items:center; }
+.thread-messages { flex: 1; overflow-y: auto; padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+
+.message-bubble { max-width: 60%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--text-sm); }
+.message-bubble.own { align-self: flex-end; background: var(--color-primary-gold); color: var(--text-on-gold); }
+.message-bubble.other { align-self: flex-start; background: var(--bg-elevated); }
+.message-meta { font-size: var(--text-xs); opacity: 0.7; margin-top: var(--space-1); }
+
+.thread-composer { display: flex; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-subtle); }
+.thread-composer input { flex: 1; background: var(--color-primary-navy); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--text-primary); }
+
+@media (max-width: 900px) {
+  .messages-layout { grid-template-columns: 1fr; height: auto; margin: calc(var(--space-5) * -1); min-height: 70vh; }
+  /* Mobile shows one pane at a time: the conversation list by
+     default, switching to the open thread once one is selected (see
+     the class toggles in messages.html's openConversation/back
+     handlers) — a real two-state view, not two panes squeezed
+     side-by-side into a phone width. */
+  .thread-panel { display: none; }
+  .thread-panel.is-open-on-mobile { display: flex; }
+  .conversation-list.is-hidden-on-mobile { display: none; }
+  .back-to-list-btn { display: inline-flex; }
+}
+
+.back-to-list-btn { display: none; }

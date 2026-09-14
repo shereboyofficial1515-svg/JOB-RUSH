@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Log in — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-visual" aria-hidden="true">
+    <img src="../assets/images/logo-256.png" alt="" width="140" height="140" style="margin-bottom: 32px;" />
+    <h2 style="max-width: 12ch;">Get discovered. Get hired. Get paid.</h2>
+    <p class="text-secondary" style="max-width: 34ch;">Join thousands of professionals and hirers already using JOB RUSH across Delta State.</p>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-card" id="auth-card-content">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+
+      <h1 style="font-size: var(--text-2xl);">Welcome back</h1>
+      <p class="text-secondary" style="margin-bottom: var(--space-6);">Log in to your account to continue.</p>
+
+      <a href="#" id="google-login-btn" class="btn btn-google btn-block">
+        <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.13-.84 2.08-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33C2.44 15.98 5.48 18 9 18z"/><path fill="#FBBC05" d="M3.97 10.72c-.18-.54-.28-1.11-.28-1.72s.1-1.18.28-1.72V4.95H.96A8.996 8.996 0 000 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/></svg>
+        Continue with Google
+      </a>
+
+      <div class="auth-divider">or</div>
+
+      <form id="login-form" novalidate>
+        <div class="field" id="identifier-field">
+          <label for="identifier">Email or phone number</label>
+          <input type="text" id="identifier" name="identifier" autocomplete="username" required />
+          <div class="field-error" hidden></div>
+        </div>
+
+        <div class="field" id="password-field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required />
+          <div class="field-error" hidden></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-bottom: var(--space-5);">
+          <a href="forgot-password.html" class="text-sm text-gold">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="login-submit">Log in</button>
+      </form>
+
+      <p class="auth-switch">Don't have an account? <a href="register.html">Create one</a></p>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function twoFactorStepHtml() {
+    return `
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <h1 style="font-size: var(--text-2xl);">Two-factor verification</h1>
+      <p class="text-secondary" style="margin-bottom: var(--space-6);">Enter the 6-digit code from your authenticator app, or one of your backup codes.</p>
+      <form id="tfa-form" novalidate>
+        <div class="field" id="tfa-code-field">
+          <label for="tfa-code">Verification code</label>
+          <input type="text" id="tfa-code" name="code" autocomplete="one-time-code" placeholder="123456 or XXXX-XXXX" autofocus />
+          <div class="field-error" hidden></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="tfa-submit">Verify</button>
+      </form>
+      <p class="auth-switch"><a href="login.html">Back to log in</a></p>
+    `;
+  }
+
+  function showTwoFactorStep(challengeToken, returnTo) {
+    const container = document.getElementById('auth-card-content');
+    container.innerHTML = twoFactorStepHtml();
+
+    const form = document.getElementById('tfa-form');
+    const submitBtn = document.getElementById('tfa-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      FormHelpers.clearErrors(form);
+      const code = form.code.value.trim();
+      if (!code) return FormHelpers.showError(document.getElementById('tfa-code-field'), 'Enter your verification code.');
+
+      FormHelpers.setLoading(submitBtn, true);
+      try {
+        await Auth.verifyTwoFactorLogin({ challengeToken, code });
+        window.location.href = returnTo || 'dashboard.html';
+      } catch (err) {
+        FormHelpers.showError(document.getElementById('tfa-code-field'), err.message);
+      } finally {
+        FormHelpers.setLoading(submitBtn, false);
+      }
+    });
+  }
+
+  const GOOGLE_ERROR_MESSAGES = {
+    google_denied: 'Google sign-in was cancelled.',
+    invalid_state: 'Your sign-in session expired. Please try again.',
+    email_not_verified: 'Your Google account email is not verified. Please verify it with Google first.',
+    google_signin_failed: 'Could not sign in with Google. Please try again or use your password.',
+  };
+
+  (async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const returnTo = params.get('returnTo');
+
+    // Google redirected back with a pending 2FA challenge — skip straight
+    // to the code-entry step rather than showing the password form again.
+    const googleChallenge = params.get('twoFactorChallenge');
+    if (googleChallenge) {
+      showTwoFactorStep(googleChallenge, returnTo);
+      return;
+    }
+
+    const googleError = params.get('error');
+    if (googleError && GOOGLE_ERROR_MESSAGES[googleError]) {
+      Toast.error(GOOGLE_ERROR_MESSAGES[googleError]);
+    }
+
+    const existing = await Auth.getCurrentUser();
+    if (existing) { window.location.href = 'dashboard.html'; return; }
+
+    document.getElementById('google-login-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.href = '/api/auth/google';
+    });
+
+    const form = document.getElementById('login-form');
+    const submitBtn = document.getElementById('login-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      FormHelpers.clearErrors(form);
+
+      const identifier = form.identifier.value.trim();
+      const password = form.password.value;
+
+      if (!identifier) return FormHelpers.showError(document.getElementById('identifier-field'), 'Enter your email or phone number.');
+      if (!password) return FormHelpers.showError(document.getElementById('password-field'), 'Enter your password.');
+
+      FormHelpers.setLoading(submitBtn, true);
+      try {
+        const result = await Auth.login({ identifier, password });
+        if (result.requiresTwoFactor) {
+          showTwoFactorStep(result.challengeToken, returnTo);
+          return;
+        }
+        window.location.href = returnTo || 'dashboard.html';
+      } catch (err) {
+        if (err.code === 'VERIFICATION_REQUIRED') {
+          Toast.error('Please verify your account before logging in.');
+          window.location.href = `verify-otp.html?destination=${encodeURIComponent(identifier)}`;
+          return;
+        }
+        Toast.error(err.message);
+      } finally {
+        FormHelpers.setLoading(submitBtn, false);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

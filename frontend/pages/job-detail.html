@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Job details — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/jobs.css" />
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<div id="header-mount"></div>
+
+<main id="main" class="container job-detail-layout">
+  <div id="job-detail-content">
+    <div class="skeleton" style="height: 32px; width: 60%; margin-bottom: 16px;"></div>
+    <div class="skeleton" style="height: 16px; width: 90%; margin-bottom: 8px;"></div>
+    <div class="skeleton" style="height: 16px; width: 80%; margin-bottom: 8px;"></div>
+    <div class="skeleton" style="height: 200px; margin-top: 24px;"></div>
+  </div>
+
+  <aside id="job-detail-sidebar">
+    <div class="skeleton" style="height: 240px;"></div>
+  </aside>
+</main>
+
+<div id="footer-mount"></div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/notificationBell.js"></script>
+<script src="../js/modules/chrome.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function formatBudget(job) {
+    if (!job.budget_min && !job.budget_max) return 'Not specified';
+    const fmt = (n) => `₦${Number(n).toLocaleString()}`;
+    if (job.budget_min && job.budget_max) return `${fmt(job.budget_min)} – ${fmt(job.budget_max)}`;
+    return fmt(job.budget_min || job.budget_max);
+  }
+
+  function openApplyModal(jobId) {
+    Modal.open({
+      title: 'Apply to this job',
+      bodyHtml: `
+        <form id="apply-form" novalidate>
+          <div class="field" id="cover-note-field">
+            <label for="coverNote">Cover note</label>
+            <textarea id="coverNote" name="coverNote" rows="5" placeholder="Tell the hirer why you're a good fit..."></textarea>
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="field" id="rate-field">
+            <label for="proposedRate">Your proposed rate (₦, optional)</label>
+            <input type="number" id="proposedRate" name="proposedRate" min="0" />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="apply-submit">Submit application</button>
+          </div>
+        </form>
+      `,
+      onMount: () => {
+        const form = document.getElementById('apply-form');
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const submitBtn = document.getElementById('apply-submit');
+          FormHelpers.setLoading(submitBtn, true);
+          try {
+            await API.post(`/jobs/${jobId}/applications`, {
+              coverNote: form.coverNote.value.trim() || undefined,
+              proposedRate: form.proposedRate.value ? Number(form.proposedRate.value) : undefined,
+            });
+            Modal.close();
+            Toast.success('Application submitted.');
+            document.getElementById('apply-cta').outerHTML = '<span class="badge badge-neutral">Applied</span>';
+          } catch (err) {
+            Toast.error(err.message);
+          } finally {
+            FormHelpers.setLoading(submitBtn, false);
+          }
+        });
+      },
+    });
+  }
+
+  function sidebarHtml(job, user) {
+    let cta = '';
+    if (!user) {
+      cta = `<a href="login.html?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}" class="btn btn-primary btn-block" id="apply-cta">Log in to apply</a>`;
+    } else if (user.role === 'hirer') {
+      cta = job.hirer_user_id === user.id
+        ? `<a href="my-jobs.html" class="btn btn-secondary btn-block">Manage this job</a>`
+        : '';
+    } else if (job.status !== 'open') {
+      cta = `<span class="badge badge-neutral">This job is ${job.status}</span>`;
+    } else {
+      cta = `<button class="btn btn-primary btn-block" id="apply-cta">Apply now</button>`;
+    }
+
+    return `
+      <div class="card" style="position: sticky; top: 88px;">
+        <div class="text-secondary text-sm" style="margin-bottom: var(--space-1);">Budget</div>
+        <div style="font-family: var(--font-display); font-size: var(--text-xl); color: var(--accent); margin-bottom: var(--space-4);">${formatBudget(job)}</div>
+
+        <div class="text-secondary text-sm" style="margin-bottom: var(--space-1);">Posted by</div>
+        <div style="margin-bottom: var(--space-5);">${esc(job.hirer_display_name) || 'JOB RUSH Hirer'}</div>
+
+        ${cta}
+
+        ${user && user.role === 'worker' ? `<button class="btn btn-ghost btn-block" id="save-cta" style="margin-top: var(--space-3);">Save job</button>` : ''}
+        ${user ? `<button class="btn btn-ghost btn-sm" id="report-job-cta" style="margin-top: var(--space-3);">Report this job</button>` : ''}
+      </div>
+    `;
+  }
+
+  function contentHtml(job) {
+    return `
+      <div>
+        <div style="display:flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+          <span class="badge badge-neutral">${esc(job.employment_type.replace('_', ' '))}</span>
+          <span class="badge badge-neutral">${esc(job.experience_level)}</span>
+        </div>
+        <h1 style="font-size: var(--text-2xl);">${esc(job.title)}</h1>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-6);">Posted ${new Date(job.created_at).toLocaleDateString()}</p>
+
+        <h3>Description</h3>
+        <p style="white-space: pre-wrap; max-width: none;">${esc(job.description)}</p>
+
+        ${job.additional_requirements ? `<h3>Additional requirements</h3><p style="max-width:none;">${esc(job.additional_requirements)}</p>` : ''}
+
+        ${job.skills && job.skills.length ? `
+          <h3>Skills</h3>
+          <div style="display:flex; gap: var(--space-2); flex-wrap:wrap; margin-bottom: var(--space-6);">
+            ${job.skills.map((s) => `<span class="badge badge-neutral">${esc(s.name)}</span>`).join('')}
+          </div>` : ''}
+      </div>
+    `;
+  }
+
+  (async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('id');
+    const user = await Auth.getCurrentUser();
+    Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-work', user });
+    Chrome.renderFooter(document.getElementById('footer-mount'));
+
+    if (!jobId) {
+      document.getElementById('job-detail-content').innerHTML = '<p class="text-secondary">No job specified.</p>';
+      document.getElementById('job-detail-sidebar').innerHTML = '';
+      return;
+    }
+
+    try {
+      const { job } = await API.get(`/jobs/${jobId}`);
+      document.getElementById('job-detail-content').innerHTML = contentHtml(job);
+      document.getElementById('job-detail-sidebar').innerHTML = sidebarHtml(job, user);
+
+      const applyCta = document.getElementById('apply-cta');
+      if (applyCta && applyCta.tagName === 'BUTTON') {
+        applyCta.addEventListener('click', () => openApplyModal(job.id));
+      }
+
+      const saveCta = document.getElementById('save-cta');
+      if (saveCta) {
+        let saved = false;
+        saveCta.addEventListener('click', async () => {
+          try {
+            if (!saved) {
+              await API.post(`/jobs/${job.id}/save`);
+              saveCta.textContent = 'Saved ✓';
+              Toast.success('Job saved.');
+            } else {
+              await API.delete(`/jobs/${job.id}/save`);
+              saveCta.textContent = 'Save job';
+              Toast.success('Removed from saved jobs.');
+            }
+            saved = !saved;
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      }
+
+      const reportCta = document.getElementById('report-job-cta');
+      if (reportCta) {
+        reportCta.addEventListener('click', () => {
+          Modal.open({
+            title: 'Report this job',
+            bodyHtml: `
+              <div class="field" id="report-reason-field">
+                <label for="report-reason">Why are you reporting this job?</label>
+                <textarea id="report-reason" rows="3" placeholder="e.g. This looks fraudulent / spam / inappropriate"></textarea>
+                <div class="field-error" hidden></div>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-report-job">Submit report</button>
+              </div>`,
+            onMount: () => {
+              document.getElementById('confirm-report-job').addEventListener('click', async () => {
+                const reason = document.getElementById('report-reason').value.trim();
+                if (reason.length < 3) return FormHelpers.showError(document.getElementById('report-reason-field'), 'Tell us a bit more.');
+                try {
+                  await API.post(`/jobs/${job.id}/report`, { reason });
+                  Toast.success('Report submitted. Thank you.');
+                  Modal.close();
+                } catch (err) {
+                  Toast.error(err.message);
+                }
+              });
+            },
+          });
+        });
+      }
+    } catch (err) {
+      document.getElementById('job-detail-content').innerHTML = `
+        <div class="empty-state">
+          <img src="${ASSETS.emptyState}" alt="" />
+          <h3>Job not found</h3>
+          <p>${err.message}</p>
+          <a href="jobs.html" class="btn btn-primary btn-sm">Browse jobs</a>
+        </div>`;
+      document.getElementById('job-detail-sidebar').innerHTML = '';
+    }
+  })();
+</script>
+</body>
+</html>

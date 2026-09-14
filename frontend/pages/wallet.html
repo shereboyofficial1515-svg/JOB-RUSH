@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wallet — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Wallet</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div class="card wallet-balance-card">
+        <div class="wallet-balance-label">Available balance</div>
+        <div class="wallet-balance-value" id="wallet-balance">₦—</div>
+        <button class="btn btn-primary" id="withdraw-btn">Withdraw funds</button>
+      </div>
+
+      <div class="wallet-tabs">
+        <button class="wallet-tab is-active" data-tab="transactions">Transaction history</button>
+        <button class="wallet-tab" data-tab="withdrawals">Withdrawal requests</button>
+      </div>
+
+      <div class="card" id="tab-transactions">
+        <div id="transactions-list">
+          <div class="skeleton" style="height:16px; width:70%; margin-bottom:12px;"></div>
+          <div class="skeleton" style="height:16px; width:50%;"></div>
+        </div>
+      </div>
+
+      <div class="card" id="tab-withdrawals" hidden>
+        <div id="withdrawals-list">
+          <div class="skeleton" style="height:16px; width:70%; margin-bottom:12px;"></div>
+          <div class="skeleton" style="height:16px; width:50%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    const BANKS = [
+      { code: '058', name: 'GTBank' },
+      { code: '057', name: 'Zenith Bank' },
+      { code: '011', name: 'First Bank of Nigeria' },
+      { code: '033', name: 'United Bank for Africa' },
+      { code: '044', name: 'Access Bank' },
+      { code: '050', name: 'Ecobank Nigeria' },
+      { code: '070', name: 'Fidelity Bank' },
+      { code: '232', name: 'Sterling Bank' },
+      { code: '221', name: 'Stanbic IBTC Bank' },
+      { code: '999992', name: 'Opay' },
+      { code: '999991', name: 'PalmPay' },
+    ];
+
+    function formatNaira(n) { return `₦${Number(n).toLocaleString()}`; }
+
+    function ledgerRowHtml(tx) {
+      const sign = tx.type === 'credit' ? '+' : '\u2212';
+      return `
+      <div class="ledger-row">
+        <div>
+          <div>${esc(tx.description) || tx.category.replace(/_/g, ' ')}</div>
+          <div class="text-xs text-secondary">${new Date(tx.created_at).toLocaleString()}</div>
+        </div>
+        <div class="ledger-amount ${tx.type}">${sign}${formatNaira(tx.amount)}</div>
+      </div>
+    `;
+    }
+
+    function withdrawalRowHtml(w) {
+      return `
+      <div class="ledger-row">
+        <div>
+          <div>${formatNaira(w.amount)} to ${esc(w.bank_account_name)} (\u2022\u2022\u2022\u2022${w.bank_account_number_last4})</div>
+          <div class="text-xs text-secondary">Requested ${new Date(w.requested_at).toLocaleDateString()}</div>
+        </div>
+        <span class="badge badge-neutral">${w.status}</span>
+      </div>
+    `;
+    }
+
+    async function loadWallet() {
+      try {
+        const { wallet } = await API.get('/wallet');
+        document.getElementById('wallet-balance').textContent = formatNaira(wallet.available_balance);
+      } catch (err) {
+        Toast.error('Could not load wallet balance.');
+      }
+    }
+
+    async function loadTransactions() {
+      const list = document.getElementById('transactions-list');
+      try {
+        const { transactions } = await API.get('/wallet/transactions');
+        list.innerHTML = transactions.length
+          ? transactions.map(ledgerRowHtml).join('')
+          : `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No transactions yet</h3></div>`;
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    async function loadWithdrawals() {
+      const list = document.getElementById('withdrawals-list');
+      try {
+        const { withdrawals } = await API.get('/wallet/withdrawals');
+        list.innerHTML = withdrawals.length
+          ? withdrawals.map(withdrawalRowHtml).join('')
+          : `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No withdrawal requests yet</h3></div>`;
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function openWithdrawModal() {
+      const bankOptions = BANKS.map((b) => `<option value="${b.code}">${b.name}</option>`).join('');
+      Modal.open({
+        title: 'Withdraw funds',
+        bodyHtml: `
+        <form id="withdraw-form" novalidate>
+          <div class="field" id="amount-field">
+            <label for="amount">Amount (\u20A6)</label>
+            <input type="number" id="amount" name="amount" min="1000" step="1" required />
+            <div class="field-hint">Minimum withdrawal is \u20A61,000.</div>
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="field" id="bankCode-field">
+            <label for="bankCode">Bank</label>
+            <select id="bankCode" name="bankCode" required>${bankOptions}</select>
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="field" id="accountNumber-field">
+            <label for="bankAccountNumber">Account number</label>
+            <input type="text" id="bankAccountNumber" name="bankAccountNumber" inputmode="numeric" maxlength="10" required />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="field" id="accountName-field">
+            <label for="bankAccountName">Account name</label>
+            <input type="text" id="bankAccountName" name="bankAccountName" required />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="withdraw-submit">Request withdrawal</button>
+          </div>
+        </form>
+      `,
+        onMount: () => {
+          const form = document.getElementById('withdraw-form');
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+
+            const amount = Number(form.amount.value);
+            const bankAccountNumber = form.bankAccountNumber.value.trim();
+            const bankAccountName = form.bankAccountName.value.trim();
+            const bankCode = form.bankCode.value;
+
+            if (!amount || amount < 1000) return FormHelpers.showError(document.getElementById('amount-field'), 'Enter at least \u20A61,000.');
+            if (!/^[0-9]{10}$/.test(bankAccountNumber)) return FormHelpers.showError(document.getElementById('accountNumber-field'), 'Enter a valid 10-digit account number.');
+            if (!bankAccountName) return FormHelpers.showError(document.getElementById('accountName-field'), 'Enter the account name.');
+
+            const submitBtn = document.getElementById('withdraw-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              await API.post('/wallet/withdrawals', { amount, bankAccountNumber, bankAccountName, bankCode });
+              Toast.success('Withdrawal requested \u2014 funds are held pending review.');
+              Modal.close();
+              loadWallet();
+              loadWithdrawals();
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role === 'hirer') { window.location.href = 'dashboard.html'; return; }
+
+      SidebarNav.render(user, 'wallet');
+
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.getElementById('withdraw-btn').addEventListener('click', openWithdrawModal);
+
+      document.querySelectorAll('.wallet-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.wallet-tab').forEach((t) => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          document.getElementById('tab-transactions').hidden = tab.dataset.tab !== 'transactions';
+          document.getElementById('tab-withdrawals').hidden = tab.dataset.tab !== 'withdrawals';
+        });
+      });
+
+      loadWallet();
+      loadTransactions();
+      loadWithdrawals();
+    })();
+  </script>
+</body>
+
+</html>

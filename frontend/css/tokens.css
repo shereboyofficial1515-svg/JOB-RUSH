@@ -1,0 +1,91 @@
+/**
+ * JOB RUSH — Design tokens.
+ * Brand identity per spec: deep navy + gold, professional Nigerian
+ * fintech/recruitment platform. No frameworks — every value here is
+ * referenced by variable everywhere else so the palette/scale can
+ * change in one place.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root {
+  /* ---- Brand colors (spec section 6) ---- */
+  --color-primary-navy: #001020;
+  --color-secondary-navy: #001030;
+  --color-dark-blue: #102040;
+  --color-primary-gold: #F0B000;
+  --color-secondary-gold: #F0A000;
+  --color-white: #F0F0F0;
+  --color-light-gray: #D0D0D0;
+  --color-black: #000000;
+
+  /* ---- Functional aliases ---- */
+  --bg-page: var(--color-primary-navy);
+  --bg-surface: var(--color-secondary-navy);
+  --bg-elevated: var(--color-dark-blue);
+  --text-primary: var(--color-white);
+  --text-secondary: var(--color-light-gray);
+  --text-on-gold: var(--color-primary-navy);
+  --accent: var(--color-primary-gold);
+  --accent-hover: var(--color-secondary-gold);
+  --border-subtle: rgba(240, 240, 240, 0.12);
+  --border-gold: rgba(240, 176, 0, 0.5);
+
+  --status-success: #2FA86A;
+  --status-danger: #D8474A;
+  --status-warning: var(--color-primary-gold);
+
+  /* ---- Typography ----
+     Headlines: Space Grotesk — geometric, confident, echoes the
+     angular speed-lines in the mark. Body: IBM Plex Sans — a
+     technical, professional register distinct from generic
+     humanist-sans defaults. */
+  --font-display: 'Space Grotesk', 'Segoe UI', sans-serif;
+  --font-body: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-base: 1rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 3.5rem;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* ---- Shape ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* ---- Motion (spec section 8) ---- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --duration-micro: 150ms;
+  --duration-normal: 220ms;
+  --duration-modal: 320ms;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --max-width: 1200px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-micro: 0ms;
+    --duration-normal: 0ms;
+    --duration-modal: 0ms;
+  }
+}

@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile Settings — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main" style="max-width: 640px;">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Profile Settings</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div id="settings-content">
+        <div class="skeleton" style="height: 300px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/upload.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function workerFormHtml(profile) {
+      const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(profile.verification_status);
+      return `
+      <form id="profile-form" novalidate>
+        <div class="card" style="margin-bottom: var(--space-5);">
+          <h3>Verification status</h3>
+          ${profile.verification_status === 'approved'
+          ? `<span class="badge badge-verified">Verified professional</span>`
+          : `<p class="text-secondary text-sm">Status: <strong style="text-transform:capitalize;">${profile.verification_status.replace('_', ' ')}</strong></p>`
+        }
+          ${canSubmit ? `
+            <div id="verification-uploads" style="margin-top: var(--space-4);">
+              <div class="text-sm text-secondary" style="margin-bottom: var(--space-3);">Upload at least one document (e.g. government ID) to request the free Verified badge.</div>
+              <div id="uploaded-docs-list" style="margin-bottom: var(--space-3);"></div>
+              <button type="button" class="btn btn-sm btn-secondary" id="add-doc-btn">Upload document</button>
+              <button type="button" class="btn btn-sm btn-primary" id="submit-verification-btn" style="margin-left: var(--space-2);" disabled>Submit for review</button>
+            </div>
+          ` : profile.verification_status === 'submitted' || profile.verification_status === 'under_review'
+          ? `<p class="text-secondary text-sm" style="margin-top: var(--space-3);">Your documents are being reviewed. We'll notify you once a decision is made.</p>`
+          : ''}
+        </div>
+
+        <div class="field" id="title-field">
+          <label for="professionalTitle">Professional title</label>
+          <input type="text" id="professionalTitle" name="professionalTitle" value="${esc(profile.professional_title || '')}" placeholder="e.g. Electrician" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="bio-field">
+          <label for="bio">Bio</label>
+          <textarea id="bio" name="bio" rows="4">${esc(profile.bio || '')}</textarea>
+          <div class="field-hint">A longer, complete bio improves your profile completion score.</div>
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field">
+          <label for="experienceYears">Years of experience</label>
+          <input type="number" id="experienceYears" name="experienceYears" min="0" max="80" value="${profile.experience_years ?? ''}" />
+        </div>
+        <div class="field">
+          <label for="availabilityStatus">Availability</label>
+          <select id="availabilityStatus" name="availabilityStatus">
+            <option value="available" ${profile.availability_status === 'available' ? 'selected' : ''}>Available</option>
+            <option value="busy" ${profile.availability_status === 'busy' ? 'selected' : ''}>Busy</option>
+            <option value="unavailable" ${profile.availability_status === 'unavailable' ? 'selected' : ''}>Unavailable</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
+      </form>
+    `;
+    }
+
+    const DOCUMENT_TYPES = [
+      { value: 'government_id', label: 'Government ID' },
+      { value: 'proof_of_address', label: 'Proof of address' },
+      { value: 'certification', label: 'Professional certification' },
+    ];
+
+    let pendingDocuments = [];
+
+    function renderUploadedDocs() {
+      const list = document.getElementById('uploaded-docs-list');
+      if (!list) return;
+      list.innerHTML = pendingDocuments.length
+        ? pendingDocuments.map((d, i) => `<div class="text-sm" style="display:flex; justify-content:space-between; padding: var(--space-2) 0;"><span>${d.label}</span><button type="button" class="btn btn-sm btn-ghost" data-remove-doc="${i}">Remove</button></div>`).join('')
+        : `<div class="text-sm text-secondary">No documents added yet.</div>`;
+
+      list.querySelectorAll('[data-remove-doc]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          pendingDocuments.splice(Number(btn.dataset.removeDoc), 1);
+          renderUploadedDocs();
+          document.getElementById('submit-verification-btn').disabled = pendingDocuments.length === 0;
+        });
+      });
+    }
+
+    function wireVerificationUpload() {
+      const addBtn = document.getElementById('add-doc-btn');
+      const submitBtn = document.getElementById('submit-verification-btn');
+      if (!addBtn) return;
+
+      addBtn.addEventListener('click', () => {
+        Modal.open({
+          title: 'Upload a document',
+          bodyHtml: `
+          <div class="field">
+            <label for="docType">Document type</label>
+            <select id="docType">${DOCUMENT_TYPES.map((t) => `<option value="${t.value}">${t.label}</option>`).join('')}</select>
+          </div>
+          <div class="field">
+            <label for="docFile">File</label>
+            <input type="file" id="docFile" accept="image/jpeg,image/png,application/pdf" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="confirm-doc-upload">Upload</button>
+          </div>
+        `,
+          onMount: () => {
+            document.getElementById('confirm-doc-upload').addEventListener('click', async () => {
+              const fileInput = document.getElementById('docFile');
+              const docType = document.getElementById('docType');
+              const file = fileInput.files[0];
+              if (!file) { Toast.error('Choose a file first.'); return; }
+
+              const confirmBtn = document.getElementById('confirm-doc-upload');
+              FormHelpers.setLoading(confirmBtn, true);
+              try {
+                const result = await Upload.uploadVerificationDocument(file, docType.value);
+                pendingDocuments.push({
+                  documentType: docType.value,
+                  storagePath: result.storagePath,
+                  label: DOCUMENT_TYPES.find((t) => t.value === docType.value).label,
+                });
+                renderUploadedDocs();
+                submitBtn.disabled = false;
+                Modal.close();
+                Toast.success('Document uploaded.');
+              } catch (err) {
+                Toast.error(err.message);
+              } finally {
+                FormHelpers.setLoading(confirmBtn, false);
+              }
+            });
+          },
+        });
+      });
+
+      submitBtn.addEventListener('click', async () => {
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.post('/verification/submit', {
+            documents: pendingDocuments.map(({ documentType, storagePath }) => ({ documentType, storagePath })),
+          });
+          Toast.success('Submitted for review.');
+          pendingDocuments = [];
+          const user = await Auth.getCurrentUser();
+          loadProfile(user);
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+
+      renderUploadedDocs();
+    }
+
+    function hirerFormHtml(profile) {
+      return `
+      <form id="profile-form" novalidate>
+        <div class="field" id="displayName-field">
+          <label for="displayName">Display name</label>
+          <input type="text" id="displayName" name="displayName" value="${esc(profile.display_name || '')}" placeholder="Your name or company name" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="bio-field">
+          <label for="bio">About</label>
+          <textarea id="bio" name="bio" rows="4">${esc(profile.bio || '')}</textarea>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="isCompany" name="isCompany" style="width:auto;" ${profile.is_company ? 'checked' : ''} />
+            This is a company account
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
+      </form>
+    `;
+    }
+
+    async function loadProfile(user) {
+      const content = document.getElementById('settings-content');
+      try {
+        if (user.role === 'hirer') {
+          const { profile } = await API.get('/profiles/hirer/me');
+          content.innerHTML = hirerFormHtml(profile || {});
+          wireHirerForm();
+        } else {
+          const { profile } = await API.get('/profiles/worker/me');
+          content.innerHTML = workerFormHtml(profile || { verification_status: 'not_submitted' });
+          wireWorkerForm();
+          pendingDocuments = [];
+          wireVerificationUpload();
+        }
+        content.insertAdjacentHTML('beforeend', notificationPreferencesHtml());
+        await loadNotificationPreferences();
+        wireNotificationPreferences();
+      } catch (err) {
+        content.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function notificationPreferencesHtml() {
+      return `
+      <div class="card" style="margin-top: var(--space-6);" id="notif-prefs-card">
+        <h3>Notification preferences</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Choose how you'd like to hear from JOB RUSH. In-app notifications always show your unread count regardless of these settings.</p>
+        <div id="notif-prefs-body">
+          <div class="skeleton" style="height: 16px; width: 60%; margin-bottom: 12px;"></div>
+          <div class="skeleton" style="height: 16px; width: 50%;"></div>
+        </div>
+      </div>
+    `;
+    }
+
+    function prefToggleHtml(id, label, checked) {
+      return `
+      <label style="display:flex; align-items:center; gap: var(--space-3); margin-bottom: var(--space-3);">
+        <input type="checkbox" id="${id}" style="width:auto;" ${checked ? 'checked' : ''} />
+        ${label}
+      </label>
+    `;
+    }
+
+    async function loadNotificationPreferences() {
+      const body = document.getElementById('notif-prefs-body');
+      try {
+        const { preferences } = await API.get('/notifications/preferences');
+        body.innerHTML = `
+        ${prefToggleHtml('pref-in-app', 'In-app notifications', preferences.in_app_enabled)}
+        ${prefToggleHtml('pref-email', 'Email notifications', preferences.email_enabled)}
+        ${prefToggleHtml('pref-sms', 'SMS notifications', preferences.sms_enabled)}
+        <button class="btn btn-primary btn-sm" id="save-prefs-btn" style="margin-top: var(--space-2);">Save preferences</button>
+      `;
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+      }
+    }
+
+    function wireNotificationPreferences() {
+      document.getElementById('notif-prefs-card')?.addEventListener('click', async (e) => {
+        if (e.target.id !== 'save-prefs-btn') return;
+        const btn = e.target;
+        FormHelpers.setLoading(btn, true);
+        try {
+          await API.patch('/notifications/preferences', {
+            inAppEnabled: document.getElementById('pref-in-app').checked,
+            emailEnabled: document.getElementById('pref-email').checked,
+            smsEnabled: document.getElementById('pref-sms').checked,
+          });
+          Toast.success('Preferences saved.');
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
+        }
+      });
+    }
+
+    function wireWorkerForm() {
+      const form = document.getElementById('profile-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        FormHelpers.clearErrors(form);
+        const submitBtn = document.getElementById('profile-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.patch('/profiles/worker/me', {
+            professionalTitle: form.professionalTitle.value.trim() || undefined,
+            bio: form.bio.value.trim() || undefined,
+            experienceYears: form.experienceYears.value ? Number(form.experienceYears.value) : undefined,
+            availabilityStatus: form.availabilityStatus.value,
+          });
+          Toast.success('Profile updated.');
+        } catch (err) {
+          if (err.details) FormHelpers.applyApiValidationErrors(form, err.details);
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    }
+
+    function wireHirerForm() {
+      const form = document.getElementById('profile-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        FormHelpers.clearErrors(form);
+        const submitBtn = document.getElementById('profile-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.patch('/profiles/hirer/me', {
+            displayName: form.displayName.value.trim() || undefined,
+            bio: form.bio.value.trim() || undefined,
+            isCompany: form.isCompany.checked,
+          });
+          Toast.success('Profile updated.');
+        } catch (err) {
+          if (err.details) FormHelpers.applyApiValidationErrors(form, err.details);
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+
+      SidebarNav.render(user, 'settings');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      loadProfile(user);
+    })();
+  </script>
+</body>
+
+</html>

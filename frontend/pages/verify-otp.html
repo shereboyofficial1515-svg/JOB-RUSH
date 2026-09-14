@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verify your account — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+</head>
+<body>
+<div class="auth-shell">
+  <div class="auth-visual" aria-hidden="true">
+    <img src="../assets/images/logo-256.png" alt="" width="140" height="140" style="margin-bottom: 32px;" />
+    <h2 style="max-width: 12ch;">Almost there.</h2>
+    <p class="text-secondary" style="max-width: 34ch;">We just need to confirm it's really you before your account goes live.</p>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-card">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+
+      <div class="progress-steps" aria-hidden="true">
+        <div class="step is-complete"></div>
+        <div class="step is-active"></div>
+        <div class="step"></div>
+      </div>
+
+      <h1 style="font-size: var(--text-2xl);">Enter your code</h1>
+      <p class="text-secondary" style="margin-bottom: var(--space-6);">
+        We sent a 6-digit code to <strong id="destination-label" style="color: var(--text-primary);"></strong>.
+      </p>
+
+      <form id="otp-form" novalidate>
+        <div class="field" id="otp-field">
+          <div class="otp-input-group" id="otp-inputs">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 1" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6" />
+          </div>
+          <div class="field-error" hidden></div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="verify-submit">Verify &amp; continue</button>
+      </form>
+
+      <p class="auth-switch">
+        Didn't get a code?
+        <a href="#" id="resend-link">Resend code</a>
+        <span id="resend-cooldown" class="text-secondary" hidden></span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  (async function init() {
+    const params = new URLSearchParams(window.location.search);
+    const destination = params.get('destination');
+    const purpose = params.get('purpose') || 'registration_email';
+    const channel = purpose === 'registration_phone' ? 'sms' : 'email';
+
+    if (!destination) { window.location.href = 'register.html'; return; }
+    document.getElementById('destination-label').textContent = destination;
+
+    // Fire the first code automatically on page load.
+    Auth.requestOtp({ destination, channel, purpose }).catch(() => {
+      // If one was already sent very recently (cooldown), that's fine —
+      // the person can still enter the code they already received.
+    });
+
+    const inputs = Array.from(document.querySelectorAll('#otp-inputs input'));
+    inputs[0].focus();
+    inputs.forEach((input, i) => {
+      input.addEventListener('input', () => {
+        input.value = input.value.replace(/[^0-9]/g, '');
+        if (input.value && i < inputs.length - 1) inputs[i + 1].focus();
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && i > 0) inputs[i - 1].focus();
+      });
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const digits = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').split('');
+        digits.forEach((d, idx) => { if (inputs[idx]) inputs[idx].value = d; });
+        (inputs[Math.min(digits.length, inputs.length - 1)] || inputs[inputs.length - 1]).focus();
+      });
+    });
+
+    const form = document.getElementById('otp-form');
+    const submitBtn = document.getElementById('verify-submit');
+    const otpField = document.getElementById('otp-field');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      FormHelpers.clearErrors(form);
+      const code = inputs.map((i) => i.value).join('');
+      if (code.length !== 6) return FormHelpers.showError(otpField, 'Enter all 6 digits.');
+
+      FormHelpers.setLoading(submitBtn, true);
+      try {
+        await Auth.verifyOtp({ destination, purpose, code });
+        Toast.success('Account verified.');
+        window.location.href = `login.html`;
+      } catch (err) {
+        FormHelpers.showError(otpField, err.message);
+        inputs.forEach((i) => (i.value = ''));
+        inputs[0].focus();
+      } finally {
+        FormHelpers.setLoading(submitBtn, false);
+      }
+    });
+
+    let cooldown = 0;
+    const resendLink = document.getElementById('resend-link');
+    const cooldownLabel = document.getElementById('resend-cooldown');
+
+    resendLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      if (cooldown > 0) return;
+      try {
+        await Auth.requestOtp({ destination, channel, purpose });
+        Toast.success('A new code has been sent.');
+        cooldown = 60;
+        resendLink.hidden = true;
+        cooldownLabel.hidden = false;
+        const tick = setInterval(() => {
+          cooldown -= 1;
+          cooldownLabel.textContent = `Resend available in ${cooldown}s`;
+          if (cooldown <= 0) {
+            clearInterval(tick);
+            resendLink.hidden = false;
+            cooldownLabel.hidden = true;
+          }
+        }, 1000);
+      } catch (err) {
+        Toast.error(err.message);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

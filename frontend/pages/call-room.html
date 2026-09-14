@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Call — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/call-room.css" />
+</head>
+<body class="call-room-body">
+<div class="call-room">
+  <div class="call-room-header">
+    <div class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="32" height="32" />
+      <span>JOB RUSH</span>
+    </div>
+    <span id="call-status" class="badge badge-neutral">Connecting\u2026</span>
+  </div>
+
+  <div class="call-stage" id="call-stage">
+    <div class="call-placeholder" id="call-placeholder">
+      <p class="text-secondary">Setting up your call\u2026</p>
+    </div>
+  </div>
+
+  <div class="call-controls">
+    <button class="call-control-btn" id="toggle-mic" aria-label="Mute microphone" aria-pressed="false">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+    </button>
+    <button class="call-control-btn" id="toggle-camera" aria-label="Turn off camera" aria-pressed="false">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+    </button>
+    <button class="call-control-btn call-control-leave" id="leave-call" aria-label="Leave call">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+    </button>
+  </div>
+
+  <p class="text-xs text-secondary call-fallback-note" id="fallback-note" hidden>
+    Live video couldn't start in this browser session. You can still use the call controls once the connection succeeds, or return to the interview list.
+  </p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  /**
+   * This page is written against the documented LiveKit JS client
+   * v2 API (Room, RoomEvent, Track lifecycle, LocalParticipant
+   * enable/disable methods). It has not been runtime-verified against
+   * a live LiveKit server or real browser WebRTC stack in this build
+   * environment. The token-issuing endpoints it calls ARE live and
+   * tested; this page is the one piece of the app that needs a
+   * real-device smoke test before shipping.
+   */
+  let room = null;
+  let micEnabled = true;
+  let cameraEnabled = true;
+
+  function participantTileId(identity) {
+    return `tile-${identity.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  }
+
+  function ensureTile(identity, label) {
+    const stage = document.getElementById('call-stage');
+    const id = participantTileId(identity);
+    let tile = document.getElementById(id);
+    if (!tile) {
+      const placeholder = document.getElementById('call-placeholder');
+      if (placeholder) placeholder.remove();
+      tile = document.createElement('div');
+      tile.className = 'call-tile';
+      tile.id = id;
+      tile.innerHTML = `<div class="call-tile-label">${esc(label)}</div>`;
+      stage.appendChild(tile);
+    }
+    return tile;
+  }
+
+  function attachTrack(track, identity, label) {
+    const tile = ensureTile(identity, label);
+    const el = track.attach();
+    el.className = 'call-media';
+    tile.appendChild(el);
+  }
+
+  function detachParticipant(identity) {
+    const tile = document.getElementById(participantTileId(identity));
+    if (tile) tile.remove();
+  }
+
+  async function getToken(type, id) {
+    if (type === 'interview') return API.get(`/interviews/${id}/call-token`);
+    return API.get(`/messaging/calls/${id}/token`);
+  }
+
+  async function endCall(type, id) {
+    try {
+      if (type === 'interview') {
+        await API.post(`/interviews/${id}/leave`);
+      } else {
+        await API.post(`/messaging/calls/${id}/status`, { status: 'ended' });
+      }
+    } catch {
+      // Best-effort — the call is ending either way.
+    }
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('login.html');
+    if (!user) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('type') === 'call' ? 'call' : 'interview';
+    const id = params.get('id');
+    const statusBadge = document.getElementById('call-status');
+
+    if (!id) {
+      statusBadge.textContent = 'No call specified';
+      return;
+    }
+
+    if (typeof LivekitClient === 'undefined') {
+      statusBadge.textContent = 'Video library failed to load';
+      document.getElementById('fallback-note').hidden = false;
+      return;
+    }
+
+    try {
+      const token = await getToken(type, id);
+      room = new LivekitClient.Room();
+
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        attachTrack(track, participant.identity, participant.name || participant.identity);
+      });
+      room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
+        detachParticipant(participant.identity);
+      });
+      room.on(LivekitClient.RoomEvent.Disconnected, () => {
+        statusBadge.textContent = 'Call ended';
+      });
+
+      await room.connect(token.livekitUrl, token.accessToken);
+      statusBadge.textContent = 'Connected';
+      statusBadge.className = 'badge badge-verified';
+
+      await room.localParticipant.setMicrophoneEnabled(true);
+      await room.localParticipant.setCameraEnabled(true);
+
+      room.localParticipant.videoTrackPublications.forEach((pub) => {
+        if (pub.track) attachTrack(pub.track, room.localParticipant.identity, 'You');
+      });
+    } catch (err) {
+      statusBadge.textContent = 'Could not connect';
+      document.getElementById('fallback-note').hidden = false;
+      Toast.error(err.message || 'Could not start the call.');
+    }
+
+    document.getElementById('toggle-mic').addEventListener('click', async (e) => {
+      if (!room) return;
+      micEnabled = !micEnabled;
+      await room.localParticipant.setMicrophoneEnabled(micEnabled);
+      e.currentTarget.classList.toggle('is-off', !micEnabled);
+      e.currentTarget.setAttribute('aria-pressed', String(!micEnabled));
+    });
+
+    document.getElementById('toggle-camera').addEventListener('click', async (e) => {
+      if (!room) return;
+      cameraEnabled = !cameraEnabled;
+      await room.localParticipant.setCameraEnabled(cameraEnabled);
+      e.currentTarget.classList.toggle('is-off', !cameraEnabled);
+      e.currentTarget.setAttribute('aria-pressed', String(!cameraEnabled));
+    });
+
+    document.getElementById('leave-call').addEventListener('click', async () => {
+      if (room) await room.disconnect();
+      await endCall(type, id);
+      window.location.href = type === 'interview' ? 'interviews.html' : 'messages.html';
+    });
+
+    window.addEventListener('beforeunload', () => {
+      if (room) room.disconnect();
+    });
+  })();
+</script>
+</body>
+</html>

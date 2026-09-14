@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Applicants — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <div>
+          <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-1);">Applicants</h1>
+          <p class="text-secondary text-sm" id="job-title-label"></p>
+        </div>
+        <div id="notif-bell-mount"></div>
+        <a href="my-jobs.html" class="btn btn-ghost btn-sm">Back to my jobs</a>
+      </div>
+
+      <div id="applicants-list" aria-live="polite">
+        <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
+        <div class="skeleton" style="height:100px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function ratingStars(avg) {
+      const n = Math.round(Number(avg) || 0);
+      return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
+    }
+
+    function applicantRowHtml(app) {
+      const actionable = ['applied', 'accepted', 'shortlisted'].includes(app.status);
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);" data-app-id="${app.id}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
+          <div>
+            <h4 style="margin-bottom: var(--space-1);">${esc(app.full_name)}</h4>
+            <div class="text-secondary text-sm">${esc(app.professional_title) || 'Professional'}</div>
+            <div style="margin-top: var(--space-2); display:flex; gap: var(--space-2); align-items:center;">
+              <span class="text-gold text-sm">${ratingStars(app.rating_avg)}</span>
+              ${app.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
+              ${app.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+            </div>
+          </div>
+          <span class="badge badge-neutral">${app.status}</span>
+        </div>
+        ${app.cover_note ? `<p class="text-sm text-secondary" style="margin-top: var(--space-3); max-width:none;">"${esc(app.cover_note)}"</p>` : ''}
+        ${actionable ? `
+          <div style="display:flex; gap: var(--space-2); margin-top: var(--space-4);">
+            ${app.status !== 'shortlisted' ? `<button class="btn btn-sm btn-secondary" data-action="shortlist">Shortlist</button>` : ''}
+            <button class="btn btn-sm btn-primary" data-action="schedule-interview">Schedule interview</button>
+            ${app.status === 'shortlisted' ? `<button class="btn btn-sm btn-primary" data-action="hire">Hire</button>` : ''}
+            <button class="btn btn-sm btn-danger" data-action="reject">Reject</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    }
+
+    async function loadApplicants(jobId) {
+      const list = document.getElementById('applicants-list');
+      try {
+        const [{ applications }, { job }] = await Promise.all([
+          API.get(`/jobs/${jobId}/applications`),
+          API.get(`/jobs/${jobId}`),
+        ]);
+        document.getElementById('job-title-label').textContent = job.title;
+
+        if (applications.length === 0) {
+          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No applicants yet</h3><p>Applications will show up here as workers apply.</p></div>`;
+          return;
+        }
+        list.innerHTML = applications.map(applicantRowHtml).join('');
+        wireActions(jobId);
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    function wireActions(jobId) {
+      document.querySelectorAll('[data-action="shortlist"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.closest('[data-app-id]').dataset.appId;
+          try {
+            await API.post(`/applications/${id}/shortlist`);
+            Toast.success('Applicant shortlisted.');
+            loadApplicants(jobId);
+          } catch (err) { Toast.error(err.message); }
+        });
+      });
+
+      document.querySelectorAll('[data-action="reject"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-app-id]').dataset.appId;
+          Modal.open({
+            title: 'Reject this applicant?',
+            bodyHtml: `
+            <p class="text-secondary">They'll be notified their application wasn't successful.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-reject">Reject</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-reject').addEventListener('click', async () => {
+                try {
+                  await API.post(`/applications/${id}/reject`);
+                  Toast.success('Applicant rejected.');
+                  Modal.close();
+                  loadApplicants(jobId);
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="hire"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-app-id]').dataset.appId;
+          Modal.open({
+            title: 'Hire this applicant?',
+            bodyHtml: `
+            <p class="text-secondary">This marks the job as filled. You'll create a contract and fund escrow from the Contracts page next.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-primary" id="confirm-hire">Confirm hire</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-hire').addEventListener('click', async () => {
+                try {
+                  await API.post(`/applications/${id}/hire`);
+                  Toast.success('Applicant hired! Set up the contract from Contracts & Payments.');
+                  Modal.close();
+                  loadApplicants(jobId);
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="schedule-interview"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-app-id]').dataset.appId;
+          window.location.href = `interviews.html?scheduleForApplication=${id}`;
+        });
+      });
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role !== 'hirer') { window.location.href = 'dashboard.html'; return; }
+
+      SidebarNav.render(user, 'applicants');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      const jobId = new URLSearchParams(window.location.search).get('jobId');
+      if (!jobId) {
+        document.getElementById('applicants-list').innerHTML = '<p class="text-secondary">No job selected. Go to My Jobs and choose "View applicants".</p>';
+        return;
+      }
+      loadApplicants(jobId);
+    })();
+  </script>
+</body>
+
+</html>

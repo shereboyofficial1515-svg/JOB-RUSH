@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Find work — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/jobs.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
+    <div class="jobs-toolbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Find work</h1>
+      <form id="jobs-search-form" class="jobs-search">
+        <input type="text" name="keyword" placeholder="Search by title or keyword" aria-label="Keyword" />
+        <select name="employmentType" aria-label="Employment type">
+          <option value="">Any type</option>
+          <option value="full_time">Full-time</option>
+          <option value="part_time">Part-time</option>
+          <option value="contract">Contract</option>
+          <option value="one_time">One-time</option>
+        </select>
+        <select name="sort" aria-label="Sort by">
+          <option value="newest">Newest</option>
+          <option value="budget_high">Highest budget</option>
+          <option value="deadline">Deadline soonest</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <div id="jobs-list" class="jobs-list" aria-live="polite">
+      <!-- populated by JS -->
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script>
+    function timeAgo(dateStr) {
+      const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+      if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))}m ago`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+      return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    function formatBudget(job) {
+      if (!job.budget_min && !job.budget_max) return 'Budget not specified';
+      const fmt = (n) => `₦${Number(n).toLocaleString()}`;
+      if (job.budget_min && job.budget_max) return `${fmt(job.budget_min)} – ${fmt(job.budget_max)}`;
+      return fmt(job.budget_min || job.budget_max);
+    }
+
+    function jobCardHtml(job) {
+      return `
+      <a href="job-detail.html?id=${job.id}" class="card card-interactive job-card">
+        <div class="job-card-top">
+          <h3 style="margin-bottom: var(--space-1);">${esc(job.title)}</h3>
+          <span class="text-xs text-secondary">${timeAgo(job.created_at)}</span>
+        </div>
+        <p class="text-secondary text-sm job-card-desc">${esc((job.description || '').slice(0, 140))}${job.description.length > 140 ? '…' : ''}</p>
+        <div class="job-card-meta">
+          <span class="badge badge-neutral">${esc(job.employment_type.replace('_', ' '))}</span>
+          <span class="text-sm text-gold">${formatBudget(job)}</span>
+          <span class="text-sm text-secondary">${esc(job.hirer_display_name) || 'JOB RUSH Hirer'}</span>
+        </div>
+      </a>
+    `;
+    }
+
+    function renderSkeletons(container, count) {
+      container.innerHTML = Array.from({ length: count })
+        .map(() => `<div class="card job-card"><div class="skeleton" style="height:20px; width:60%; margin-bottom:12px;"></div><div class="skeleton" style="height:14px; width:90%; margin-bottom:8px;"></div><div class="skeleton" style="height:14px; width:40%;"></div></div>`)
+        .join('');
+    }
+
+    async function loadJobs(query) {
+      const list = document.getElementById('jobs-list');
+      renderSkeletons(list, 4);
+      try {
+        const result = await API.get(`/jobs?${query}`);
+        if (result.jobs.length === 0) {
+          list.innerHTML = `
+          <div class="empty-state">
+            <img src="${ASSETS.emptyState}" alt="" />
+            <h3>No jobs match your search</h3>
+            <p>Try a different keyword or clear your filters.</p>
+          </div>`;
+          return;
+        }
+        list.innerHTML = result.jobs.map(jobCardHtml).join('');
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-work', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      const form = document.getElementById('jobs-search-form');
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('keyword')) form.keyword.value = urlParams.get('keyword');
+
+      loadJobs(urlParams.toString());
+
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const params = new URLSearchParams(new FormData(form));
+        for (const [key, value] of [...params.entries()]) {
+          if (!value) params.delete(key);
+        }
+        window.history.replaceState(null, '', `?${params.toString()}`);
+        loadJobs(params.toString());
+      });
+    })();
+  </script>
+</body>
+
+</html>

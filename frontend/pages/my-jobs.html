@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Jobs — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">My Jobs</h1>
+        <div style="display:flex; align-items:center; gap: var(--space-3);">
+          <div id="notif-bell-mount"></div>
+          <button class="btn btn-primary" id="post-job-btn">Post a job</button>
+        </div>
+      </div>
+
+      <div id="jobs-list" aria-live="polite">
+        <div class="skeleton" style="height:90px; margin-bottom:12px;"></div>
+        <div class="skeleton" style="height:90px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    function formatBudget(job) {
+      if (!job.budget_min && !job.budget_max) return 'Not specified';
+      const fmt = (n) => `\u20A6${Number(n).toLocaleString()}`;
+      if (job.budget_min && job.budget_max) return `${fmt(job.budget_min)} \u2013 ${fmt(job.budget_max)}`;
+      return fmt(job.budget_min || job.budget_max);
+    }
+
+    function jobRowHtml(job) {
+      return `
+      <div class="card" style="margin-bottom: var(--space-3);" data-job-id="${job.id}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
+          <div>
+            <h4 style="margin-bottom: var(--space-1);"><a href="job-detail.html?id=${job.id}">${esc(job.title)}</a></h4>
+            <div class="text-secondary text-sm">${formatBudget(job)} \u00B7 ${job.employment_type.replace('_', ' ')}</div>
+          </div>
+          <span class="badge badge-neutral">${job.status}</span>
+        </div>
+        <div style="display:flex; gap: var(--space-2); margin-top: var(--space-4);">
+          <a href="applicants.html?jobId=${job.id}" class="btn btn-sm btn-secondary">View applicants</a>
+          ${job.status === 'open' ? `<button class="btn btn-sm btn-ghost" data-action="close">Close job</button>` : ''}
+        </div>
+      </div>
+    `;
+    }
+
+    function jobFormHtml() {
+      return `
+      <form id="job-form" novalidate>
+        <div class="field" id="title-field">
+          <label for="title">Job title</label>
+          <input type="text" id="title" name="title" required />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field" id="description-field">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="5" required></textarea>
+          <div class="field-error" hidden></div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap: var(--space-4);">
+          <div class="field">
+            <label for="employmentType">Employment type</label>
+            <select id="employmentType" name="employmentType">
+              <option value="one_time">One-time</option>
+              <option value="contract">Contract</option>
+              <option value="part_time">Part-time</option>
+              <option value="full_time">Full-time</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="experienceLevel">Experience level</label>
+            <select id="experienceLevel" name="experienceLevel">
+              <option value="entry">Entry</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="expert">Expert</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap: var(--space-4);">
+          <div class="field" id="budgetMin-field">
+            <label for="budgetMin">Budget min (\u20A6)</label>
+            <input type="number" id="budgetMin" name="budgetMin" min="0" />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="field" id="budgetMax-field">
+            <label for="budgetMax">Budget max (\u20A6)</label>
+            <input type="number" id="budgetMax" name="budgetMax" min="0" />
+            <div class="field-error" hidden></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="job-submit">Post job</button>
+        </div>
+      </form>
+    `;
+    }
+
+    function openPostJobModal() {
+      Modal.open({
+        title: 'Post a new job',
+        bodyHtml: jobFormHtml(),
+        onMount: () => {
+          const form = document.getElementById('job-form');
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+
+            const title = form.title.value.trim();
+            const description = form.description.value.trim();
+            if (title.length < 5) return FormHelpers.showError(document.getElementById('title-field'), 'Enter a descriptive title (at least 5 characters).');
+            if (description.length < 20) return FormHelpers.showError(document.getElementById('description-field'), 'Description must be at least 20 characters.');
+
+            const payload = {
+              title,
+              description,
+              employmentType: form.employmentType.value,
+              experienceLevel: form.experienceLevel.value,
+              budgetMin: form.budgetMin.value ? Number(form.budgetMin.value) : undefined,
+              budgetMax: form.budgetMax.value ? Number(form.budgetMax.value) : undefined,
+            };
+
+            const submitBtn = document.getElementById('job-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              await API.post('/jobs', payload);
+              Toast.success('Job posted.');
+              Modal.close();
+              loadJobs();
+            } catch (err) {
+              if (err.status === 400 && err.details) FormHelpers.applyApiValidationErrors(form, err.details);
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    async function loadJobs() {
+      const list = document.getElementById('jobs-list');
+      try {
+        const { jobs } = await API.get('/jobs/mine');
+        if (jobs.length === 0) {
+          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>You haven't posted a job yet</h3><p>Post your first job to start receiving applications.</p></div>`;
+          return;
+        }
+        list.innerHTML = jobs.map(jobRowHtml).join('');
+        document.querySelectorAll('[data-action="close"]').forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            const jobId = btn.closest('[data-job-id]').dataset.jobId;
+            try {
+              await API.post(`/jobs/${jobId}/status`, { status: 'closed' });
+              Toast.success('Job closed.');
+              loadJobs();
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        });
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role !== 'hirer') { window.location.href = 'dashboard.html'; return; }
+
+      SidebarNav.render(user, 'my-jobs');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+      document.getElementById('post-job-btn').addEventListener('click', openPostJobModal);
+
+      loadJobs();
+    })();
+  </script>
+</body>
+
+</html>

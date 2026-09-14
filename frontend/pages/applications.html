@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Applications — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">My Applications</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div class="wallet-tabs">
+        <button class="wallet-tab is-active" data-filter="all">All</button>
+        <button class="wallet-tab" data-filter="invited">Invitations</button>
+        <button class="wallet-tab" data-filter="active">Active</button>
+        <button class="wallet-tab" data-filter="closed">Closed</button>
+      </div>
+
+      <div id="applications-list" aria-live="polite">
+        <div class="skeleton" style="height:80px; margin-bottom:12px;"></div>
+        <div class="skeleton" style="height:80px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    const ACTIVE_STATUSES = ['applied', 'invited', 'accepted', 'shortlisted'];
+    const CLOSED_STATUSES = ['hired', 'rejected', 'withdrawn', 'declined'];
+
+    function statusBadgeClass(status) {
+      if (status === 'hired') return 'badge-verified';
+      return 'badge-neutral';
+    }
+
+    function rowHtml(app) {
+      const canWithdraw = ['applied', 'shortlisted', 'accepted'].includes(app.status);
+      const canRespond = app.status === 'invited';
+      return `
+      <div class="card" style="margin-bottom: var(--space-3); display:flex; justify-content:space-between; align-items:center; gap: var(--space-4);" data-app-id="${app.id}">
+        <div>
+          <h4 style="margin-bottom: var(--space-1);">${esc(app.job_title)}</h4>
+          <div class="text-secondary text-sm">${esc(app.hirer_display_name) || 'JOB RUSH Hirer'} \u00B7 ${app.source === 'hirer_invited' ? 'Invitation' : 'Application'}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap: var(--space-3);">
+          <span class="badge ${statusBadgeClass(app.status)}">${app.status}</span>
+          ${canRespond ? `
+            <button class="btn btn-sm btn-primary" data-action="accept">Accept</button>
+            <button class="btn btn-sm btn-ghost" data-action="decline">Decline</button>
+          ` : ''}
+          ${canWithdraw ? `<button class="btn btn-sm btn-danger" data-action="withdraw">Withdraw</button>` : ''}
+        </div>
+      </div>
+    `;
+    }
+
+    let allApplications = [];
+
+    function render(filter) {
+      const list = document.getElementById('applications-list');
+      let filtered = allApplications;
+      if (filter === 'invited') filtered = allApplications.filter((a) => a.status === 'invited');
+      else if (filter === 'active') filtered = allApplications.filter((a) => ACTIVE_STATUSES.includes(a.status) && a.status !== 'invited');
+      else if (filter === 'closed') filtered = allApplications.filter((a) => CLOSED_STATUSES.includes(a.status));
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>Nothing here yet</h3><p>Browse open jobs to start applying.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`;
+        return;
+      }
+      list.innerHTML = filtered.map(rowHtml).join('');
+      wireActions();
+    }
+
+    function wireActions() {
+      document.querySelectorAll('[data-action="withdraw"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const card = btn.closest('[data-app-id]');
+          const id = card.dataset.appId;
+          Modal.open({
+            title: 'Withdraw application?',
+            bodyHtml: `
+            <p class="text-secondary">You can't undo this. The hirer will be able to see that you withdrew.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-withdraw">Withdraw</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-withdraw').addEventListener('click', async () => {
+                try {
+                  await API.post(`/applications/${id}/withdraw`);
+                  Toast.success('Application withdrawn.');
+                  Modal.close();
+                  loadApplications();
+                } catch (err) {
+                  Toast.error(err.message);
+                }
+              });
+            },
+          });
+        });
+      });
+
+      document.querySelectorAll('[data-action="accept"], [data-action="decline"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('[data-app-id]');
+          const id = card.dataset.appId;
+          const accept = btn.dataset.action === 'accept';
+          try {
+            await API.post(`/applications/${id}/respond`, { accept });
+            Toast.success(accept ? 'Invitation accepted.' : 'Invitation declined.');
+            loadApplications();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      });
+    }
+
+    async function loadApplications() {
+      try {
+        const { applications } = await API.get('/applications/me');
+        allApplications = applications;
+        const activeFilter = document.querySelector('.wallet-tab.is-active')?.dataset.filter || 'all';
+        render(activeFilter);
+      } catch (err) {
+        document.getElementById('applications-list').innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      if (user.role === 'hirer') { window.location.href = 'dashboard.html'; return; }
+
+      SidebarNav.render(user, 'applications');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.querySelectorAll('.wallet-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.wallet-tab').forEach((t) => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          render(tab.dataset.filter);
+        });
+      });
+
+      loadApplications();
+    })();
+  </script>
+</body>
+
+</html>

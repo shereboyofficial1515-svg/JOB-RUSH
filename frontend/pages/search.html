@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Find Talent — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/jobs.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
+    <div class="jobs-toolbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Find talent</h1>
+      <form id="search-form" class="jobs-search">
+        <input type="text" name="keyword" placeholder="Search by title or skill" aria-label="Keyword" />
+        <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
+          <input type="checkbox" name="verifiedOnly" style="width:auto;" /> Verified only
+        </label>
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <div id="workers-list" class="jobs-list" aria-live="polite"></div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script>
+    function ratingStars(avg) {
+      const n = Math.round(Number(avg) || 0);
+      return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
+    }
+
+    function workerCardHtml(w) {
+      return `
+      <div class="card card-interactive job-card">
+        <div style="display:flex; gap: var(--space-3); align-items:center; margin-bottom: var(--space-3);">
+          <img src="${ASSETS.defaultAvatar}" alt="" width="44" height="44" style="border-radius:50%;" />
+          <div>
+            <strong>${esc(w.full_name)}</strong>
+            <div class="text-sm text-secondary">${esc(w.professional_title) || 'Professional'}</div>
+          </div>
+        </div>
+        <div style="display:flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+          ${w.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
+          ${w.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+        </div>
+        <div class="text-gold text-sm">${ratingStars(w.rating_avg)} <span class="text-secondary">(${w.rating_count})</span></div>
+        <p class="text-secondary text-sm" style="margin-top: var(--space-3);">${esc((w.bio || 'No bio yet.').slice(0, 100))}</p>
+      </div>
+    `;
+    }
+
+    async function loadWorkers(query) {
+      const list = document.getElementById('workers-list');
+      list.innerHTML = `<div class="skeleton" style="height:180px;"></div><div class="skeleton" style="height:180px;"></div>`;
+      try {
+        const { profiles } = await API.get(`/profiles/worker/search?${query}`);
+        if (profiles.length === 0) {
+          list.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try a different search.</p></div>`;
+          return;
+        }
+        list.innerHTML = profiles.map(workerCardHtml).join('');
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      loadWorkers('');
+
+      document.getElementById('search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const params = new URLSearchParams();
+        const keyword = e.target.keyword.value.trim();
+        if (keyword) params.set('keyword', keyword);
+        if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');
+        loadWorkers(params.toString());
+      });
+    })();
+  </script>
+</body>
+
+</html>

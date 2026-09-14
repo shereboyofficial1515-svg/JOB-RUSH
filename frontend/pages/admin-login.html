@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Admin sign in — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body class="admin-auth-body">
+<div class="admin-auth-card" id="admin-auth-content">
+  <div class="admin-auth-brand">
+    <img src="../assets/images/logo-96.png" alt="JOB RUSH" width="64" height="64" />
+    <div>
+      <strong>JOB RUSH</strong>
+      <span class="badge badge-neutral admin-badge">Admin Portal</span>
+    </div>
+  </div>
+
+  <p class="text-secondary text-sm" style="margin-bottom: var(--space-6);">
+    Restricted access. Sign-ins to this portal are logged and audited.
+  </p>
+
+  <form id="admin-login-form" novalidate>
+    <div class="field" id="identifier-field">
+      <label for="identifier">Email or phone number</label>
+      <input type="text" id="identifier" name="identifier" autocomplete="username" required />
+      <div class="field-error" hidden></div>
+    </div>
+
+    <div class="field" id="password-field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required />
+      <div class="field-error" hidden></div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-block" id="admin-login-submit">Sign in</button>
+  </form>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function twoFactorStepHtml() {
+    return `
+      <div class="admin-auth-brand">
+        <img src="../assets/images/logo-96.png" alt="JOB RUSH" width="64" height="64" />
+        <div>
+          <strong>Two-factor verification</strong>
+          <span class="badge badge-neutral admin-badge">Admin Portal</span>
+        </div>
+      </div>
+      <p class="text-secondary text-sm" style="margin-bottom: var(--space-6);">
+        Enter the 6-digit code from your authenticator app, or a backup code.
+      </p>
+      <form id="tfa-form" novalidate>
+        <div class="field" id="tfa-code-field">
+          <label for="tfa-code">Verification code</label>
+          <input type="text" id="tfa-code" name="code" autocomplete="one-time-code" placeholder="123456 or XXXX-XXXX" autofocus />
+          <div class="field-error" hidden></div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="tfa-submit">Verify</button>
+      </form>
+    `;
+  }
+
+  function showTwoFactorStep(challengeToken) {
+    const container = document.getElementById('admin-auth-content');
+    container.innerHTML = twoFactorStepHtml();
+
+    const form = document.getElementById('tfa-form');
+    const submitBtn = document.getElementById('tfa-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      FormHelpers.clearErrors(form);
+      const code = form.code.value.trim();
+      if (!code) return FormHelpers.showError(document.getElementById('tfa-code-field'), 'Enter your verification code.');
+
+      FormHelpers.setLoading(submitBtn, true);
+      try {
+        await Auth.verifyTwoFactorLogin({ challengeToken, code });
+        window.location.href = 'admin-dashboard.html';
+      } catch (err) {
+        FormHelpers.showError(document.getElementById('tfa-code-field'), err.message);
+      } finally {
+        FormHelpers.setLoading(submitBtn, false);
+      }
+    });
+  }
+
+  (async function init() {
+    const form = document.getElementById('admin-login-form');
+    const submitBtn = document.getElementById('admin-login-submit');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      FormHelpers.clearErrors(form);
+
+      const identifier = form.identifier.value.trim();
+      const password = form.password.value;
+      if (!identifier) return FormHelpers.showError(document.getElementById('identifier-field'), 'Enter your email or phone number.');
+      if (!password) return FormHelpers.showError(document.getElementById('password-field'), 'Enter your password.');
+
+      FormHelpers.setLoading(submitBtn, true);
+      try {
+        const result = await Auth.login({ identifier, password });
+        if (result.requiresTwoFactor) {
+          showTwoFactorStep(result.challengeToken);
+          return;
+        }
+        window.location.href = 'admin-dashboard.html';
+      } catch (err) {
+        Toast.error(err.message);
+      } finally {
+        FormHelpers.setLoading(submitBtn, false);
+      }
+    });
+  })();
+</script>
+</body>
+</html>

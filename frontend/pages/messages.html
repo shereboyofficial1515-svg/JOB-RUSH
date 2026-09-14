@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Messages — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main" style="padding: var(--space-6) var(--space-7);">
+      <div class="dashboard-topbar" style="margin-bottom: var(--space-4);">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Messages</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+      <div class="messages-layout card" style="padding:0;">
+        <div class="conversation-list" id="conversation-list">
+          <div class="skeleton" style="height:60px; margin:12px;"></div>
+          <div class="skeleton" style="height:60px; margin:12px;"></div>
+        </div>
+        <div class="thread-panel" id="thread-panel">
+          <div class="empty-state" style="margin: auto;">
+            <img src="../assets/images/empty-state.svg" alt="" />
+            <h3>Select a conversation</h3>
+            <p>Choose someone from the list to see your messages.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script>
+    let currentUser = null;
+    let activeConversationId = null;
+    let pollTimer = null;
+
+    function conversationItemHtml(c) {
+      return `
+      <a class="conversation-item ${c.id === activeConversationId ? 'is-active' : ''}" data-conversation-id="${c.id}">
+        <div style="display:flex; justify-content:space-between;">
+          <strong>Conversation</strong>
+          ${c.unread_count > 0 ? `<span class="badge badge-pro">${c.unread_count}</span>` : ''}
+        </div>
+        <div class="preview">${esc(c.last_message_preview) || 'No messages yet'}</div>
+      </a>
+    `;
+    }
+
+    async function loadConversations() {
+      const list = document.getElementById('conversation-list');
+      try {
+        const { conversations } = await API.get('/messaging/conversations');
+        if (conversations.length === 0) {
+          list.innerHTML = `<div class="empty-state" style="padding: var(--space-5);"><p class="text-secondary text-sm">No conversations yet. Message a hirer or worker from their profile or a job application to start one.</p></div>`;
+          return;
+        }
+        list.innerHTML = conversations.map(conversationItemHtml).join('');
+        list.querySelectorAll('.conversation-item').forEach((item) => {
+          item.addEventListener('click', () => openConversation(item.dataset.conversationId));
+        });
+      } catch (err) {
+        list.innerHTML = `<p class="text-secondary" style="padding: var(--space-4);">${err.message}</p>`;
+      }
+    }
+
+    function messageBubbleHtml(m) {
+      const isOwn = m.sender_id === currentUser.id;
+      const content = m.deleted_at ? '<em>Message deleted</em>' : esc(m.content || '[attachment]');
+      return `
+      <div class="message-bubble ${isOwn ? 'own' : 'other'}">
+        <div>${content}</div>
+        <div class="message-meta">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${m.is_edited ? ' \u00B7 edited' : ''}</div>
+      </div>
+    `;
+    }
+
+    async function openConversation(conversationId) {
+      activeConversationId = conversationId;
+      document.querySelectorAll('.conversation-item').forEach((i) => i.classList.toggle('is-active', i.dataset.conversationId === conversationId));
+
+      // Mobile shows one pane at a time — switch to the thread view.
+      document.getElementById('conversation-list').classList.add('is-hidden-on-mobile');
+      document.getElementById('thread-panel').classList.add('is-open-on-mobile');
+
+      const panel = document.getElementById('thread-panel');
+      panel.innerHTML = `
+      <div class="thread-header">
+        <button type="button" class="btn btn-ghost btn-sm back-to-list-btn" id="back-to-list-btn" aria-label="Back to conversations">\u2190</button>
+        <strong>Conversation</strong>
+        <div style="display:flex; gap: var(--space-2);">
+          <button class="btn btn-sm btn-secondary" id="audio-call-btn">Audio call</button>
+          <button class="btn btn-sm btn-primary" id="video-call-btn">Video call</button>
+        </div>
+      </div>
+      <div class="thread-messages" id="thread-messages"><div class="skeleton" style="height:40px; width:60%;"></div></div>
+      <form class="thread-composer" id="composer-form">
+        <input type="text" name="content" placeholder="Type a message..." autocomplete="off" />
+        <button type="submit" class="btn btn-primary">Send</button>
+      </form>
+    `;
+
+      document.getElementById('audio-call-btn').addEventListener('click', () => startCall(conversationId, 'audio'));
+      document.getElementById('back-to-list-btn').addEventListener('click', () => {
+        document.getElementById('conversation-list').classList.remove('is-hidden-on-mobile');
+        document.getElementById('thread-panel').classList.remove('is-open-on-mobile');
+      });
+      document.getElementById('video-call-btn').addEventListener('click', () => startCall(conversationId, 'video'));
+
+      await loadMessages();
+      await API.post(`/messaging/conversations/${conversationId}/read`).catch(() => { });
+
+      document.getElementById('composer-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const content = form.content.value.trim();
+        if (!content) return;
+        form.content.value = '';
+        try {
+          await API.post(`/messaging/conversations/${conversationId}/messages`, { content });
+          await loadMessages();
+        } catch (err) {
+          Toast.error(err.message);
+        }
+      });
+
+      clearInterval(pollTimer);
+      pollTimer = setInterval(loadMessages, 5000);
+    }
+
+    async function startCall(conversationId, callType) {
+      try {
+        const { call } = await API.post(`/messaging/conversations/${conversationId}/calls`, { callType });
+        window.location.href = `call-room.html?type=call&id=${call.id}`;
+      } catch (err) {
+        Toast.error(err.message);
+      }
+    }
+
+    async function loadMessages() {
+      if (!activeConversationId) return;
+      try {
+        const { messages } = await API.get(`/messaging/conversations/${activeConversationId}/messages`);
+        const container = document.getElementById('thread-messages');
+        if (!container) return;
+        container.innerHTML = messages.length
+          ? messages.map(messageBubbleHtml).join('')
+          : `<p class="text-secondary text-sm">No messages yet \u2014 say hello.</p>`;
+        container.scrollTop = container.scrollHeight;
+      } catch (err) {
+        // Silent on poll failures — don't spam toasts every 5 seconds.
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      currentUser = user;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+
+      SidebarNav.render(user, 'messages');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      loadConversations();
+    })();
+
+    window.addEventListener('beforeunload', () => clearInterval(pollTimer));
+  </script>
+</body>
+
+</html>
