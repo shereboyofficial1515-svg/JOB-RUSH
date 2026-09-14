@@ -39,12 +39,18 @@ const Chrome = (function () {
       )
       .join('');
 
-    const actionsHtml = user
-      ? `<div id="notif-bell-mount"></div>
-         <a href="${pageHref('dashboard')}" class="btn btn-secondary btn-sm">Dashboard</a>
+    // The bell (logged-in only) always stays visible in the header row.
+    // The buttons move into the mobile nav drawer below 860px (see
+    // components.css) instead of squeezing into that row next to the
+    // brand and hamburger, which used to wrap the brand text and
+    // overlap it with the bell.
+    const authButtonsHtml = user
+      ? `<a href="${pageHref('dashboard')}" class="btn btn-secondary btn-sm">Dashboard</a>
          <button class="btn btn-ghost btn-sm" data-action="logout">Log out</button>`
       : `<a href="${pageHref('login')}" class="btn btn-ghost btn-sm">Log in</a>
          <a href="${pageHref('register')}" class="btn btn-primary btn-sm">Get Started</a>`;
+
+    const actionsHtml = (user ? `<div id="notif-bell-mount"></div>` : '') + authButtonsHtml;
 
     mount.innerHTML = `
       <header class="site-header">
@@ -53,7 +59,10 @@ const Chrome = (function () {
             <img src="${ASSETS.logo96}" alt="JOB RUSH" width="40" height="40" />
             <span>JOB RUSH</span>
           </a>
-          <nav class="main-nav" aria-label="Primary">${navHtml}</nav>
+          <nav class="main-nav" aria-label="Primary">
+            ${navHtml}
+            <div class="nav-mobile-actions">${authButtonsHtml}</div>
+          </nav>
           <div class="header-actions">${actionsHtml}</div>
           <button class="nav-toggle" aria-label="Open menu" aria-expanded="false" data-action="toggle-nav">
             <svg class="nav-toggle-icon-open" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -67,10 +76,13 @@ const Chrome = (function () {
       </header>
     `;
 
-    const logoutBtn = mount.querySelector('[data-action="logout"]');
-    if (logoutBtn) {
+    // Logout appears twice — once in the header, once duplicated into
+    // the mobile nav drawer (see components.css/.nav-mobile-actions) —
+    // only one is ever visible at a given viewport width, but both
+    // need the click handler.
+    mount.querySelectorAll('[data-action="logout"]').forEach((logoutBtn) => {
       logoutBtn.addEventListener('click', () => Auth.confirmLogout(homeHref()));
-    }
+    });
 
     const toggleBtn = mount.querySelector('[data-action="toggle-nav"]');
     const nav = mount.querySelector('.main-nav');
@@ -88,9 +100,10 @@ const Chrome = (function () {
 
       toggleBtn.addEventListener('click', () => setNavOpen(!nav.classList.contains('is-open')));
 
-      // Navigating via a link should leave the menu closed for
-      // whichever page loads next, not visually stuck open.
-      nav.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setNavOpen(false)));
+      // Navigating via a link (or tapping Log out) should leave the
+      // menu closed rather than visually stuck open — behind whichever
+      // page loads next, or behind the logout confirmation modal.
+      nav.querySelectorAll('a, button').forEach((el) => el.addEventListener('click', () => setNavOpen(false)));
     }
 
     const notifMount = mount.querySelector('#notif-bell-mount');

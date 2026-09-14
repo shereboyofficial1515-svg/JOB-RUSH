@@ -86,6 +86,7 @@ const SidebarNav = (function () {
       toggle.setAttribute('aria-label', 'Open menu');
       openIcon.hidden = false;
       closeIcon.hidden = true;
+      document.body.style.overflow = '';
     }
 
     function openDrawer() {
@@ -95,6 +96,7 @@ const SidebarNav = (function () {
       toggle.setAttribute('aria-label', 'Close menu');
       openIcon.hidden = true;
       closeIcon.hidden = false;
+      document.body.style.overflow = 'hidden';
     }
 
     toggle.addEventListener('click', () => {

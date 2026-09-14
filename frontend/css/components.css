@@ -109,6 +109,14 @@
   padding: 0;
 }
 
+/* Six 48px boxes + gaps (328px) don't fit the auth card's content
+   width on narrow phones (320-390px, after the card's own padding) —
+   they'd overflow the viewport. Shrink to fit instead. */
+@media (max-width: 400px) {
+  .otp-input-group { gap: var(--space-1); }
+  .otp-input-group input { width: 38px; height: 48px; font-size: var(--text-lg); }
+}
+
 /* ---------- Cards (signature diagonal-cut corner, not rounded-shadow default) ---------- */
 .card {
   background: var(--bg-surface);
@@ -192,8 +200,10 @@
   font-family: var(--font-display);
   font-weight: 700;
   font-size: var(--text-lg);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
-.brand img { width: 40px; height: 40px; }
+.brand img { width: 40px; height: 40px; flex-shrink: 0; }
 
 .main-nav { display: flex; align-items: center; gap: var(--space-6); }
 .main-nav a {
@@ -216,7 +226,7 @@
 
 @media (max-width: 860px) {
   .main-nav { display: none; }
-  .nav-toggle { display: flex; }
+  .nav-toggle { display: flex; flex-shrink: 0; }
   .main-nav.is-open {
     display: flex;
     position: absolute;
@@ -228,7 +238,28 @@
     flex-direction: column;
     padding: var(--space-4) var(--space-5);
     gap: var(--space-4);
+    max-height: calc(100vh - 72px);
+    overflow-y: auto;
   }
+
+  /* The Dashboard/Log out (or Log in/Get Started) buttons move into
+     the mobile nav drawer instead of squeezing into the header row
+     next to the brand, bell, and hamburger — that combination wrapped
+     the brand text and overlapped it with the notification bell. */
+  .header-actions .btn { display: none; }
+  .nav-mobile-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: 100%;
+    padding-top: var(--space-4);
+    margin-top: var(--space-2);
+    border-top: 1px solid var(--border-subtle);
+  }
+}
+
+@media (min-width: 861px) {
+  .nav-mobile-actions { display: none; }
 }
 
 /* ---------- Footer ---------- */
@@ -404,6 +435,14 @@
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
+  /* Stays in view (with its own scroll) while dashboard-main scrolls,
+     instead of scrolling away with page content on any dashboard page
+     taller than the viewport. Overridden back to a fixed off-canvas
+     drawer below 900px. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .dashboard-sidebar .brand { margin-bottom: var(--space-7); padding: 0 var(--space-2); }
@@ -462,6 +501,11 @@
     overflow-y: auto;
   }
   .dashboard-sidebar.is-open { transform: translateX(0); }
+  /* The fixed hamburger/close toggle floats at top:16/left:16 (44x44)
+     on top of this drawer once it's open, directly over the brand
+     logo at the drawer's own top-left padding — push the drawer's
+     content down to clear it instead of letting them overlap. */
+  .dashboard-sidebar { padding-top: calc(var(--space-5) + 56px); }
   .dashboard-main { padding: var(--space-5); padding-top: calc(var(--space-5) + 56px); }
 }
 
@@ -609,10 +653,20 @@
   transform: translateY(12px) scale(0.98);
   opacity: 0;
   animation: modal-in var(--duration-modal) var(--ease-decelerate) forwards;
+  /* Cap to the space the backdrop's own padding leaves, and let only
+     the body scroll internally — without this, a modal taller than
+     the viewport (a long form on a short/landscape phone screen) has
+     no max-height or overflow at all: its top and bottom both spill
+     past the viewport with no way to scroll to either, so the title,
+     close button, and submit button all become unreachable. */
+  max-height: calc(100vh - var(--space-5) * 2);
+  display: flex;
+  flex-direction: column;
 }
 @keyframes modal-in { to { transform: translateY(0) scale(1); opacity: 1; } }
 
-.modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-5); }
+.modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-5); flex-shrink: 0; }
 .modal-close { background: none; border: none; color: var(--text-secondary); padding: var(--space-1); }
 .modal-close:hover { color: var(--text-primary); }
+.modal-body { overflow-y: auto; }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }

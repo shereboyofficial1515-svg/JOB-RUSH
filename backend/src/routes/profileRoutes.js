@@ -10,10 +10,10 @@ const {
 
 const router = express.Router();
 
-// Public profile views — /search must come before /:userId
+// Public profile views — /search and /me must come before /:userId, or
+// Express matches them as :userId ("me"/"search") and the DB throws on
+// the non-UUID value.
 router.get('/worker/search', controller.searchWorkers);
-router.get('/worker/:userId', controller.getWorkerProfile);
-router.get('/hirer/:userId', controller.getHirerProfile);
 
 // Own-profile management — identity comes from the session, not the URL
 router.get('/worker/me', authenticate, requireRole('worker'), controller.getOwnWorkerProfile);
@@ -33,5 +33,8 @@ router.patch(
   validateBody(updateHirerProfileSchema),
   controller.updateOwnHirerProfile
 );
+
+router.get('/worker/:userId', controller.getWorkerProfile);
+router.get('/hirer/:userId', controller.getHirerProfile);
 
 module.exports = router;

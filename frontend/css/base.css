@@ -2,6 +2,14 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* The [hidden] attribute is only display:none by default in the UA
+   stylesheet — any component class that sets its own `display`
+   (flex/grid/inline-flex, e.g. .btn, .notif-dropdown, .notif-badge)
+   has equal specificity and wins over it, so the element stays
+   visible even while hidden. This keeps `hidden` authoritative
+   everywhere instead of patching every such component individually. */
+[hidden] { display: none !important; }
+
 html {
   -webkit-text-size-adjust: 100%;
 }

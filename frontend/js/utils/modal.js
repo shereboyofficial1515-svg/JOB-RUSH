@@ -12,6 +12,7 @@ const Modal = (function () {
     close(); // only one at a time
 
     lastFocused = document.activeElement;
+    document.body.style.overflow = 'hidden';
 
     const backdrop = document.createElement('div');
     backdrop.className = 'modal-backdrop';
@@ -53,6 +54,7 @@ const Modal = (function () {
     if (!activeBackdrop) return;
     activeBackdrop.remove();
     activeBackdrop = null;
+    document.body.style.overflow = '';
     document.removeEventListener('keydown', escHandler);
     if (lastFocused) lastFocused.focus();
   }
