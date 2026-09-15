@@ -11,11 +11,14 @@ function parseUserAgent(userAgent) {
   }
   const ua = userAgent;
 
+  // iPhone/iPad UAs legitimately include "like Mac OS X" as a
+  // compatibility string, so the iOS check must run before the
+  // macOS one or every iPhone gets misreported as a Mac.
   let os = 'Unknown OS';
-  if (/windows/i.test(ua)) os = 'Windows';
-  else if (/mac os x|macintosh/i.test(ua)) os = 'macOS';
+  if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/windows/i.test(ua)) os = 'Windows';
   else if (/android/i.test(ua)) os = 'Android';
-  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/mac os x|macintosh/i.test(ua)) os = 'macOS';
   else if (/linux/i.test(ua)) os = 'Linux';
 
   let browser = 'Unknown browser';

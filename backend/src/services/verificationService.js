@@ -138,7 +138,7 @@ async function rejectVerification(requestId, adminUserId, { reason, requiresResu
     notificationService.notifyUser(request.worker_user_id, 'verification_rejected', {
       title: requiresResubmission ? 'Verification needs another look' : 'Verification not approved',
       body: reason || 'Please review and resubmit your documents.',
-      data: { verificationRequestId: requestId },
+      data: { verificationRequestId: requestId, verificationReason: reason },
     }).catch(() => {});
 
     return request;

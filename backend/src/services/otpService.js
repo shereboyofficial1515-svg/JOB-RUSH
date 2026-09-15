@@ -40,7 +40,23 @@ async function issueOtp({ userId = null, destination, purpose, channel }) {
   );
 
   if (channel === 'email') {
-    await sendOtpEmail(destination, code);
+    // userId isn't always known by the caller here (the registration
+    // flow requests the first OTP right after creating the account,
+    // without threading the new user's ID back through) — falling
+    // back to a lookup by destination just personalizes the greeting
+    // and lets the email be logged against the right user; it never
+    // affects verification, which is always checked by destination.
+    let firstName;
+    let resolvedUserId = userId;
+    const { rows: userRows } = await query(
+      userId ? 'SELECT id, full_name FROM users WHERE id = $1' : 'SELECT id, full_name FROM users WHERE email = $1',
+      [userId || destination]
+    );
+    if (userRows[0]) {
+      firstName = userRows[0].full_name?.split(' ')[0];
+      resolvedUserId = userRows[0].id;
+    }
+    await sendOtpEmail(destination, code, { firstName, userId: resolvedUserId });
   } else if (channel === 'sms') {
     await sendOtpSms(destination, code);
   } else {

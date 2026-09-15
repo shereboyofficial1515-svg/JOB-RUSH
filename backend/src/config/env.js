@@ -29,6 +29,11 @@ const env = {
   NODE_ENV: optional('NODE_ENV', 'development'),
   PORT: parseInt(optional('PORT', '4000'), 10),
   APP_BASE_URL: optional('APP_BASE_URL', 'http://localhost:4000'),
+  // The API's own public URL — distinct from APP_BASE_URL (the
+  // frontend's origin, used for CORS and for links that should open a
+  // frontend page). Needed for links that must hit this server
+  // directly, like the one-click email unsubscribe endpoint.
+  API_BASE_URL: optional('API_BASE_URL', `http://localhost:${optional('PORT', '4000')}`),
   COOKIE_DOMAIN: optional('COOKIE_DOMAIN', 'localhost'),
 
   DATABASE_URL: requiredInProduction('DATABASE_URL', process.env.DATABASE_URL),
@@ -45,6 +50,29 @@ const env = {
 
   RESEND_API_KEY: optional('RESEND_API_KEY', ''),
   RESEND_FROM_EMAIL: optional('RESEND_FROM_EMAIL', 'JOB RUSH <noreply@jobrush.ng>'),
+
+  // ---- Email branding / sender identity ----
+  // EMAIL_FROM_NAME/ADDRESS default to parsing RESEND_FROM_EMAIL so
+  // existing deployments that only set that one var keep working
+  // unchanged; set these directly to control them independently.
+  EMAIL_FROM_NAME: optional('EMAIL_FROM_NAME', ''),
+  EMAIL_FROM_ADDRESS: optional('EMAIL_FROM_ADDRESS', ''),
+  EMAIL_REPLY_TO: optional('EMAIL_REPLY_TO', ''),
+  EMAIL_SECURITY_FROM: optional('EMAIL_SECURITY_FROM', ''),
+  EMAIL_SUPPORT_FROM: optional('EMAIL_SUPPORT_FROM', ''),
+
+  EMAIL_BRAND_NAME: optional('EMAIL_BRAND_NAME', 'JOB RUSH'),
+  COMPANY_NAME: optional('COMPANY_NAME', ''),
+  COMPANY_ADDRESS: optional('COMPANY_ADDRESS', ''),
+  LOGO_URL: optional('LOGO_URL', ''),
+  PRIVACY_POLICY_URL: optional('PRIVACY_POLICY_URL', ''),
+  TERMS_URL: optional('TERMS_URL', ''),
+  CONTACT_URL: optional('CONTACT_URL', ''),
+  SOCIAL_FACEBOOK_URL: optional('SOCIAL_FACEBOOK_URL', ''),
+  SOCIAL_TWITTER_URL: optional('SOCIAL_TWITTER_URL', ''),
+  SOCIAL_LINKEDIN_URL: optional('SOCIAL_LINKEDIN_URL', ''),
+  SOCIAL_INSTAGRAM_URL: optional('SOCIAL_INSTAGRAM_URL', ''),
+  UNSUBSCRIBE_SECRET: optional('UNSUBSCRIBE_SECRET', ''),
 
   TERMII_API_KEY: optional('TERMII_API_KEY', ''),
   TERMII_SENDER_ID: optional('TERMII_SENDER_ID', 'JobRush'),

@@ -103,7 +103,14 @@ async function finalizeInitialPayment(reference) {
     notificationService.notifyUser(subscription.worker_user_id, 'subscription_activated', {
       title: 'JOB RUSH PRO activated',
       body: "You're now PRO! Enjoy priority visibility and advanced analytics.",
-      data: { subscriptionId: subscription.id },
+      data: {
+        subscriptionId: subscription.id,
+        planName: subscription.plan,
+        amount: subscription.amount,
+        currency: subscription.currency,
+        billingCycle: 'Monthly',
+        nextBillingDate: subscription.expiry_date,
+      },
     }).catch(() => {});
 
     return { alreadyProcessed: false, subscription };
@@ -152,6 +159,12 @@ async function recordRenewalPayment(event) {
     ]);
 
     await activateProOnProfile(subscription.worker_user_id, newExpiry, client);
+
+    notificationService.notifyUser(subscription.worker_user_id, 'subscription_renewed', {
+      title: 'JOB RUSH PRO renewed',
+      body: 'Your JOB RUSH PRO membership has been successfully renewed.',
+      data: { expiryDate: newExpiry.toISOString(), subscriptionId: subscription.id },
+    }).catch(() => {});
   });
 }
 
@@ -222,7 +235,7 @@ async function syncExpiry(workerUserId) {
     notificationService.notifyUser(workerUserId, 'subscription_expired', {
       title: 'PRO subscription expired',
       body: 'Your JOB RUSH PRO subscription has expired. Resubscribe to keep your priority visibility.',
-      data: { subscriptionId: subscription.id },
+      data: { subscriptionId: subscription.id, expiryDate: subscription.expiry_date },
     }).catch(() => {});
   }
 }
@@ -265,6 +278,13 @@ async function cancelOwnSubscription(workerUserId) {
     `UPDATE subscriptions SET auto_renew = false, cancelled_at = now() WHERE id = $1 RETURNING *`,
     [subscription.id]
   );
+
+  notificationService.notifyUser(workerUserId, 'subscription_cancelled', {
+    title: 'JOB RUSH PRO cancelled',
+    body: 'Your JOB RUSH PRO membership has been cancelled.',
+    data: { expiryDate: rows[0].expiry_date, subscriptionId: subscription.id },
+  }).catch(() => {});
+
   return rows[0];
 }
 

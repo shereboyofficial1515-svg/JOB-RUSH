@@ -2,6 +2,7 @@ const { query } = require('../config/db');
 const emailService = require('./emailService');
 const smsService = require('./smsService');
 const logger = require('../utils/logger');
+const { buildUnsubscribeUrl } = require('../utils/unsubscribeToken');
 
 /**
  * Per-type channel policy. Not every notification should hit every
@@ -13,6 +14,7 @@ const logger = require('../utils/logger');
  */
 const CHANNEL_POLICY = {
   new_message: ['in_app'],
+  application_submitted: ['in_app', 'email'],
   application_received: ['in_app', 'email'],
   application_status_changed: ['in_app', 'email'],
   job_invitation: ['in_app', 'email'],
@@ -22,6 +24,7 @@ const CHANNEL_POLICY = {
   interview_cancelled: ['in_app', 'email'],
   escrow_funded: ['in_app', 'email'],
   escrow_released: ['in_app', 'email', 'sms'],
+  withdrawal_requested: ['in_app', 'email'],
   withdrawal_approved: ['in_app', 'email', 'sms'],
   withdrawal_rejected: ['in_app', 'email'],
   verification_approved: ['in_app', 'email'],
@@ -33,6 +36,12 @@ const CHANNEL_POLICY = {
   dispute_opened: ['in_app', 'email'],
   dispute_resolved: ['in_app', 'email'],
   new_device_login: ['in_app', 'email'],
+  contract_created: ['in_app', 'email'],
+  subscription_renewed: ['in_app', 'email'],
+  subscription_cancelled: ['in_app', 'email'],
+  support_ticket_created: ['in_app', 'email'],
+  support_ticket_updated: ['in_app', 'email'],
+  account_deactivated: ['in_app', 'email'],
   announcement: ['in_app'],
 };
 
@@ -55,7 +64,7 @@ async function recordDelivery(notificationId, channel, status, errorMessage) {
  * throws — a notification failure must not break the primary action
  * (a message send, a hire decision, a payment) that triggered it.
  */
-async function notify(userId, type, { title, body, data, email, phone } = {}) {
+async function notify(userId, type, { title, body, data, email, phone, firstName } = {}) {
   try {
     const { rows } = await query(
       `INSERT INTO notifications (user_id, type, title, body, data) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -75,7 +84,34 @@ async function notify(userId, type, { title, body, data, email, phone } = {}) {
         await recordDelivery(notification.id, 'email', 'skipped');
       } else {
         try {
-          await emailService.sendEmail({ to: email, subject: title, html: `<p>${body || title}</p>` });
+          // A new-message email respects the recipient's own
+          // chat_message_previews setting (Settings → Chat) — when
+          // they've turned previews off, the email says a message
+          // arrived without quoting its content.
+          let emailData = { ...data, unsubscribeUrl: buildUnsubscribeUrl(userId) };
+          if (type === 'new_message') {
+            const { rows: settingsRows } = await query(
+              'SELECT chat_message_previews FROM user_settings WHERE user_id = $1',
+              [userId]
+            );
+            const previewsEnabled = settingsRows[0]?.chat_message_previews ?? true;
+            emailData = { ...emailData, showPreview: previewsEnabled };
+          }
+
+          await emailService.sendNotificationEmail({
+            to: email,
+            type,
+            title,
+            body,
+            data: emailData,
+            firstName,
+            userId,
+            relatedEntity: data?.applicationId
+              ? { type: 'application', id: data.applicationId }
+              : data?.contractId
+              ? { type: 'contract', id: data.contractId }
+              : undefined,
+          });
           await recordDelivery(notification.id, 'email', 'sent');
         } catch (err) {
           await recordDelivery(notification.id, 'email', 'failed', err.message);
@@ -108,9 +144,16 @@ async function notify(userId, type, { title, body, data, email, phone } = {}) {
  * first, so call sites don't each have to fetch the user row.
  */
 async function notifyUser(userId, type, { title, body, data } = {}) {
-  const { rows } = await query('SELECT email, phone FROM users WHERE id = $1', [userId]);
+  const { rows } = await query('SELECT email, phone, full_name FROM users WHERE id = $1', [userId]);
   const user = rows[0];
-  return notify(userId, type, { title, body, data, email: user?.email, phone: user?.phone });
+  return notify(userId, type, {
+    title,
+    body,
+    data,
+    email: user?.email,
+    phone: user?.phone,
+    firstName: user?.full_name?.split(' ')[0],
+  });
 }
 
 async function listForUser(userId, { unreadOnly = false, page = 1, pageSize = 30 } = {}) {

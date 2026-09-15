@@ -130,7 +130,14 @@ async function finalizeFunding(reference) {
       notificationService.notifyUser(escrowRows[0].worker_user_id, 'escrow_funded', {
         title: 'Contract funded',
         body: 'The hirer has funded escrow for your contract.',
-        data: { contractId: escrowRows[0].contract_id, escrowTransactionId: escrowRows[0].id },
+        data: {
+          contractId: escrowRows[0].contract_id,
+          escrowTransactionId: escrowRows[0].id,
+          amount: payment.amount,
+          reference: payment.paystack_reference,
+          date: payment.created_at || new Date().toISOString(),
+          description: 'Contract escrow funding',
+        },
       }).catch(() => {});
     }
 
@@ -203,7 +210,14 @@ async function releaseEscrow(escrowTransactionId, hirerUserId) {
     notificationService.notifyUser(escrow.worker_user_id, 'escrow_released', {
       title: 'Payment released',
       body: `\u20A6${Number(escrow.worker_payout_amount).toLocaleString()} has been added to your wallet.`,
-      data: { contractId: escrow.contract_id, escrowTransactionId },
+      data: {
+        contractId: escrow.contract_id,
+        escrowTransactionId,
+        amount: escrow.worker_payout_amount,
+        reference: escrow.id,
+        date: new Date().toISOString(),
+        description: 'Escrow release',
+      },
     }).catch(() => {});
 
     const { rows } = await client.query('SELECT * FROM escrow_transactions WHERE id = $1', [escrowTransactionId]);

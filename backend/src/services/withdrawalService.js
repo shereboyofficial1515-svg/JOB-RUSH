@@ -62,6 +62,12 @@ async function requestWithdrawal(workerUserId, { amount, bankAccountName, bankAc
       [workerUserId, rows[0].id]
     );
 
+    notificationService.notifyUser(workerUserId, 'withdrawal_requested', {
+      title: 'Withdrawal request received',
+      body: `Your withdrawal request for ₦${Number(amount).toLocaleString()} is being processed.`,
+      data: { withdrawalId: rows[0].id, amount, reference: rows[0].id, requestedAt: rows[0].created_at },
+    }).catch(() => {});
+
     return rows[0];
   });
 }
@@ -133,7 +139,7 @@ async function approveAndPayWithdrawal(withdrawalId, adminUserId) {
       notificationService.notifyUser(withdrawal.worker_user_id, 'withdrawal_approved', {
         title: 'Withdrawal paid',
         body: `\u20A6${Number(withdrawal.amount).toLocaleString()} has been sent to your bank account.`,
-        data: { withdrawalId },
+        data: { withdrawalId, amount: withdrawal.amount, reference: withdrawal.id, completedAt: new Date().toISOString() },
       }).catch(() => {});
     } catch (err) {
       // Transfer failed — reverse the wallet hold so the worker isn't
@@ -198,7 +204,7 @@ async function rejectWithdrawal(withdrawalId, adminUserId, reason) {
     notificationService.notifyUser(withdrawal.worker_user_id, 'withdrawal_rejected', {
       title: 'Withdrawal rejected',
       body: reason || 'Your withdrawal request was rejected. Funds have been returned to your wallet.',
-      data: { withdrawalId },
+      data: { withdrawalId, amount: withdrawal.amount, reference: withdrawal.id, reason: reason || 'Not specified.' },
     }).catch(() => {});
 
     const { rows } = await client.query('SELECT * FROM withdrawals WHERE id = $1', [withdrawalId]);

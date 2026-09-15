@@ -7,6 +7,7 @@ const twoFactorService = require('../services/twoFactorService');
 const googleOAuthService = require('../services/googleOAuthService');
 const deviceService = require('../services/deviceService');
 const notificationService = require('../services/notificationService');
+const emailService = require('../services/emailService');
 const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
@@ -36,10 +37,16 @@ async function establishSession(req, user) {
 
   const { isNewDevice } = await deviceService.checkAndRecordDevice(user.id, userAgent, ipAddress);
   if (isNewDevice) {
+    const { browser, os, deviceType } = parseUserAgent(userAgent);
     notificationService.notifyUser(user.id, 'new_device_login', {
       title: 'New sign-in to your account',
       body: `Your account was just accessed from a new device${ipAddress ? ` (${ipAddress})` : ''}. If this wasn't you, secure your account immediately.`,
-      data: { ipAddress },
+      data: {
+        ipAddress,
+        device: deviceType === 'desktop' ? os : `${os} ${deviceType}`,
+        browser,
+        loginTime: new Date().toISOString(),
+      },
     }).catch(() => {});
   }
 
@@ -64,6 +71,13 @@ async function issueSessionAndRespond(req, res, user) {
  */
 const register = asyncHandler(async (req, res) => {
   const user = await authService.registerUser(req.body);
+
+  if (user.email) {
+    emailService
+      .sendWelcomeEmail(user.email, { firstName: user.fullName?.split(' ')[0], userId: user.id })
+      .catch(() => {}); // Never block registration on the welcome email.
+  }
+
   res.status(201).json({
     user,
     message: 'Account created. Please verify your email or phone to continue.',

@@ -85,7 +85,12 @@ async function applyToJob(workerUserId, jobId, { coverNote, proposedRate }) {
     notificationService.notifyUser(job.hirer_user_id, 'application_received', {
       title: 'New application received',
       body: `Someone applied to "${job.title}".`,
-      data: { jobId, applicationId: rows[0].id },
+      data: { jobId, applicationId: rows[0].id, jobTitle: job.title, submittedAt: rows[0].applied_at },
+    }).catch(() => {});
+    notificationService.notifyUser(workerUserId, 'application_submitted', {
+      title: 'Application submitted',
+      body: `Your application for "${job.title}" has been successfully submitted.`,
+      data: { jobId, applicationId: rows[0].id, jobTitle: job.title, submittedAt: rows[0].applied_at },
     }).catch(() => {});
     return rows[0];
   } catch (err) {
@@ -116,7 +121,7 @@ async function inviteWorkerToJob(hirerUserId, jobId, workerUserId) {
     notificationService.notifyUser(workerUserId, 'job_invitation', {
       title: 'You were invited to apply',
       body: `A hirer invited you to "${job.title}".`,
-      data: { jobId, applicationId: rows[0].id },
+      data: { jobId, applicationId: rows[0].id, jobTitle: job.title },
     }).catch(() => {});
     return rows[0];
   } catch (err) {
@@ -143,7 +148,7 @@ async function respondToInvitation(applicationId, workerUserId, accept) {
     notificationService.notifyUser(job.hirer_user_id, 'application_status_changed', {
       title: accept ? 'Invitation accepted' : 'Invitation declined',
       body: `A worker ${accept ? 'accepted' : 'declined'} your invitation for "${job.title}".`,
-      data: { jobId: application.job_id, applicationId },
+      data: { jobId: application.job_id, applicationId, jobTitle: job.title, applicationStatus: accept ? 'accepted' : 'declined' },
     }).catch(() => {});
   }
   return updated;
@@ -152,10 +157,11 @@ async function respondToInvitation(applicationId, workerUserId, accept) {
 async function shortlistApplication(applicationId, hirerUserId) {
   const application = await getApplicationForHirerJob(applicationId, hirerUserId);
   const updated = await transition(application, 'shortlisted', HIRER_TRANSITIONS);
+  const job = await jobService.getJobById(application.job_id);
   notificationService.notifyUser(application.worker_user_id, 'application_status_changed', {
     title: 'You were shortlisted',
     body: 'A hirer shortlisted your application.',
-    data: { applicationId },
+    data: { applicationId, jobTitle: job?.title, applicationStatus: 'shortlisted' },
   }).catch(() => {});
   return updated;
 }
@@ -163,10 +169,11 @@ async function shortlistApplication(applicationId, hirerUserId) {
 async function rejectApplication(applicationId, hirerUserId) {
   const application = await getApplicationForHirerJob(applicationId, hirerUserId);
   const updated = await transition(application, 'rejected', HIRER_TRANSITIONS);
+  const job = await jobService.getJobById(application.job_id);
   notificationService.notifyUser(application.worker_user_id, 'application_status_changed', {
     title: 'Application update',
     body: 'Your application was not successful this time.',
-    data: { applicationId },
+    data: { applicationId, jobTitle: job?.title, applicationStatus: 'rejected' },
   }).catch(() => {});
   return updated;
 }
@@ -178,10 +185,11 @@ async function hireApplication(applicationId, hirerUserId) {
   // multiple simultaneous hires from one posting can reopen it via
   // the job status endpoint if that's not what they want.
   await jobService.setJobStatus(application.job_id, hirerUserId, 'filled').catch(() => {});
+  const hiredJob = await jobService.getJobById(application.job_id);
   notificationService.notifyUser(application.worker_user_id, 'application_status_changed', {
     title: "You've been hired!",
     body: 'Congratulations — set up your contract to get started.',
-    data: { applicationId },
+    data: { applicationId, jobTitle: hiredJob?.title, applicationStatus: 'hired' },
   }).catch(() => {});
   return updated;
 }

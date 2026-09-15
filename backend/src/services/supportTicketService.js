@@ -3,13 +3,26 @@ const AppError = require('../utils/AppError');
 const notificationService = require('./notificationService');
 const { recordAuditEvent } = require('../security/auditLogger');
 
+/** "TCK-" + the first 8 hex characters of the ticket's UUID — a friendlier reference than the raw ID. */
+function ticketNumberFor(ticket) {
+  return `TCK-${ticket.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
+
 async function createTicket(userId, { subject, description, category, attachmentPath, reportedUserId }) {
   const { rows } = await query(
     `INSERT INTO support_tickets (user_id, subject, description, category, attachment_path, reported_user_id)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
     [userId, subject, description, category || null, attachmentPath || null, reportedUserId || null]
   );
-  return rows[0];
+  const ticket = rows[0];
+
+  notificationService.notifyUser(userId, 'support_ticket_created', {
+    title: 'Support request received',
+    body: `Your support request "${subject}" has been received.`,
+    data: { ticketNumber: ticketNumberFor(ticket), subject },
+  }).catch(() => {});
+
+  return ticket;
 }
 
 async function listOwnTickets(userId) {
@@ -61,10 +74,10 @@ async function respondToTicket(ticketId, adminUserId, { response, status }) {
     metadata: { status: newStatus },
   });
 
-  notificationService.notifyUser(rows[0].user_id, 'announcement', {
+  notificationService.notifyUser(rows[0].user_id, 'support_ticket_updated', {
     title: 'Update on your support ticket',
     body: response,
-    data: { ticketId },
+    data: { ticketNumber: ticketNumberFor(rows[0]), status: newStatus, response },
   }).catch(() => {});
 
   return rows[0];

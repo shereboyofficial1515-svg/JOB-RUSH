@@ -95,10 +95,18 @@ async function scheduleInterview(hirerUserId, input) {
 
     await logEvent(client, interview.id, hirerUserId, 'created', { interviewType: input.interviewType });
 
+    const scheduledJob = jobId ? await jobService.getJobById(jobId) : null;
+    const scheduledAt = interview.scheduled_start_at ? new Date(interview.scheduled_start_at) : null;
     notificationService.notifyUser(workerUserId, 'interview_scheduled', {
       title: 'Interview scheduled',
       body: `You have a ${input.interviewType} interview scheduled.`,
-      data: { interviewId: interview.id },
+      data: {
+        interviewId: interview.id,
+        jobTitle: scheduledJob?.title,
+        interviewType: input.interviewType,
+        interviewDate: scheduledAt ? scheduledAt.toLocaleDateString('en-NG', { dateStyle: 'medium' }) : undefined,
+        interviewTime: scheduledAt ? scheduledAt.toLocaleTimeString('en-NG', { timeStyle: 'short' }) : undefined,
+      },
     }).catch(() => {});
 
     return interview;

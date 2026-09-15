@@ -33,6 +33,8 @@ const { router: supportTicketRoutes, adminRouter: supportTicketAdminRoutes } = r
 const { router: promotionRoutes, adminRouter: promotionAdminRoutes } = require('./routes/promotionRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const feedbackRoutes = require('./routes/feedbackRoutes');
+const emailPreviewRoutes = require('./routes/emailPreviewRoutes');
+const emailUnsubscribeRoutes = require('./routes/emailUnsubscribeRoutes');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 
@@ -96,6 +98,8 @@ app.use('/api/admin/support/tickets', supportTicketAdminRoutes);
 app.use('/api/admin/promotions', promotionAdminRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/email-preview', emailPreviewRoutes);
+app.use('/api/email', emailUnsubscribeRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

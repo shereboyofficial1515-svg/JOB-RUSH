@@ -7,6 +7,7 @@ const { sendPasswordResetEmail } = require('./emailService');
 const { recordAuditEvent } = require('../security/auditLogger');
 const otpService = require('./otpService');
 const sessionService = require('./sessionService');
+const notificationService = require('./notificationService');
 
 const PUBLIC_USER_FIELDS = `
   id, email, phone, full_name, role, account_status,
@@ -202,7 +203,7 @@ async function markPhoneVerified(userId) {
  * or not the identifier matches an account, to avoid enumeration.
  */
 async function requestPasswordReset({ email }) {
-  const { rows } = await query('SELECT id, email FROM users WHERE email = $1', [email]);
+  const { rows } = await query('SELECT id, email, full_name FROM users WHERE email = $1', [email]);
   const user = rows[0];
 
   if (user) {
@@ -215,8 +216,20 @@ async function requestPasswordReset({ email }) {
       [user.id, tokenHash, expiresAt]
     );
 
-    const resetUrl = `${env.APP_BASE_URL}/reset-password?token=${rawToken}`;
-    await sendPasswordResetEmail(user.email, resetUrl);
+    // /pages/forgot-password.html itself switches to the "choose a new
+    // password" step when a ?token= is present — see that page's script.
+    const resetUrl = `${env.APP_BASE_URL}/pages/forgot-password.html?token=${rawToken}`;
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl, { firstName: user.full_name?.split(' ')[0], userId: user.id });
+    } catch {
+      // A delivery failure here must not turn into a 500 that reveals
+      // "this identifier exists but its email failed" — the whole
+      // point of this endpoint's fixed response is that it looks
+      // identical whether the account exists or not. The failed send
+      // is already logged (emailService/emailLogService) for an admin
+      // to notice; the token itself is still valid if delivery
+      // somehow partially succeeded via a retry elsewhere.
+    }
 
     await recordAuditEvent({
       actorUserId: user.id,
@@ -468,6 +481,13 @@ async function deactivateAccount(userId, password) {
     resourceId: userId,
     result: 'success',
   });
+  // Sent after sessions are already revoked — reading this email
+  // never requires being logged in.
+  notificationService.notifyUser(userId, 'account_deactivated', {
+    title: 'Account deactivated',
+    body: 'Your JOB RUSH account has been deactivated as requested.',
+    data: {},
+  }).catch(() => {});
 }
 
 /**

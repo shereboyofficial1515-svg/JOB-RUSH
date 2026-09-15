@@ -2,6 +2,7 @@ const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 const applicationService = require('./applicationService');
 const jobService = require('./jobService');
+const notificationService = require('./notificationService');
 
 /**
  * Creates a contract from a hired application. Requires the
@@ -26,7 +27,27 @@ async function createContractFromApplication(hirerUserId, applicationId, agreedA
        RETURNING *`,
       [job.id, applicationId, hirerUserId, application.worker_user_id, agreedAmount]
     );
-    return rows[0];
+    const contract = rows[0];
+
+    const { rows: nameRows } = await query(
+      `SELECT (SELECT full_name FROM users WHERE id = $1) AS worker_name,
+              (SELECT full_name FROM users WHERE id = $2) AS hirer_name`,
+      [application.worker_user_id, hirerUserId]
+    );
+    const { worker_name: workerName, hirer_name: hirerName } = nameRows[0] || {};
+
+    notificationService.notifyUser(application.worker_user_id, 'contract_created', {
+      title: 'Contract ready',
+      body: `A contract has been created for "${job.title}".`,
+      data: { contractTitle: job.title, otherParty: hirerName, status: 'Active', contractId: contract.id },
+    }).catch(() => {});
+    notificationService.notifyUser(hirerUserId, 'contract_created', {
+      title: 'Contract ready',
+      body: `A contract has been created for "${job.title}".`,
+      data: { contractTitle: job.title, otherParty: workerName, status: 'Active', contractId: contract.id },
+    }).catch(() => {});
+
+    return contract;
   } catch (err) {
     if (err.code === '23505') {
       throw new AppError('A contract already exists for this application.', 409, 'CONTRACT_EXISTS');

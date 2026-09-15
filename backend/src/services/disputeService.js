@@ -48,7 +48,13 @@ async function openDispute(userId, { contractId, reason, description }) {
     notificationService.notifyUser(againstUserId, 'dispute_opened', {
       title: 'A dispute was opened',
       body: reason,
-      data: { contractId, disputeId: rows[0].id },
+      data: {
+        contractId,
+        disputeId: rows[0].id,
+        disputeReference: `DSP-${rows[0].id.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        status: 'Open',
+        message: description,
+      },
     }).catch(() => {});
 
     return rows[0];
@@ -165,7 +171,12 @@ async function resolveDispute(disputeId, adminUserId, { decision, action, reason
     notificationService.notifyUser(userId, 'dispute_resolved', {
       title: 'Dispute resolved',
       body: decision,
-      data: { disputeId },
+      data: {
+        disputeId,
+        disputeReference: `DSP-${disputeId.replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+        status: 'Resolved',
+        message: decision,
+      },
     }).catch(() => {});
   }
 
