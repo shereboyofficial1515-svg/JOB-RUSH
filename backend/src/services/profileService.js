@@ -268,4 +268,6 @@ module.exports = {
   searchWorkers,
   getHirerProfile,
   updateHirerProfile,
+  ensureWorkerProfileRow,
+  ensureHirerProfileRow,
 };

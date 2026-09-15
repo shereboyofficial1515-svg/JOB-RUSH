@@ -1,5 +1,6 @@
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
+const { ensureWorkerProfileRow } = require('./profileService');
 
 const MAX_MEDIA_PER_PORTFOLIO = 20;
 const ALLOWED_MEDIA_TYPES = ['image', 'video', 'document'];
@@ -40,6 +41,13 @@ async function getOwnedPortfolio(portfolioId, workerUserId) {
 }
 
 async function createPortfolio(workerUserId, { title, description, categoryId, projectType, externalLink }) {
+  // portfolios.worker_user_id references worker_profiles(user_id),
+  // which otherwise only gets created the first time someone saves a
+  // field on Profile Settings — without this, a worker who tries to
+  // add a portfolio project before ever touching their profile hits a
+  // foreign-key violation instead of the project actually being created.
+  await ensureWorkerProfileRow(workerUserId);
+
   const { rows } = await query(
     `INSERT INTO portfolios (worker_user_id, title, description, category_id, project_type, external_link)
      VALUES ($1, $2, $3, $4, $5, $6)

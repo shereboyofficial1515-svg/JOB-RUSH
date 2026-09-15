@@ -1,6 +1,7 @@
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
+const { ensureHirerProfileRow } = require('./profileService');
 
 async function getSkillsForJob(jobId) {
   const { rows } = await query(
@@ -32,6 +33,13 @@ async function setJobSkills(jobId, skillIds, client) {
  * session — a hirer can only ever create jobs owned by themselves.
  */
 async function createJob(hirerUserId, input) {
+  // jobs.hirer_user_id references hirer_profiles(user_id), which
+  // otherwise only gets created the first time a hirer saves a field
+  // on Profile Settings — without this, posting a job before ever
+  // touching their profile hits a foreign-key violation instead of
+  // the job actually being created.
+  await ensureHirerProfileRow(hirerUserId);
+
   await locationService.assertLocationAllowed({
     stateId: input.state_id,
     lgaId: input.lga_id,
