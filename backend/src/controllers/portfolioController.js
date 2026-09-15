@@ -40,4 +40,24 @@ const removeMedia = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Media removed.' });
 });
 
-module.exports = { listForWorker, listOwn, create, update, remove, addMedia, removeMedia };
+const reorderMedia = asyncHandler(async (req, res) => {
+  const media = await portfolioService.reorderPortfolioMedia(req.params.id, req.user.id, req.body.mediaIds);
+  res.status(200).json({ media });
+});
+
+const setPrimaryMedia = asyncHandler(async (req, res) => {
+  const media = await portfolioService.setPrimaryPortfolioMedia(req.params.id, req.params.mediaId, req.user.id);
+  res.status(200).json({ media });
+});
+
+module.exports = {
+  listForWorker,
+  listOwn,
+  create,
+  update,
+  remove,
+  addMedia,
+  removeMedia,
+  reorderMedia,
+  setPrimaryMedia,
+};

@@ -1,9 +1,15 @@
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const { ensureWorkerProfileRow } = require('./profileService');
+const { getPublicUrlForPath, deleteObject } = require('./storageService');
 
 const MAX_MEDIA_PER_PORTFOLIO = 20;
+const MAX_VIDEOS_PER_WORKER = 3;
 const ALLOWED_MEDIA_TYPES = ['image', 'video', 'document'];
+
+function attachPublicUrl(media) {
+  return { ...media, url: getPublicUrlForPath('PORTFOLIO_MEDIA', media.storage_path) };
+}
 
 async function listPortfoliosForWorker(workerUserId) {
   const { rows: portfolios } = await query(
@@ -20,7 +26,7 @@ async function listPortfoliosForWorker(workerUserId) {
   );
 
   const mediaByPortfolio = media.reduce((acc, m) => {
-    (acc[m.portfolio_id] ||= []).push(m);
+    (acc[m.portfolio_id] ||= []).push(attachPublicUrl(m));
     return acc;
   }, {});
 
@@ -86,7 +92,22 @@ async function deletePortfolio(portfolioId, workerUserId) {
  * service does not itself touch Supabase Storage; that belongs to the
  * dedicated storage module referenced in the JOB RUSH spec section 5/22.
  */
-async function addPortfolioMedia(portfolioId, workerUserId, { mediaType, storagePath, isPrimary = false, fileSize }) {
+async function countWorkerVideos(workerUserId) {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS count
+       FROM portfolio_media pm
+       JOIN portfolios p ON p.id = pm.portfolio_id
+      WHERE p.worker_user_id = $1 AND pm.media_type = 'video'`,
+    [workerUserId]
+  );
+  return rows[0].count;
+}
+
+async function addPortfolioMedia(
+  portfolioId,
+  workerUserId,
+  { mediaType, storagePath, isPrimary = false, fileSize, durationSeconds, width, height }
+) {
   await getOwnedPortfolio(portfolioId, workerUserId);
 
   if (!ALLOWED_MEDIA_TYPES.includes(mediaType)) {
@@ -101,25 +122,95 @@ async function addPortfolioMedia(portfolioId, workerUserId, { mediaType, storage
     throw new AppError(`A portfolio project can have at most ${MAX_MEDIA_PER_PORTFOLIO} media items.`, 400, 'MEDIA_LIMIT_REACHED');
   }
 
+  if (mediaType === 'video') {
+    const videoCount = await countWorkerVideos(workerUserId);
+    if (videoCount >= MAX_VIDEOS_PER_WORKER) {
+      throw new AppError(`You can upload at most ${MAX_VIDEOS_PER_WORKER} work videos in total.`, 400, 'VIDEO_LIMIT_REACHED');
+    }
+  }
+
   return withTransaction(async (client) => {
     if (isPrimary) {
       await client.query('UPDATE portfolio_media SET is_primary = false WHERE portfolio_id = $1', [portfolioId]);
     }
     const { rows } = await client.query(
-      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary, file_size)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary, file_size, duration_seconds, width, height)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [portfolioId, mediaType, storagePath, isPrimary, fileSize || null]
+      [portfolioId, mediaType, storagePath, isPrimary, fileSize || null, durationSeconds || null, width || null, height || null]
     );
-    return rows[0];
+    return attachPublicUrl(rows[0]);
+  });
+}
+
+/**
+ * Reassigns sort_order for a portfolio's media to match the order the
+ * client supplied. `mediaIds` must be exactly the set of media IDs
+ * already belonging to this (owned) portfolio — a partial or foreign
+ * list is rejected rather than silently reordering a subset.
+ */
+async function reorderPortfolioMedia(portfolioId, workerUserId, mediaIds) {
+  await getOwnedPortfolio(portfolioId, workerUserId);
+
+  const { rows: existing } = await query('SELECT id FROM portfolio_media WHERE portfolio_id = $1', [portfolioId]);
+  const existingIds = new Set(existing.map((r) => r.id));
+  const uniqueRequested = new Set(mediaIds);
+
+  if (existingIds.size !== uniqueRequested.size || [...existingIds].some((id) => !uniqueRequested.has(id))) {
+    throw new AppError('mediaIds must match this project\'s existing media exactly.', 400, 'MEDIA_MISMATCH');
+  }
+
+  await withTransaction(async (client) => {
+    for (let i = 0; i < mediaIds.length; i += 1) {
+      await client.query('UPDATE portfolio_media SET sort_order = $3 WHERE id = $1 AND portfolio_id = $2', [
+        mediaIds[i],
+        portfolioId,
+        i,
+      ]);
+    }
+  });
+
+  const { rows } = await query('SELECT * FROM portfolio_media WHERE portfolio_id = $1 ORDER BY sort_order', [portfolioId]);
+  return rows.map(attachPublicUrl);
+}
+
+async function setPrimaryPortfolioMedia(portfolioId, mediaId, workerUserId) {
+  await getOwnedPortfolio(portfolioId, workerUserId);
+
+  return withTransaction(async (client) => {
+    const { rows } = await client.query('SELECT id FROM portfolio_media WHERE id = $1 AND portfolio_id = $2', [
+      mediaId,
+      portfolioId,
+    ]);
+    if (rows.length === 0) throw new AppError('Media not found.', 404, 'NOT_FOUND');
+
+    await client.query('UPDATE portfolio_media SET is_primary = false WHERE portfolio_id = $1', [portfolioId]);
+    const { rows: updated } = await client.query(
+      'UPDATE portfolio_media SET is_primary = true WHERE id = $1 RETURNING *',
+      [mediaId]
+    );
+    return attachPublicUrl(updated[0]);
   });
 }
 
 async function removePortfolioMedia(portfolioId, mediaId, workerUserId) {
   await getOwnedPortfolio(portfolioId, workerUserId);
+  const { rows } = await query('SELECT storage_path FROM portfolio_media WHERE id = $1 AND portfolio_id = $2', [
+    mediaId,
+    portfolioId,
+  ]);
   await query('DELETE FROM portfolio_media WHERE id = $1 AND portfolio_id = $2', [mediaId, portfolioId]);
-  // Note: the actual object in Supabase Storage should also be deleted
-  // here via the storage module — left as a hook point for that module.
+
+  if (rows.length > 0) {
+    // Best-effort storage cleanup — the DB row is already gone (the
+    // part the user actually sees), so a storage-side failure here
+    // must not turn into a failed delete from the user's perspective.
+    try {
+      await deleteObject('PORTFOLIO_MEDIA', rows[0].storage_path);
+    } catch (_err) {
+      // Orphaned storage object — acceptable; not surfaced to the user.
+    }
+  }
 }
 
 module.exports = {
@@ -129,5 +220,7 @@ module.exports = {
   updatePortfolio,
   deletePortfolio,
   addPortfolioMedia,
+  reorderPortfolioMedia,
+  setPrimaryPortfolioMedia,
   removePortfolioMedia,
 };

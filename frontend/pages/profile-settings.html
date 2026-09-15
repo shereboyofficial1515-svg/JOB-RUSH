@@ -204,6 +204,13 @@
           : ''}
         </div>
 
+        <div class="field">
+          <label>Profile picture</label>
+          <div style="display:flex; align-items:center; gap: var(--space-4);">
+            <img id="profile-picture-preview" src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="72" height="72" style="border-radius:50%; object-fit:cover; border: 2px solid var(--border-gold);" />
+            <button type="button" class="btn btn-sm btn-secondary" id="change-picture-btn">Change photo</button>
+          </div>
+        </div>
         <div class="field" id="title-field">
           <label for="professionalTitle">Professional title</label>
           <input type="text" id="professionalTitle" name="professionalTitle" value="${esc(profile.professional_title || '')}" placeholder="e.g. Electrician" />
@@ -227,9 +234,136 @@
             <option value="unavailable" ${profile.availability_status === 'unavailable' ? 'selected' : ''}>Unavailable</option>
           </select>
         </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="workingDays">Working days</label>
+            <input type="text" id="workingDays" name="workingDays" value="${esc(profile.working_days || '')}" placeholder="e.g. Mon–Fri" />
+          </div>
+          <div class="field">
+            <label for="workingHours">Working hours</label>
+            <input type="text" id="workingHours" name="workingHours" value="${esc(profile.working_hours || '')}" placeholder="e.g. 8am–6pm" />
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="startingPrice">Starting price</label>
+            <input type="number" id="startingPrice" name="startingPrice" min="0" step="1" value="${profile.starting_price ?? ''}" placeholder="e.g. 15000" />
+          </div>
+          <div class="field">
+            <label for="priceCurrency">Currency</label>
+            <select id="priceCurrency" name="priceCurrency">
+              <option value="NGN" ${profile.price_currency !== 'USD' ? 'selected' : ''}>NGN (₦)</option>
+              <option value="USD" ${profile.price_currency === 'USD' ? 'selected' : ''}>USD ($)</option>
+            </select>
+          </div>
+        </div>
+
+        <h3 style="margin-top: var(--space-6);">Location</h3>
+        <div class="settings-field-grid cols-3">
+          <div class="field">
+            <label for="stateId">State</label>
+            <select id="stateId" name="stateId" data-current="${profile.state_id || ''}"><option value="">Loading…</option></select>
+          </div>
+          <div class="field">
+            <label for="lgaId">LGA</label>
+            <select id="lgaId" name="lgaId" data-current="${profile.lga_id || ''}"><option value="">Select a state first</option></select>
+          </div>
+          <div class="field">
+            <label for="areaId">Area</label>
+            <select id="areaId" name="areaId" data-current="${profile.area_id || ''}"><option value="">Select an LGA first</option></select>
+          </div>
+        </div>
+
+        <h3 style="margin-top: var(--space-6);">Skills</h3>
+        <div class="field">
+          <div id="skills-picker" class="text-secondary text-sm">Loading skills…</div>
+        </div>
+
         <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
       </form>
     `;
+    }
+
+    async function populateLocationSelects(form) {
+      const stateSelect = form.stateId;
+      const lgaSelect = form.lgaId;
+      const areaSelect = form.areaId;
+
+      async function loadLgas(stateId, preselectLgaId) {
+        if (!stateId) {
+          lgaSelect.innerHTML = '<option value="">Select a state first</option>';
+          areaSelect.innerHTML = '<option value="">Select an LGA first</option>';
+          return;
+        }
+        const { lgas } = await API.get(`/locations/states/${stateId}/lgas`);
+        lgaSelect.innerHTML = '<option value="">Select an LGA</option>' + lgas.map((l) => `<option value="${l.id}" ${l.id === preselectLgaId ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+      }
+
+      async function loadAreas(lgaId, preselectAreaId) {
+        if (!lgaId) {
+          areaSelect.innerHTML = '<option value="">Select an LGA first</option>';
+          return;
+        }
+        const { areas } = await API.get(`/locations/lgas/${lgaId}/areas`);
+        areaSelect.innerHTML = '<option value="">Select an area (optional)</option>' + areas.map((a) => `<option value="${a.id}" ${a.id === preselectAreaId ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
+      }
+
+      try {
+        const { states } = await API.get('/locations/states');
+        const currentStateId = stateSelect.dataset.current;
+        stateSelect.innerHTML = '<option value="">Select a state</option>' + states.map((s) => `<option value="${s.id}" ${s.id === currentStateId ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
+
+        if (currentStateId) await loadLgas(currentStateId, lgaSelect.dataset.current);
+        if (lgaSelect.dataset.current) await loadAreas(lgaSelect.dataset.current, areaSelect.dataset.current);
+      } catch (err) {
+        stateSelect.innerHTML = '<option value="">Could not load states</option>';
+      }
+
+      stateSelect.addEventListener('change', () => loadLgas(stateSelect.value));
+      lgaSelect.addEventListener('change', () => loadAreas(lgaSelect.value));
+    }
+
+    async function populateSkillsPicker(profile) {
+      const mount = document.getElementById('skills-picker');
+      try {
+        const { skills } = await API.get('/catalog/skills');
+        const selectedIds = new Set((profile.skills || []).map((s) => s.id));
+        mount.innerHTML = `
+          <div style="display:flex; flex-wrap:wrap; gap: var(--space-2); max-height: 220px; overflow-y:auto; padding: var(--space-3); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);">
+            ${skills.map((s) => `
+              <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm); background: rgba(240,240,240,0.05); padding: var(--space-1) var(--space-3); border-radius: var(--radius-pill);">
+                <input type="checkbox" name="skillIds" value="${s.id}" style="width:auto;" ${selectedIds.has(s.id) ? 'checked' : ''} />
+                ${esc(s.name)}
+              </label>
+            `).join('')}
+          </div>
+        `;
+      } catch (err) {
+        mount.innerHTML = `<span class="text-secondary">Couldn't load skills.</span>`;
+      }
+    }
+
+    function wireProfilePictureUpload() {
+      const btn = document.getElementById('change-picture-btn');
+      const preview = document.getElementById('profile-picture-preview');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
+        if (!file) return;
+        FormHelpers.setLoading(btn, true);
+        try {
+          const uploaded = await Upload.uploadProfilePicture(file);
+          await API.patch(currentUser.role === 'hirer' ? '/profiles/hirer/me' : '/profiles/worker/me', {
+            profilePictureUrl: uploaded.publicUrl,
+          });
+          preview.src = uploaded.publicUrl;
+          Toast.success('Profile picture updated.');
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
+        }
+      });
     }
 
     const DOCUMENT_TYPES = [
@@ -353,17 +487,29 @@
 
     function wireWorkerForm() {
       const form = document.getElementById('profile-form');
+      wireProfilePictureUpload();
+      populateLocationSelects(form);
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         FormHelpers.clearErrors(form);
         const submitBtn = document.getElementById('profile-submit');
         FormHelpers.setLoading(submitBtn, true);
         try {
+          const skillIds = Array.from(form.querySelectorAll('input[name="skillIds"]:checked')).map((el) => el.value);
           await API.patch('/profiles/worker/me', {
             professionalTitle: form.professionalTitle.value.trim() || undefined,
             bio: form.bio.value.trim() || undefined,
             experienceYears: form.experienceYears.value ? Number(form.experienceYears.value) : undefined,
             availabilityStatus: form.availabilityStatus.value,
+            workingDays: form.workingDays.value.trim() || undefined,
+            workingHours: form.workingHours.value.trim() || undefined,
+            startingPrice: form.startingPrice.value ? Number(form.startingPrice.value) : undefined,
+            priceCurrency: form.priceCurrency.value,
+            stateId: form.stateId.value || undefined,
+            lgaId: form.lgaId.value || undefined,
+            areaId: form.areaId.value || undefined,
+            skillIds,
           });
           Toast.success('Profile updated.');
         } catch (err) {
@@ -405,8 +551,10 @@
         wireHirerForm();
       } else {
         const { profile } = await API.get('/profiles/worker/me');
-        content.innerHTML = workerFormHtml(profile || { verification_status: 'not_submitted' });
+        const safeProfile = profile || { verification_status: 'not_submitted' };
+        content.innerHTML = workerFormHtml(safeProfile);
         wireWorkerForm();
+        populateSkillsPicker(safeProfile);
         pendingDocuments = [];
         wireVerificationUpload();
       }

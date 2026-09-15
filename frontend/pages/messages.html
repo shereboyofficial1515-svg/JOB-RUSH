@@ -184,7 +184,13 @@
       SidebarNav.render(user, 'messages');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
-      loadConversations();
+      await loadConversations();
+
+      // Deep link from a "Contact" button elsewhere (e.g. a worker's
+      // public profile) that already started/found the conversation
+      // and just needs this page to open straight into it.
+      const conversationId = new URLSearchParams(window.location.search).get('conversation');
+      if (conversationId) openConversation(conversationId);
     })();
 
     window.addEventListener('beforeunload', () => clearInterval(pollTimer));

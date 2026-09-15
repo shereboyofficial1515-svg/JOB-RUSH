@@ -19,6 +19,10 @@ const WORKER_EDITABLE_FIELDS = [
   'landmark',
   'service_radius_km',
   'profile_picture_url',
+  'starting_price',
+  'price_currency',
+  'working_days',
+  'working_hours',
 ];
 
 const HIRER_EDITABLE_FIELDS = [
@@ -71,10 +75,14 @@ async function ensureHirerProfileRow(userId) {
 async function getWorkerProfile(userId) {
   const { rows } = await query(
     `SELECT wp.*, u.full_name, u.email, u.phone, u.account_status, u.deactivated_at,
-            COALESCE(us.profile_visibility, 'public') AS profile_visibility
+            COALESCE(us.profile_visibility, 'public') AS profile_visibility,
+            st.name AS state_name, l.name AS lga_name, a.name AS area_name
        FROM worker_profiles wp
        JOIN users u ON u.id = wp.user_id
        LEFT JOIN user_settings us ON us.user_id = wp.user_id
+       LEFT JOIN states st ON st.id = wp.state_id
+       LEFT JOIN lgas l ON l.id = wp.lga_id
+       LEFT JOIN areas a ON a.id = wp.area_id
       WHERE wp.user_id = $1`,
     [userId]
   );
@@ -171,6 +179,10 @@ async function searchWorkers({
   lgaId,
   keyword,
   verifiedOnly,
+  minRating,
+  maxPrice,
+  availabilityStatus,
+  hasVideo,
   page = 1,
   pageSize = 20,
 }) {
@@ -190,8 +202,28 @@ async function searchWorkers({
     params.push(lgaId);
     conditions.push(`wp.lga_id = $${params.length}`);
   }
-  if (verifiedOnly) {
+  if (verifiedOnly === true || verifiedOnly === 'true') {
     conditions.push(`wp.verification_status = 'approved'`);
+  }
+  const minRatingNum = Number(minRating);
+  if (minRating && Number.isFinite(minRatingNum)) {
+    params.push(minRatingNum);
+    conditions.push(`wp.rating_avg >= $${params.length}`);
+  }
+  const maxPriceNum = Number(maxPrice);
+  if (maxPrice && Number.isFinite(maxPriceNum)) {
+    params.push(maxPriceNum);
+    conditions.push(`wp.starting_price IS NOT NULL AND wp.starting_price <= $${params.length}`);
+  }
+  if (availabilityStatus) {
+    params.push(availabilityStatus);
+    conditions.push(`wp.availability_status = $${params.length}`);
+  }
+  if (hasVideo === true || hasVideo === 'true') {
+    conditions.push(`EXISTS (
+      SELECT 1 FROM portfolios p JOIN portfolio_media pm ON pm.portfolio_id = p.id
+       WHERE p.worker_user_id = wp.user_id AND pm.media_type = 'video'
+    )`);
   }
   if (keyword) {
     params.push(`%${keyword}%`);
@@ -216,10 +248,17 @@ async function searchWorkers({
   const { rows } = await query(
     `SELECT wp.user_id, wp.professional_title, wp.bio, wp.profile_picture_url,
             wp.verification_status, wp.is_pro, wp.rating_avg, wp.rating_count,
-            wp.completed_jobs_count, wp.availability_status, u.full_name
+            wp.completed_jobs_count, wp.availability_status, wp.starting_price,
+            wp.price_currency, u.full_name, st.name AS state_name, l.name AS lga_name,
+            EXISTS (
+              SELECT 1 FROM portfolios p JOIN portfolio_media pm ON pm.portfolio_id = p.id
+               WHERE p.worker_user_id = wp.user_id AND pm.media_type = 'video'
+            ) AS has_video
        FROM worker_profiles wp
        JOIN users u ON u.id = wp.user_id
        LEFT JOIN user_settings us ON us.user_id = wp.user_id
+       LEFT JOIN states st ON st.id = wp.state_id
+       LEFT JOIN lgas l ON l.id = wp.lga_id
       WHERE ${conditions.join(' AND ')}
       ORDER BY wp.is_pro DESC, wp.rating_avg DESC, wp.profile_completion_percent DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,

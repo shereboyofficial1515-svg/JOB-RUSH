@@ -1,0 +1,10 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-api",
+      "url": "http://127.0.0.1:4000",
+      "port": 4000
+    }
+  ]
+}

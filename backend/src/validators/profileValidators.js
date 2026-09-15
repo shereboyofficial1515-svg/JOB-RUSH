@@ -16,6 +16,10 @@ const updateWorkerProfileSchema = z.object({
   serviceRadiusKm: z.number().int().min(0).max(500).optional(),
   profilePictureUrl: z.string().url().optional(),
   skillIds: z.array(uuid).max(30).optional(),
+  startingPrice: z.number().nonnegative().max(100000000).optional(),
+  priceCurrency: z.enum(['NGN', 'USD']).optional(),
+  workingDays: z.string().trim().max(100).optional(),
+  workingHours: z.string().trim().max(100).optional(),
 });
 
 const updateHirerProfileSchema = z.object({
@@ -43,6 +47,13 @@ const addPortfolioMediaSchema = z.object({
   storagePath: z.string().trim().min(1).max(500),
   isPrimary: z.boolean().optional(),
   fileSize: z.number().int().positive().max(200 * 1024 * 1024).optional(),
+  durationSeconds: z.number().int().positive().max(120).optional(),
+  width: z.number().int().positive().max(20000).optional(),
+  height: z.number().int().positive().max(20000).optional(),
+});
+
+const reorderPortfolioMediaSchema = z.object({
+  mediaIds: z.array(uuid).min(1).max(20),
 });
 
 const submitVerificationSchema = z.object({
@@ -82,6 +93,10 @@ function toSnakeCaseProfileInput(body) {
     serviceRadiusKm: 'service_radius_km',
     profilePictureUrl: 'profile_picture_url',
     skillIds: 'skillIds', // handled specially in profileService, not a column
+    startingPrice: 'starting_price',
+    priceCurrency: 'price_currency',
+    workingDays: 'working_days',
+    workingHours: 'working_hours',
     displayName: 'display_name',
     isCompany: 'is_company',
   };
@@ -112,6 +127,7 @@ module.exports = {
   createPortfolioSchema,
   updatePortfolioSchema,
   addPortfolioMediaSchema,
+  reorderPortfolioMediaSchema,
   submitVerificationSchema,
   rejectVerificationSchema,
   toSnakeCaseProfileInput,

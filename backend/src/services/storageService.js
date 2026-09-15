@@ -1,7 +1,10 @@
 const { randomUUID } = require('crypto');
 const { getSupabaseClient } = require('../config/supabase');
 const { validateFile } = require('../utils/fileValidation');
+const { readMp4Metadata } = require('../utils/mp4Duration');
 const AppError = require('../utils/AppError');
+
+const MAX_VIDEO_DURATION_SECONDS = 120;
 
 /**
  * Bucket policy in one place. `public: true` buckets are readable by
@@ -76,14 +79,38 @@ async function uploadPortfolioImage(workerUserId, file) {
   });
 }
 
+/**
+ * Video uploads get an extra, server-side-only check on top of the
+ * shared MIME/signature/size validation: the file's actual duration is
+ * read from its container boxes (never trusted from the client) and
+ * anything over 2 minutes — or anything whose duration can't be
+ * determined at all, since an upload claiming to be a playable video
+ * that we can't parse is not something to silently allow — is rejected
+ * before it ever reaches storage.
+ */
 async function uploadPortfolioVideo(workerUserId, file) {
-  return uploadToBucket({
+  const metadata = readMp4Metadata(file.buffer);
+  if (metadata.durationSeconds === null) {
+    throw new AppError('Could not read this video file. Please upload a valid MP4 video.', 400, 'INVALID_VIDEO_FILE');
+  }
+  if (metadata.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+    throw new AppError('Work videos must be 2 minutes or shorter.', 400, 'VIDEO_TOO_LONG');
+  }
+
+  const result = await uploadToBucket({
     bucket: BUCKETS.PORTFOLIO_MEDIA,
     ownerUserId: workerUserId,
     buffer: file.buffer,
     mimeType: file.mimeType,
     limitProfile: 'video',
   });
+
+  return {
+    ...result,
+    durationSeconds: Math.round(metadata.durationSeconds),
+    width: metadata.width,
+    height: metadata.height,
+  };
 }
 
 async function uploadProfilePicture(userId, file) {
@@ -162,6 +189,22 @@ async function getSignedUrl(bucketKey, storagePath, expiresInSeconds = 300) {
   return data.signedUrl;
 }
 
+/**
+ * Public URL for an object in a public bucket, computed the same way
+ * `uploadToBucket` computes it at upload time — so callers that only
+ * have a stored `storage_path` (e.g. portfolio media loaded back out
+ * of the database) can still render a usable URL without re-uploading.
+ */
+function getPublicUrlForPath(bucketKey, storagePath) {
+  const bucket = BUCKETS[bucketKey];
+  if (!bucket || !bucket.public) {
+    throw new AppError('Public URLs are only for public buckets.', 400, 'INVALID_BUCKET');
+  }
+  const supabase = getSupabaseClient();
+  const { data } = supabase.storage.from(bucket.name).getPublicUrl(storagePath);
+  return data?.publicUrl || null;
+}
+
 async function deleteObject(bucketKey, storagePath) {
   const bucket = BUCKETS[bucketKey];
   if (!bucket) throw new AppError('Unknown bucket.', 400, 'INVALID_BUCKET');
@@ -181,5 +224,6 @@ module.exports = {
   uploadChatMedia,
   uploadDisputeEvidence,
   getSignedUrl,
+  getPublicUrlForPath,
   deleteObject,
 };

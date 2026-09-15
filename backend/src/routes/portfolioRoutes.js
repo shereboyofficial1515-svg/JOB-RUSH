@@ -7,6 +7,7 @@ const {
   createPortfolioSchema,
   updatePortfolioSchema,
   addPortfolioMediaSchema,
+  reorderPortfolioMediaSchema,
 } = require('../validators/profileValidators');
 
 const router = express.Router();
@@ -26,5 +27,13 @@ router.post(
   controller.addMedia
 );
 router.delete('/:id/media/:mediaId', authenticate, requireRole('worker'), controller.removeMedia);
+router.patch(
+  '/:id/media/reorder',
+  authenticate,
+  requireRole('worker'),
+  validateBody(reorderPortfolioMediaSchema),
+  controller.reorderMedia
+);
+router.patch('/:id/media/:mediaId/primary', authenticate, requireRole('worker'), controller.setPrimaryMedia);
 
 module.exports = router;

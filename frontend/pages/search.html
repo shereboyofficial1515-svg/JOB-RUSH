@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
+  <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
 
 <body>
@@ -21,8 +22,22 @@
       <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Find talent</h1>
       <form id="search-form" class="jobs-search">
         <input type="text" name="keyword" placeholder="Search by title or skill" aria-label="Keyword" />
+        <select name="availabilityStatus" aria-label="Availability">
+          <option value="">Any availability</option>
+          <option value="available">Available now</option>
+          <option value="busy">Busy</option>
+        </select>
+        <select name="minRating" aria-label="Minimum rating">
+          <option value="">Any rating</option>
+          <option value="4">4+ stars</option>
+          <option value="3">3+ stars</option>
+        </select>
+        <input type="number" name="maxPrice" placeholder="Max starting price (₦)" aria-label="Maximum price" min="0" style="width:180px;" />
         <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
           <input type="checkbox" name="verifiedOnly" style="width:auto;" /> Verified only
+        </label>
+        <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
+          <input type="checkbox" name="hasVideo" style="width:auto;" /> Has work video
         </label>
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
@@ -48,23 +63,35 @@
       return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
     }
 
+    function formatMoney(amount, currency) {
+      if (amount === null || amount === undefined) return null;
+      const symbol = currency === 'USD' ? '$' : '₦';
+      return `${symbol}${Number(amount).toLocaleString()}`;
+    }
+
     function workerCardHtml(w) {
+      const location = [w.lga_name, w.state_name].filter(Boolean).join(', ');
+      const price = formatMoney(w.starting_price, w.price_currency);
       return `
-      <div class="card card-interactive job-card">
+      <a class="card card-interactive job-card" href="worker-profile.html?id=${w.user_id}" style="display:block; color: inherit;">
         <div style="display:flex; gap: var(--space-3); align-items:center; margin-bottom: var(--space-3);">
-          <img src="${ASSETS.defaultAvatar}" alt="" width="44" height="44" style="border-radius:50%;" />
+          <img src="${w.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="44" height="44" style="border-radius:50%; object-fit:cover;" />
           <div>
             <strong>${esc(w.full_name)}</strong>
             <div class="text-sm text-secondary">${esc(w.professional_title) || 'Professional'}</div>
           </div>
         </div>
-        <div style="display:flex; gap: var(--space-2); margin-bottom: var(--space-3);">
+        <div style="display:flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap:wrap;">
           ${w.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
           ${w.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+          ${w.has_video ? '<span class="badge badge-neutral">Has video</span>' : ''}
+          <span class="badge badge-neutral" style="text-transform:capitalize;">${esc(w.availability_status)}</span>
         </div>
         <div class="text-gold text-sm">${ratingStars(w.rating_avg)} <span class="text-secondary">(${w.rating_count})</span></div>
+        ${location ? `<div class="text-secondary text-sm" style="margin-top: var(--space-2);">${esc(location)}</div>` : ''}
+        ${price ? `<div style="margin-top: var(--space-2); font-weight:600; color: var(--accent);">${price} starting</div>` : ''}
         <p class="text-secondary text-sm" style="margin-top: var(--space-3);">${esc((w.bio || 'No bio yet.').slice(0, 100))}</p>
-      </div>
+      </a>
     `;
     }
 
@@ -95,7 +122,11 @@
         const params = new URLSearchParams();
         const keyword = e.target.keyword.value.trim();
         if (keyword) params.set('keyword', keyword);
+        if (e.target.availabilityStatus.value) params.set('availabilityStatus', e.target.availabilityStatus.value);
+        if (e.target.minRating.value) params.set('minRating', e.target.minRating.value);
+        if (e.target.maxPrice.value) params.set('maxPrice', e.target.maxPrice.value);
         if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');
+        if (e.target.hasVideo.checked) params.set('hasVideo', 'true');
         loadWorkers(params.toString());
       });
     })();

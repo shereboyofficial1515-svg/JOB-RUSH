@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
+  <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
 
 <body>
@@ -54,25 +55,49 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/modules/videoPlayer.js"></script>
   <script>
-    function projectCardHtml(p) {
-      const primaryMedia = (p.media || []).find((m) => m.is_primary) || (p.media || [])[0];
-      const mediaCount = (p.media || []).length;
+    function mediaTileHtml(m, i, total) {
+      const thumb = m.media_type === 'video'
+        ? `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--color-black); color:var(--text-secondary);">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+           </div>`
+        : `<img src="${m.url}" alt="" style="width:100%; height:100%; object-fit:cover;" />`;
+      const duration = m.duration_seconds ? `<span class="duration-badge" style="position:absolute; bottom:2px; right:2px; font-size:10px;">${VideoPlayer.formatTime(m.duration_seconds)}</span>` : '';
       return `
-      <div class="card portfolio-card" data-project-id="${p.id}">
-        <img src="${ASSETS.portfolioPlaceholder}" alt="" class="portfolio-thumb" />
-        <div class="portfolio-card-body">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-            <h4 style="margin-bottom: var(--space-1);">${esc(p.title)}</h4>
-            ${p.is_featured ? '<span class="badge badge-pro">Featured</span>' : ''}
-          </div>
-          <p class="text-secondary text-sm portfolio-desc">${esc((p.description || 'No description yet.').slice(0, 100))}</p>
-          <div class="text-xs text-secondary" style="margin-bottom: var(--space-2);">${mediaCount} media item${mediaCount === 1 ? '' : 's'}</div>
-          <div class="portfolio-actions">
-            <button class="btn btn-sm btn-secondary" data-action="add-media">Add photo/video</button>
-            <button class="btn btn-sm btn-secondary" data-action="edit">Edit</button>
-            <button class="btn btn-sm btn-danger" data-action="delete">Delete</button>
-          </div>
+      <div class="media-tile" data-media-id="${m.id}" style="position:relative; width:84px; height:84px; border-radius: var(--radius-sm); overflow:hidden; border: 2px solid ${m.is_primary ? 'var(--accent)' : 'transparent'}; cursor:pointer;">
+        ${thumb}
+        ${duration}
+        ${m.is_primary ? '<span style="position:absolute; top:2px; left:2px; font-size:10px; background:var(--accent); color:var(--text-on-gold); padding:0 4px; border-radius:2px;">Primary</span>' : ''}
+        <div style="position:absolute; top:2px; right:2px; display:flex; gap:2px;">
+          <button type="button" class="btn btn-sm btn-ghost" data-action="delete-media" title="Delete" style="padding:2px 4px; background:rgba(0,0,0,0.6);">✕</button>
+        </div>
+        <div style="position:absolute; bottom:2px; left:2px; display:flex; gap:2px;">
+          <button type="button" class="btn btn-sm btn-ghost" data-action="move-left" ${i === 0 ? 'disabled' : ''} title="Move earlier" style="padding:2px 4px; background:rgba(0,0,0,0.6);">←</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-action="move-right" ${i === total - 1 ? 'disabled' : ''} title="Move later" style="padding:2px 4px; background:rgba(0,0,0,0.6);">→</button>
+          ${!m.is_primary ? `<button type="button" class="btn btn-sm btn-ghost" data-action="set-primary" title="Set as primary" style="padding:2px 4px; background:rgba(0,0,0,0.6);">★</button>` : ''}
+        </div>
+      </div>`;
+    }
+
+    function projectCardHtml(p) {
+      const media = p.media || [];
+      const mediaCount = media.length;
+      return `
+      <div class="card portfolio-card" data-project-id="${p.id}" style="padding: var(--space-4);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <h4 style="margin-bottom: var(--space-1);">${esc(p.title)}</h4>
+          ${p.is_featured ? '<span class="badge badge-pro">Featured</span>' : ''}
+        </div>
+        <p class="text-secondary text-sm portfolio-desc">${esc((p.description || 'No description yet.').slice(0, 100))}</p>
+        <div class="media-strip" style="display:flex; gap: var(--space-2); flex-wrap:wrap; margin: var(--space-3) 0;">
+          ${media.map((m, i) => mediaTileHtml(m, i, media.length)).join('')}
+          ${mediaCount === 0 ? `<div class="text-xs text-secondary">No media yet.</div>` : ''}
+        </div>
+        <div class="portfolio-actions">
+          <button class="btn btn-sm btn-secondary" data-action="add-media">Add photo/video</button>
+          <button class="btn btn-sm btn-secondary" data-action="edit">Edit</button>
+          <button class="btn btn-sm btn-danger" data-action="delete">Delete</button>
         </div>
       </div>
     `;
@@ -181,20 +206,84 @@
         card.querySelector('[data-action="add-media"]').addEventListener('click', async () => {
           const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4' });
           if (!file) return;
-          Toast.show('Uploading...', { duration: 1500 });
+          const isVideo = file.type.startsWith('video/');
+          if (isVideo) {
+            Toast.show('Uploading video—work videos must be 2 minutes or shorter.', { duration: 2500 });
+          } else {
+            Toast.show('Uploading...', { duration: 1500 });
+          }
           try {
             const uploaded = await Upload.uploadPortfolioMedia(file);
-            const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
             await API.post(`/portfolio/${id}/media`, {
-              mediaType,
+              mediaType: isVideo ? 'video' : 'image',
               storagePath: uploaded.storagePath,
               isPrimary: (project.media || []).length === 0,
+              durationSeconds: uploaded.durationSeconds || undefined,
+              width: uploaded.width || undefined,
+              height: uploaded.height || undefined,
             });
             Toast.success('Media added.');
             loadPortfolio();
           } catch (err) {
             Toast.error(err.message);
           }
+        });
+
+        card.querySelectorAll('[data-action="delete-media"]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const mediaId = btn.closest('.media-tile').dataset.mediaId;
+            try {
+              await API.delete(`/portfolio/${id}/media/${mediaId}`);
+              Toast.success('Media removed.');
+              loadPortfolio();
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        });
+
+        card.querySelectorAll('[data-action="set-primary"]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const mediaId = btn.closest('.media-tile').dataset.mediaId;
+            try {
+              await API.patch(`/portfolio/${id}/media/${mediaId}/primary`);
+              loadPortfolio();
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        });
+
+        card.querySelectorAll('[data-action="move-left"], [data-action="move-right"]').forEach((btn) => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (btn.disabled) return;
+            const mediaIds = (project.media || []).map((m) => m.id);
+            const tile = btn.closest('.media-tile');
+            const currentIndex = mediaIds.indexOf(tile.dataset.mediaId);
+            const swapWith = btn.dataset.action === 'move-left' ? currentIndex - 1 : currentIndex + 1;
+            [mediaIds[currentIndex], mediaIds[swapWith]] = [mediaIds[swapWith], mediaIds[currentIndex]];
+            try {
+              await API.patch(`/portfolio/${id}/media/reorder`, { mediaIds });
+              loadPortfolio();
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        });
+
+        card.querySelectorAll('.media-tile').forEach((tile) => {
+          tile.addEventListener('click', () => {
+            const m = (project.media || []).find((x) => x.id === tile.dataset.mediaId);
+            if (!m || m.media_type !== 'video') return;
+            Modal.open({
+              title: 'Preview',
+              bodyHtml: `<div id="portfolio-video-mount"></div>`,
+              onMount: () => VideoPlayer.mount(document.getElementById('portfolio-video-mount'), { url: m.url }),
+            });
+          });
         });
 
         card.querySelector('[data-action="delete"]').addEventListener('click', () => {

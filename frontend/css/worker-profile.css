@@ -1,0 +1,199 @@
+/* JOB RUSH — Custom video player (used on portfolio.html and worker-profile.html) */
+
+.video-player {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-black);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.video-player-el {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  background: var(--color-black);
+  cursor: pointer;
+}
+
+.video-player-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(0, 8, 16, 0.35);
+}
+.video-player-overlay[hidden] { display: none; }
+
+.video-player-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(240, 240, 240, 0.3);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+.video-player-error {
+  background: rgba(0, 8, 16, 0.85);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-align: center;
+  padding: var(--space-4);
+  pointer-events: auto;
+}
+
+.video-player-big-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0, 16, 32, 0.65);
+  border: 1px solid var(--border-gold);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.video-player-big-play svg { width: 28px; height: 28px; margin-left: 3px; }
+.video-player-big-play[hidden] { display: none; }
+
+.video-player-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: linear-gradient(to top, rgba(0, 8, 16, 0.85), transparent);
+}
+
+.video-player-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: var(--space-1);
+  display: flex;
+  flex-shrink: 0;
+}
+.video-player-btn:hover { color: var(--accent); }
+
+.video-player-time {
+  font-size: var(--text-xs);
+  color: var(--text-primary);
+  flex-shrink: 0;
+  min-width: 90px;
+  text-align: center;
+}
+
+.video-player-seek,
+.video-player-volume {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(240, 240, 240, 0.25);
+  cursor: pointer;
+}
+.video-player-seek { flex: 1; min-width: 40px; }
+.video-player-volume { width: 60px; flex-shrink: 0; }
+
+.video-player-seek::-webkit-slider-thumb,
+.video-player-volume::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.video-player-seek::-moz-range-thumb,
+.video-player-volume::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .video-player-volume { display: none; }
+  .video-player-time { min-width: 72px; font-size: 10px; }
+}
+
+/* ============================================================
+   Public worker profile page
+   ============================================================ */
+
+.wp-header {
+  display: flex;
+  gap: var(--space-6);
+  align-items: flex-start;
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: var(--space-6);
+}
+
+.wp-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-gold);
+  flex-shrink: 0;
+}
+
+.wp-identity { flex: 1; min-width: 0; }
+.wp-name-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.wp-name { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 700; }
+.wp-title { color: var(--text-secondary); margin-top: var(--space-1); }
+.wp-meta-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary); }
+.wp-meta-item { display: flex; align-items: center; gap: var(--space-2); }
+.wp-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
+
+.wp-price { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--accent); }
+.wp-availability-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.wp-availability-dot.available { background: var(--status-success); }
+.wp-availability-dot.busy { background: var(--status-warning); }
+.wp-availability-dot.unavailable { background: var(--status-danger); }
+
+.wp-section { margin-bottom: var(--space-7); }
+.wp-section h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+
+.wp-skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.wp-skill-chip {
+  background: rgba(240, 176, 0, 0.08);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.wp-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
+.wp-gallery-item { border-radius: var(--radius-md); overflow: hidden; background: var(--bg-elevated); position: relative; }
+.wp-gallery-item img { width: 100%; height: 160px; object-fit: cover; display: block; }
+.wp-gallery-item .duration-badge {
+  position: absolute; bottom: var(--space-2); right: var(--space-2);
+  background: rgba(0,0,0,0.7); color: var(--text-primary); font-size: var(--text-xs);
+  padding: 2px 6px; border-radius: var(--radius-sm);
+}
+
+.wp-review { padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
+.wp-review:last-child { border-bottom: none; }
+.wp-review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
+
+@media (max-width: 680px) {
+  .wp-header { flex-direction: column; align-items: center; text-align: center; }
+  .wp-meta-row { justify-content: center; }
+  .wp-actions { justify-content: center; width: 100%; }
+  .wp-actions .btn { flex: 1; }
+}

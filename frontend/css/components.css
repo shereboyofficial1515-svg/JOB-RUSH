@@ -160,6 +160,22 @@
   .settings-row-control select { width: 100%; }
 }
 
+/* ---------- Settings multi-column field rows ---------- */
+/* Grid items default to a min-width of their content size, which
+   silently overflows the page on narrow viewports unless each track
+   is allowed to shrink below that (minmax(0, 1fr) instead of 1fr) —
+   this is that shrink-safe grid plus a mobile single-column fallback. */
+.settings-field-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+.settings-field-grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.settings-field-grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 560px) {
+  .settings-field-grid.cols-2,
+  .settings-field-grid.cols-3 { grid-template-columns: 1fr; }
+}
+
 /* ---------- Settings tab navigation ---------- */
 .settings-tabs {
   display: flex;
@@ -548,7 +564,11 @@
   color: var(--accent);
 }
 
-.dashboard-main { padding: var(--space-6) var(--space-7); }
+/* min-width: 0 overrides the grid item's default auto/min-content
+   sizing — without it, any wide descendant (e.g. the settings tabs
+   row) forces this whole column past the viewport instead of the
+   descendant's own overflow-x:auto scrolling internally. */
+.dashboard-main { padding: var(--space-6) var(--space-7); min-width: 0; }
 
 .dashboard-topbar {
   display: flex;

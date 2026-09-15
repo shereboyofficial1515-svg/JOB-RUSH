@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worker Profile — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/jobs.css" />
+  <link rel="stylesheet" href="../css/worker-profile.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9); max-width: 900px;">
+    <div id="profile-content">
+      <div class="skeleton" style="height: 160px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 120px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 240px;"></div>
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/modules/accessibility.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/videoPlayer.js"></script>
+  <script>
+    function ratingStars(avg) {
+      const n = Math.round(Number(avg) || 0);
+      return '★'.repeat(n) + '☆'.repeat(5 - n);
+    }
+
+    function formatMoney(amount, currency) {
+      if (amount === null || amount === undefined) return null;
+      const symbol = currency === 'USD' ? '$' : '₦';
+      return `${symbol}${Number(amount).toLocaleString()}`;
+    }
+
+    function locationLine(profile) {
+      const parts = [profile.area_name, profile.lga_name, profile.state_name].filter(Boolean);
+      return parts.length ? parts.join(', ') : null;
+    }
+
+    function availabilityLabel(status) {
+      return { available: 'Available now', busy: 'Currently busy', unavailable: 'Unavailable' }[status] || status;
+    }
+
+    function headerHtml(profile, isOwner) {
+      const location = locationLine(profile);
+      const price = formatMoney(profile.starting_price, profile.price_currency);
+      return `
+      <div class="wp-header">
+        <img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" />
+        <div class="wp-identity">
+          <div class="wp-name-row">
+            <span class="wp-name">${esc(profile.full_name)}</span>
+            ${profile.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
+            ${profile.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+          </div>
+          <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
+          <div class="wp-meta-row">
+            <span class="wp-meta-item text-gold">${ratingStars(profile.rating_avg)} <span class="text-secondary">(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></span>
+            ${location ? `<span class="wp-meta-item">${esc(location)}</span>` : ''}
+            <span class="wp-meta-item"><span class="wp-availability-dot ${profile.availability_status}"></span> ${availabilityLabel(profile.availability_status)}</span>
+            ${profile.completed_jobs_count ? `<span class="wp-meta-item">${profile.completed_jobs_count} jobs completed</span>` : ''}
+          </div>
+          ${price ? `<div class="wp-price" style="margin-top: var(--space-3);">${price} <span class="text-secondary text-sm" style="font-weight:400;">starting</span></div>` : ''}
+          ${(profile.working_days || profile.working_hours) ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${[profile.working_days, profile.working_hours].filter(Boolean).join(' · ')}</div>` : ''}
+          <div class="wp-actions" id="profile-actions">
+            ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
+              <button class="btn btn-primary" id="contact-btn">Contact</button>
+              <button class="btn btn-secondary" id="hire-btn">Hire</button>
+            `}
+          </div>
+        </div>
+      </div>
+    `;
+    }
+
+    function skillsHtml(skills) {
+      if (!skills || skills.length === 0) return '';
+      return `
+      <div class="wp-section">
+        <h2>Skills</h2>
+        <div class="wp-skills">${skills.map((s) => `<span class="wp-skill-chip">${esc(s.name)}</span>`).join('')}</div>
+      </div>`;
+    }
+
+    function aboutHtml(profile) {
+      return `
+      <div class="wp-section">
+        <h2>About</h2>
+        <p style="white-space: pre-wrap; max-width: none;">${esc(profile.bio) || 'This professional hasn’t written a bio yet.'}</p>
+      </div>`;
+    }
+
+    function flattenMedia(portfolios) {
+      const items = [];
+      for (const p of portfolios) {
+        for (const m of p.media || []) {
+          items.push({ ...m, projectTitle: p.title });
+        }
+      }
+      return items;
+    }
+
+    function galleryItemHtml(m, index) {
+      if (m.media_type === 'video') {
+        const duration = m.duration_seconds ? VideoPlayer.formatTime(m.duration_seconds) : '';
+        return `
+        <div class="wp-gallery-item" data-action="open-media" data-index="${index}">
+          <div style="position:relative;">
+            <div style="width:100%; height:160px; background:var(--color-black); display:flex; align-items:center; justify-content:center; color:var(--text-secondary);">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            ${duration ? `<span class="duration-badge">${duration}</span>` : ''}
+          </div>
+        </div>`;
+      }
+      return `<div class="wp-gallery-item" data-action="open-media" data-index="${index}"><img src="${m.url}" alt="${esc(m.projectTitle)}" loading="lazy" /></div>`;
+    }
+
+    function openMediaLightbox(media, index) {
+      const m = media[index];
+      Modal.open({
+        title: esc(m.projectTitle) || 'Portfolio media',
+        bodyHtml: m.media_type === 'video'
+          ? `<div id="lightbox-video-mount"></div>`
+          : `<img src="${m.url}" alt="" style="width:100%; border-radius: var(--radius-md);" />`,
+        onMount: () => {
+          if (m.media_type === 'video') {
+            VideoPlayer.mount(document.getElementById('lightbox-video-mount'), { url: m.url });
+          }
+        },
+      });
+    }
+
+    function portfolioHtml(portfolios) {
+      const media = flattenMedia(portfolios);
+      if (media.length === 0) {
+        return `
+        <div class="wp-section">
+          <h2>Portfolio</h2>
+          <p class="text-secondary text-sm">No portfolio items yet.</p>
+        </div>`;
+      }
+      return `
+      <div class="wp-section">
+        <h2>Portfolio</h2>
+        <div class="wp-gallery" id="wp-gallery">${media.map(galleryItemHtml).join('')}</div>
+      </div>`;
+    }
+
+    function reviewHtml(r) {
+      return `
+      <div class="wp-review">
+        <div class="wp-review-head">
+          <strong>${esc(r.reviewer_display_name) || 'Client'}</strong>
+          <span class="text-gold text-sm">${ratingStars(r.rating)}</span>
+        </div>
+        <p class="text-secondary text-sm" style="max-width:none;">${esc(r.review_text) || ''}</p>
+        <div class="text-xs text-secondary" style="margin-top: var(--space-1);">${new Date(r.created_at).toLocaleDateString()}</div>
+      </div>`;
+    }
+
+    function reviewsHtml(reviews) {
+      return `
+      <div class="wp-section">
+        <h2>Reviews</h2>
+        ${reviews.length === 0
+          ? '<p class="text-secondary text-sm">No reviews yet.</p>'
+          : reviews.map(reviewHtml).join('')}
+      </div>`;
+    }
+
+    async function openHireModal(profile) {
+      let jobs;
+      try {
+        ({ jobs } = await API.get('/jobs/mine?status=open'));
+      } catch (err) {
+        Toast.error(err.message);
+        return;
+      }
+
+      if (jobs.length === 0) {
+        Modal.open({
+          title: 'Post a job first',
+          bodyHtml: `
+            <p class="text-secondary">You don’t have any open jobs to invite ${esc(profile.full_name)} to yet.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <a href="my-jobs.html" class="btn btn-primary">Post a job</a>
+            </div>`,
+        });
+        return;
+      }
+
+      Modal.open({
+        title: `Invite ${esc(profile.full_name)} to a job`,
+        bodyHtml: `
+          <form id="hire-form" novalidate>
+            <div class="field" id="job-field">
+              <label for="jobSelect">Choose an open job</label>
+              <select id="jobSelect" name="jobSelect">
+                ${jobs.map((j) => `<option value="${j.id}">${esc(j.title)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="hire-submit">Send invitation</button>
+            </div>
+          </form>`,
+        onMount: () => {
+          document.getElementById('hire-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('hire-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              const jobId = document.getElementById('jobSelect').value;
+              await API.post(`/jobs/${jobId}/invitations`, { workerUserId: profile.user_id });
+              Toast.success('Invitation sent.');
+              Modal.close();
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    async function wireActions(profile, user) {
+      const contactBtn = document.getElementById('contact-btn');
+      const hireBtn = document.getElementById('hire-btn');
+      if (!contactBtn) return;
+
+      if (!user) {
+        const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+        contactBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+        hireBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+        return;
+      }
+
+      contactBtn.addEventListener('click', async () => {
+        FormHelpers.setLoading(contactBtn, true);
+        try {
+          const { conversation } = await API.post('/messaging/conversations', { otherUserId: profile.user_id });
+          window.location.href = `messages.html?conversation=${conversation.id}`;
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(contactBtn, false);
+        }
+      });
+
+      if (user.role === 'hirer') {
+        hireBtn.addEventListener('click', () => openHireModal(profile));
+      } else {
+        hireBtn.style.display = 'none';
+      }
+    }
+
+    (async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const workerId = params.get('id');
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      const content = document.getElementById('profile-content');
+
+      if (!workerId) {
+        content.innerHTML = '<p class="text-secondary">No profile specified.</p>';
+        return;
+      }
+
+      try {
+        const [{ profile }, portfolioResult, reviewsResult] = await Promise.all([
+          API.get(`/profiles/worker/${workerId}`),
+          API.get(`/portfolio/worker/${workerId}`).catch(() => ({ portfolios: [] })),
+          API.get(`/reviews/worker/${workerId}`).catch(() => ({ reviews: [] })),
+        ]);
+
+        const isOwner = user?.id === workerId;
+        const media = flattenMedia(portfolioResult.portfolios || []);
+
+        content.innerHTML =
+          headerHtml(profile, isOwner) +
+          aboutHtml(profile) +
+          skillsHtml(profile.skills) +
+          portfolioHtml(portfolioResult.portfolios || []);
+
+        content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));
+
+        wireActions(profile, user);
+
+        document.querySelectorAll('[data-action="open-media"]').forEach((el) => {
+          el.addEventListener('click', () => openMediaLightbox(media, Number(el.dataset.index)));
+        });
+      } catch (err) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <img src="${ASSETS.emptyState}" alt="" />
+            <h3>Profile not found</h3>
+            <p>${err.message}</p>
+            <a href="search.html" class="btn btn-primary btn-sm">Find other professionals</a>
+          </div>`;
+      }
+    })();
+  </script>
+</body>
+
+</html>
