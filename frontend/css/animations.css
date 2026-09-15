@@ -1,0 +1,238 @@
+/**
+ * JOB RUSH — Animation system.
+ * One place for every reusable motion primitive in the app: timing/
+ * easing aliases (built on the tokens already defined in tokens.css —
+ * never redefined here), keyframes, and small utility classes that
+ * pages/components opt into instead of hand-rolling their own
+ * transitions. Every duration below resolves through a --duration-*
+ * custom property, so both the OS-level prefers-reduced-motion query
+ * and the in-app accessibility toggle (tokens.css, html[data-reduced-
+ * motion="true"]) neutralize all of it for free — nothing in this
+ * file needs its own reduced-motion handling.
+ *
+ * Prefer transform/opacity in everything below — never animate width,
+ * height, top/left, or box-shadow in a loop. The one deliberate
+ * exception is the single card-hover shadow fade (see components.css
+ * .card-interactive), which is a one-shot hover transition, not a
+ * loop, and was explicitly asked for.
+ */
+
+:root {
+  /* Section 24 asks for these exact names — aliases onto the existing
+     tokens rather than a second, competing set of values. */
+  --transition-fast: var(--duration-micro);
+  --transition-normal: var(--duration-normal);
+  --transition-slow: var(--duration-modal);
+  --ease-smooth: var(--ease-decelerate);
+}
+
+/* ============================================================
+   Keyframes
+   ============================================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes scale-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@keyframes badge-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes drawer-fade-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes modal-out {
+  from { transform: translateY(0) scale(1); opacity: 1; }
+  to { transform: translateY(12px) scale(0.98); opacity: 0; }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes msg-in-own {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes msg-in-other {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes lightbox-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ============================================================
+   Entrance utilities
+   ============================================================ */
+
+.fade-in { animation: fade-in var(--duration-normal) var(--ease-smooth) both; }
+.slide-up { animation: slide-up var(--duration-normal) var(--ease-smooth) both; }
+.scale-in { animation: scale-in var(--duration-normal) var(--ease-smooth) both; }
+
+/* Applied to a list container's children by js/utils/animate.js —
+   each item gets a small incremental delay (via inline
+   animation-delay, capped so a long list doesn't feel sluggish) so
+   cards/rows settle into place in sequence instead of all at once. */
+.stagger-item {
+  animation: slide-up var(--duration-normal) var(--ease-smooth) both;
+}
+
+/* Scroll reveal (js/modules/scrollReveal.js): starts hidden only
+   visually — opacity doesn't remove content from the accessibility
+   tree, so screen readers see it immediately regardless. */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--transition-slow) var(--ease-smooth),
+              transform var(--transition-slow) var(--ease-smooth);
+}
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+/* A field-error/success message animates in the moment it stops
+   being [hidden] — browsers restart a declared `animation` whenever
+   display flips from none to visible, so this needs no JS beyond the
+   existing hidden-attribute toggle in FormHelpers. */
+.field-error:not([hidden]),
+.field-success:not([hidden]) {
+  animation: slide-up var(--transition-fast) var(--ease-smooth) both;
+}
+.field-success { font-size: var(--text-xs); color: var(--status-success); margin-top: var(--space-2); }
+
+/* A badge that appears after the fact (e.g. Verified/PRO landing on
+   a profile once data loads) gets one restrained pop — never a
+   flashy, payment-flavored animation, just enough to draw the eye. */
+.badge-enter { animation: badge-pop var(--duration-normal) var(--ease-smooth) both; }
+
+/* ============================================================
+   Modal — closing animation
+   (js/utils/modal.js adds/removes .is-closing; the entrance
+   keyframes already live in components.css)
+   ============================================================ */
+.modal-backdrop.is-closing { animation: modal-backdrop-out var(--transition-slow) var(--ease-standard) forwards; pointer-events: none; }
+.modal-backdrop.is-closing .modal { animation: modal-out var(--transition-slow) var(--ease-standard) forwards; }
+
+/* ============================================================
+   Toast — exit animation (js/utils/toast.js toggles .is-leaving)
+   ============================================================ */
+.toast.is-leaving { animation: toast-out var(--transition-fast) var(--ease-standard) forwards; }
+
+/* ============================================================
+   Dropdowns (notification bell, etc.) — opacity+transform only
+   ============================================================ */
+.dropdown-panel {
+  animation: dropdown-in var(--transition-fast) var(--ease-smooth) both;
+  transform-origin: top right;
+}
+
+/* ============================================================
+   Chat message entrance — only ever applied to genuinely new
+   bubbles (see messages.html), never replayed on the existing
+   history, so polling never makes the thread jump.
+   ============================================================ */
+.message-bubble.msg-enter.own { animation: msg-in-own var(--duration-normal) var(--ease-smooth) both; }
+.message-bubble.msg-enter.other { animation: msg-in-other var(--duration-normal) var(--ease-smooth) both; }
+
+/* ============================================================
+   Media lightbox (portfolio/work-video viewer)
+   ============================================================ */
+.lightbox-media { animation: lightbox-in var(--duration-normal) var(--ease-smooth) both; }
+
+/* ============================================================
+   Card image zoom — a card with a thumbnail wraps the <img> in
+   .card-img-zoom-frame (overflow hidden) so the zoom never breaks
+   the card's own border radius or bleeds outside it.
+   ============================================================ */
+.card-img-zoom-frame { overflow: hidden; }
+.card-img-zoom-frame img {
+  transition: transform var(--transition-slow) var(--ease-smooth);
+  will-change: transform;
+}
+@media (hover: hover) and (pointer: fine) {
+  .card-img-zoom:hover .card-img-zoom-frame img,
+  a.card-img-zoom:focus-visible .card-img-zoom-frame img {
+    transform: scale(1.06);
+  }
+}
+
+/* ============================================================
+   Micro-interactions
+   ============================================================ */
+
+/* Heart/save/bookmark toggle — a quick, restrained pop on the icon
+   itself when the saved state actually flips (JS adds this class for
+   one animation cycle then removes it — see job-detail.html). */
+.icon-pop { animation: scale-pop var(--duration-normal) var(--ease-standard); }
+
+/* Password visibility toggle (js/utils/formHelpers.js
+   wirePasswordToggles) */
+.password-toggle-btn {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: var(--space-1);
+  display: flex;
+  transition: color var(--transition-fast) var(--ease-standard);
+}
+.password-toggle-btn:hover { color: var(--text-primary); }
+.field.has-password-toggle { position: relative; }
+.field.has-password-toggle input { padding-right: var(--space-8); }
+
+/* ============================================================
+   Buttons — subtle hover lift (skipped entirely on touch devices,
+   where a "hover" would otherwise stick after a tap)
+   ============================================================ */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover:not(:disabled),
+  .btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+}
+
+/* ============================================================
+   Reduced-motion escape hatch for anything above that a page
+   applies purely for decoration (stagger/reveal) — kept here as a
+   belt-and-braces companion to the global override in tokens.css,
+   in case a future keyframe here doesn't route through --duration-*.
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item, .reveal, .fade-in, .slide-up, .scale-in { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
+}

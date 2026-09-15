@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
 </head>
 
@@ -49,6 +50,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
@@ -99,6 +101,7 @@
           return;
         }
         list.innerHTML = interviews.map(interviewRowHtml).join('');
+        Animate.stagger(list, { stepMs: 30 });
         wireActions(tab);
       } catch (err) {
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;

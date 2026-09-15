@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
 </head>
 
@@ -48,8 +49,10 @@
   <script src="../js/config/api.js"></script>
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
@@ -79,6 +82,7 @@
           return;
         }
         list.innerHTML = conversations.map(conversationItemHtml).join('');
+        Animate.stagger(list, { max: 8, stepMs: 30 });
         list.querySelectorAll('.conversation-item').forEach((item) => {
           item.addEventListener('click', () => openConversation(item.dataset.conversationId));
         });
@@ -87,11 +91,18 @@
       }
     }
 
-    function messageBubbleHtml(m) {
+    // Every full re-render (each 5s poll, plus right after sending)
+    // replaces the whole thread's innerHTML \u2014 tracking which message
+    // IDs were already on screen lets only the genuinely new bubbles
+    // play an entrance animation, so polling never makes the existing
+    // history jump or replay.
+    let renderedMessageIds = new Set();
+
+    function messageBubbleHtml(m, isNew) {
       const isOwn = m.sender_id === currentUser.id;
       const content = m.deleted_at ? '<em>Message deleted</em>' : esc(m.content || '[attachment]');
       return `
-      <div class="message-bubble ${isOwn ? 'own' : 'other'}">
+      <div class="message-bubble ${isOwn ? 'own' : 'other'} ${isNew ? 'msg-enter' : ''}">
         <div>${content}</div>
         <div class="message-meta">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${m.is_edited ? ' \u00B7 edited' : ''}</div>
       </div>
@@ -100,6 +111,7 @@
 
     async function openConversation(conversationId) {
       activeConversationId = conversationId;
+      renderedMessageIds = new Set(); // a fresh thread — don't treat its history as "already seen"
       document.querySelectorAll('.conversation-item').forEach((i) => i.classList.toggle('is-active', i.dataset.conversationId === conversationId));
 
       // Mobile shows one pane at a time — switch to the thread view.
@@ -116,10 +128,10 @@
           <button class="btn btn-sm btn-primary" id="video-call-btn">Video call</button>
         </div>
       </div>
-      <div class="thread-messages" id="thread-messages"><div class="skeleton" style="height:40px; width:60%;"></div></div>
+      <div class="thread-messages fade-in" id="thread-messages"><div class="skeleton" style="height:40px; width:60%;"></div></div>
       <form class="thread-composer" id="composer-form">
         <input type="text" name="content" placeholder="Type a message..." autocomplete="off" />
-        <button type="submit" class="btn btn-primary">Send</button>
+        <button type="submit" class="btn btn-primary" id="send-btn">Send</button>
       </form>
     `;
 
@@ -138,12 +150,16 @@
         const form = e.target;
         const content = form.content.value.trim();
         if (!content) return;
+        const sendBtn = document.getElementById('send-btn');
         form.content.value = '';
+        FormHelpers.setLoading(sendBtn, true);
         try {
           await API.post(`/messaging/conversations/${conversationId}/messages`, { content });
           await loadMessages();
         } catch (err) {
           Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(sendBtn, false);
         }
       });
 
@@ -166,9 +182,16 @@
         const { messages } = await API.get(`/messaging/conversations/${activeConversationId}/messages`);
         const container = document.getElementById('thread-messages');
         if (!container) return;
+
+        // The very first load of a conversation shouldn't stagger its
+        // entire history in one by one \u2014 only messages that arrive
+        // after that (a reply comes in, or one you just sent) get the
+        // per-bubble entrance.
+        const isFirstLoad = renderedMessageIds.size === 0;
         container.innerHTML = messages.length
-          ? messages.map(messageBubbleHtml).join('')
+          ? messages.map((m) => messageBubbleHtml(m, !isFirstLoad && !renderedMessageIds.has(m.id))).join('')
           : `<p class="text-secondary text-sm">No messages yet \u2014 say hello.</p>`;
+        renderedMessageIds = new Set(messages.map((m) => m.id));
         container.scrollTop = container.scrollHeight;
       } catch (err) {
         // Silent on poll failures — don't spam toasts every 5 seconds.

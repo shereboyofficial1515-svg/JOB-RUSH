@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
 </head>
 
 <body>
@@ -57,6 +58,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
@@ -87,14 +89,15 @@
           statCard('Wallet balance', `₦${Number(wallet.wallet.available_balance).toLocaleString()}`),
           statCard('Profile completion', `${profile.profile?.profile_completion_percent ?? 0}%`),
         ].join('');
+        Animate.stagger(statGrid, { stepMs: 30 });
 
         const badges = document.getElementById('topbar-badges');
-        if (profile.profile?.verification_status === 'approved') badges.innerHTML += '<span class="badge badge-verified">Verified</span>';
-        if (profile.profile?.is_pro) badges.innerHTML += '<span class="badge badge-pro">PRO</span>';
+        if (profile.profile?.verification_status === 'approved') badges.innerHTML += '<span class="badge badge-verified badge-enter">Verified</span>';
+        if (profile.profile?.is_pro) badges.innerHTML += '<span class="badge badge-pro badge-enter">PRO</span>';
 
         const activityBody = document.getElementById('activity-body');
         if (applications.applications.length === 0) {
-          activityBody.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No applications yet</h3><p>Browse open jobs and apply to get started.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`;
+          activityBody.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No applications yet</h3><p>Browse open jobs and apply to get started.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`;
         } else {
           activityBody.innerHTML = applications.applications.slice(0, 5).map((a) =>
             `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
@@ -102,6 +105,7 @@
              <span class="badge badge-neutral">${a.status}</span>
            </div>`
           ).join('');
+          Animate.stagger(activityBody, { stepMs: 25 });
         }
       } catch (err) {
         Toast.error('Could not load your dashboard right now.');
@@ -131,10 +135,11 @@
           statCard('Upcoming interviews', interviews.interviews.length),
           statCard('Active contracts', contracts.contracts.filter((c) => c.status === 'active').length),
         ].join('');
+        Animate.stagger(statGrid, { stepMs: 30 });
 
         const activityBody = document.getElementById('activity-body');
         if (jobs.jobs.length === 0) {
-          activityBody.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>You haven't posted a job yet</h3><p>Post your first job to start receiving applications.</p><a href="my-jobs.html" class="btn btn-primary btn-sm">Post a job</a></div>`;
+          activityBody.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>You haven't posted a job yet</h3><p>Post your first job to start receiving applications.</p><a href="my-jobs.html" class="btn btn-primary btn-sm">Post a job</a></div>`;
         } else {
           activityBody.innerHTML = jobs.jobs.slice(0, 5).map((j) =>
             `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
@@ -142,6 +147,7 @@
              <span class="badge badge-neutral">${j.status}</span>
            </div>`
           ).join('');
+          Animate.stagger(activityBody, { stepMs: 25 });
         }
       } catch (err) {
         Toast.error('Could not load your dashboard right now.');

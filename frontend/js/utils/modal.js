@@ -59,13 +59,30 @@ const Modal = (function () {
     if (e.key === 'Escape') close();
   }
 
+  /**
+   * Plays the reverse of the open animation (see .modal-backdrop.is-
+   * closing in animations.css) before actually removing the DOM node.
+   * Listening for animationend rather than a fixed timeout means this
+   * naturally takes ~0ms when reduced motion has zeroed the duration,
+   * with no special-casing needed here.
+   */
   function close() {
     if (!activeBackdrop) return;
-    activeBackdrop.remove();
+    const backdrop = activeBackdrop;
     activeBackdrop = null;
     document.body.style.overflow = '';
     document.removeEventListener('keydown', escHandler);
     if (lastFocused) lastFocused.focus();
+
+    backdrop.classList.add('is-closing');
+    let removed = false;
+    const remove = () => {
+      if (removed) return;
+      removed = true;
+      backdrop.remove();
+    };
+    backdrop.addEventListener('animationend', remove, { once: true });
+    setTimeout(remove, 400); // fallback in case animationend never fires
   }
 
   return { open, close };

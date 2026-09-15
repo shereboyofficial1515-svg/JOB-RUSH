@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
   <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
@@ -32,6 +33,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
@@ -68,8 +70,8 @@
         <div class="wp-identity">
           <div class="wp-name-row">
             <span class="wp-name">${esc(profile.full_name)}</span>
-            ${profile.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
-            ${profile.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+            ${profile.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : ''}
+            ${profile.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : ''}
           </div>
           <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
           <div class="wp-meta-row">
@@ -131,7 +133,7 @@
           </div>
         </div>`;
       }
-      return `<div class="wp-gallery-item" data-action="open-media" data-index="${index}"><img src="${m.url}" alt="${esc(m.projectTitle)}" loading="lazy" /></div>`;
+      return `<div class="wp-gallery-item card-img-zoom card-img-zoom-frame" data-action="open-media" data-index="${index}"><img src="${m.url}" alt="${esc(m.projectTitle)}" loading="lazy" /></div>`;
     }
 
     function openMediaLightbox(media, index) {
@@ -181,9 +183,11 @@
       return `
       <div class="wp-section">
         <h2>Reviews</h2>
-        ${reviews.length === 0
-          ? '<p class="text-secondary text-sm">No reviews yet.</p>'
-          : reviews.map(reviewHtml).join('')}
+        <div id="wp-reviews-list">
+          ${reviews.length === 0
+            ? '<p class="text-secondary text-sm">No reviews yet.</p>'
+            : reviews.map(reviewHtml).join('')}
+        </div>
       </div>`;
     }
 
@@ -306,6 +310,12 @@
           portfolioHtml(portfolioResult.portfolios || []);
 
         content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));
+
+        content.classList.add('fade-in');
+        const gallery = document.getElementById('wp-gallery');
+        if (gallery) Animate.stagger(gallery, { stepMs: 30 });
+        const reviewsList = document.getElementById('wp-reviews-list');
+        if (reviewsList) Animate.stagger(reviewsList, { selector: '.wp-review', stepMs: 40 });
 
         wireActions(profile, user);
 

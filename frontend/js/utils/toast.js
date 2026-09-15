@@ -24,9 +24,15 @@ const Toast = (function () {
     ensureRegion().appendChild(el);
 
     setTimeout(() => {
-      el.style.transition = 'opacity 200ms';
-      el.style.opacity = '0';
-      setTimeout(() => el.remove(), 250);
+      el.classList.add('is-leaving');
+      let removed = false;
+      const remove = () => {
+        if (removed) return;
+        removed = true;
+        el.remove();
+      };
+      el.addEventListener('animationend', remove, { once: true });
+      setTimeout(remove, 400); // fallback in case animationend never fires
     }, duration);
   }
 

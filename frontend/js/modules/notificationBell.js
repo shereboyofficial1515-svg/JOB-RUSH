@@ -33,6 +33,8 @@ const NotificationBell = (function () {
         ? notifications.map(notificationRowHtml).join('')
         : `<div class="notif-empty text-secondary text-sm">You're all caught up.</div>`;
 
+      if (typeof Animate !== 'undefined') Animate.stagger(panel, { max: 6, stepMs: 30 });
+
       panel.querySelectorAll('.notif-row.is-unread').forEach((row) => {
         row.addEventListener('click', async () => {
           row.classList.remove('is-unread');
@@ -50,6 +52,7 @@ const NotificationBell = (function () {
   }
 
   let badgeEl = null;
+  let previousUnreadCount = 0;
 
   async function refreshBadge() {
     if (!badgeEl) return;
@@ -57,6 +60,16 @@ const NotificationBell = (function () {
       const { count } = await API.get('/notifications/unread-count');
       badgeEl.textContent = count > 9 ? '9+' : String(count);
       badgeEl.hidden = count === 0;
+
+      // A restrained pop only when the count actually climbed (a new
+      // notification arrived) — never on every poll, and never when
+      // it's dropping because the user just read something.
+      if (count > previousUnreadCount && !badgeEl.hidden) {
+        badgeEl.classList.remove('icon-pop');
+        void badgeEl.offsetWidth; // restart the animation if it's already mid-play
+        badgeEl.classList.add('icon-pop');
+      }
+      previousUnreadCount = count;
     } catch {
       badgeEl.hidden = true;
     }
@@ -72,7 +85,7 @@ const NotificationBell = (function () {
           </svg>
           <span class="notif-badge" id="notif-badge" hidden>0</span>
         </button>
-        <div class="notif-dropdown" id="notif-dropdown" hidden>
+        <div class="notif-dropdown dropdown-panel" id="notif-dropdown" hidden>
           <div class="notif-dropdown-header">
             <strong>Notifications</strong>
             <button class="btn btn-ghost btn-sm" id="notif-mark-all">Mark all read</button>

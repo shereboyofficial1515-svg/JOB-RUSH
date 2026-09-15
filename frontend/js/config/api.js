@@ -49,6 +49,46 @@ const API = (function () {
     return payload;
   }
 
+  /**
+   * Same contract as upload() above, but goes through XMLHttpRequest
+   * instead of fetch specifically so `onProgress` can report real
+   * upload percentages — fetch has no upload-progress event. Only
+   * used where a caller actually wants a progress bar; everything
+   * else keeps using the simpler fetch-based upload().
+   */
+  function uploadWithProgress(path, formData, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${BASE_URL}${path}`);
+      xhr.withCredentials = true;
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        let payload = null;
+        try { payload = JSON.parse(xhr.responseText); } catch { /* no body */ }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(payload);
+        } else {
+          reject(new ApiError(
+            payload?.error || 'Something went wrong. Please try again.',
+            xhr.status,
+            payload?.code || 'UNKNOWN_ERROR'
+          ));
+        }
+      });
+      xhr.addEventListener('error', () => {
+        reject(new ApiError('Could not reach the server. Check your connection and try again.', 0, 'NETWORK_ERROR'));
+      });
+
+      xhr.send(formData);
+    });
+  }
+
   return {
     get: (path) => request(path),
     post: (path, body) => request(path, { method: 'POST', body }),
@@ -56,6 +96,7 @@ const API = (function () {
     put: (path, body) => request(path, { method: 'PUT', body }),
     delete: (path) => request(path, { method: 'DELETE' }),
     upload: (path, formData) => request(path, { method: 'POST', body: formData, isFormData: true }),
+    uploadWithProgress,
     ApiError,
   };
 })();

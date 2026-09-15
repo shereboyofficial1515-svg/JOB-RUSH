@@ -36,10 +36,10 @@ const VideoPlayer = (function () {
       <video class="video-player-el" ${poster ? `poster="${poster}"` : ''} playsinline preload="metadata">
         <source src="${url}" />
       </video>
-      <div class="video-player-overlay" data-role="loading">
+      <div class="video-player-overlay is-visible" data-role="loading">
         <div class="video-player-spinner"></div>
       </div>
-      <div class="video-player-overlay video-player-error" data-role="error" hidden>
+      <div class="video-player-overlay video-player-error" data-role="error">
         <p>This video couldn't be played.</p>
       </div>
       <button class="video-player-big-play" data-role="big-play" aria-label="Play video">
@@ -68,24 +68,54 @@ const VideoPlayer = (function () {
     const timeLabel = container.querySelector('[data-role="time"]');
 
     let seeking = false;
+    let idleTimer = null;
 
     function setLoading(isLoading) {
-      loadingOverlay.hidden = !isLoading;
+      loadingOverlay.classList.toggle('is-visible', isLoading);
     }
 
     function setError() {
       setLoading(false);
-      errorOverlay.hidden = false;
-      controls.hidden = true;
-      bigPlay.hidden = true;
+      errorOverlay.classList.add('is-visible');
+      controls.classList.add('is-hidden');
+      bigPlay.classList.add('is-hidden');
     }
 
     function updatePlayIcon() {
       const icon = video.paused ? 'play' : 'pause';
       playToggle.innerHTML = iconSvg(icon);
       playToggle.setAttribute('aria-label', video.paused ? 'Play' : 'Pause');
-      bigPlay.hidden = !video.paused;
+      bigPlay.classList.toggle('is-hidden', !video.paused);
+      if (video.paused) {
+        showControls();
+      } else {
+        scheduleIdleHide();
+      }
     }
+
+    /**
+     * Controls fade in on any pointer activity and fade back out after
+     * a couple of seconds of playback with no interaction — never
+     * while paused, and never while the user is mid-drag on a slider
+     * (which keeps rescheduling the timer via the events below).
+     */
+    function showControls() {
+      controls.classList.remove('is-hidden');
+      clearTimeout(idleTimer);
+    }
+
+    function scheduleIdleHide() {
+      clearTimeout(idleTimer);
+      if (video.paused) return;
+      idleTimer = setTimeout(() => controls.classList.add('is-hidden'), 2500);
+    }
+
+    container.addEventListener('mousemove', () => {
+      showControls();
+      scheduleIdleHide();
+    });
+    container.addEventListener('touchstart', showControls, { passive: true });
+    container.addEventListener('mouseleave', scheduleIdleHide);
 
     function togglePlay() {
       if (video.paused) video.play().catch(() => setError());
@@ -154,6 +184,7 @@ const VideoPlayer = (function () {
     video.load();
     return {
       destroy() {
+        clearTimeout(idleTimer);
         container.innerHTML = '';
       },
     };

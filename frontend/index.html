@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/animations.css" />
   <link rel="stylesheet" href="css/home.css" />
 </head>
 
@@ -62,7 +63,7 @@
     </section>
 
     <!-- CATEGORIES -->
-    <section class="container section">
+    <section class="container section reveal">
       <h2>Popular categories</h2>
       <div class="category-strip">
         <a class="category-chip" href="pages/jobs.html?category=artisans">Artisans &amp; Trades</a>
@@ -79,27 +80,27 @@
     <section class="container section" id="how-it-works">
       <h2>From "I need this done" to paid, in five steps</h2>
       <ol class="how-it-works">
-        <li>
+        <li class="reveal">
           <span class="step-index">1</span>
           <h3>Search or post</h3>
           <p class="text-secondary">Hirers search for a professional, or post a job for people to apply to.</p>
         </li>
-        <li>
+        <li class="reveal" style="transition-delay: 60ms;">
           <span class="step-index">2</span>
           <h3>Message &amp; interview</h3>
           <p class="text-secondary">Chat directly, then schedule a video, audio, or in-person interview.</p>
         </li>
-        <li>
+        <li class="reveal" style="transition-delay: 120ms;">
           <span class="step-index">3</span>
           <h3>Hire &amp; fund</h3>
           <p class="text-secondary">Create a contract and fund it through Paystack — held securely in escrow.</p>
         </li>
-        <li>
+        <li class="reveal" style="transition-delay: 180ms;">
           <span class="step-index">4</span>
           <h3>Work gets done</h3>
           <p class="text-secondary">The professional completes the job. Either side can raise a dispute if needed.</p>
         </li>
-        <li>
+        <li class="reveal" style="transition-delay: 240ms;">
           <span class="step-index">5</span>
           <h3>Release &amp; review</h3>
           <p class="text-secondary">Approve the work, funds release automatically, and you leave a review.</p>
@@ -109,7 +110,7 @@
 
     <!-- PRO CALLOUT -->
     <section class="container section">
-      <div class="pro-band card-notched">
+      <div class="pro-band card-notched reveal">
         <div>
           <span class="badge badge-pro">JOB RUSH PRO</span>
           <h2>Get discovered faster. Showcase your work.</h2>
@@ -129,10 +130,12 @@
   <script src="js/modules/accessibility.js"></script>
   <script src="js/utils/sanitize.js"></script>
   <script src="js/utils/toast.js"></script>
+  <script src="js/utils/animate.js"></script>
   <script src="js/modules/notificationBell.js"></script>
   <script src="js/utils/modal.js"></script>
   <script src="js/modules/chrome.js"></script>
   <script src="js/modules/auth.js"></script>
+  <script src="js/modules/scrollReveal.js"></script>
   <script>
     (async function init() {
       const user = await Auth.getCurrentUser();
@@ -144,6 +147,8 @@
         const keyword = e.target.keyword.value.trim();
         window.location.href = `pages/jobs.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
       });
+
+      ScrollReveal.observe();
     })();
   </script>
 </body>

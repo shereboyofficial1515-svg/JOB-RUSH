@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
   <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
@@ -53,6 +54,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/chrome.js"></script>
@@ -101,10 +103,11 @@
       try {
         const { profiles } = await API.get(`/profiles/worker/search?${query}`);
         if (profiles.length === 0) {
-          list.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try a different search.</p></div>`;
+          list.innerHTML = `<div class="empty-state fade-in" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try a different search.</p></div>`;
           return;
         }
         list.innerHTML = profiles.map(workerCardHtml).join('');
+        Animate.stagger(list);
       } catch (err) {
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }

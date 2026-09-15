@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
 </head>
 
@@ -43,6 +44,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/upload.js"></script>
@@ -98,7 +100,8 @@
           <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
           <button type="button" class="btn btn-danger" id="confirm-password-action">${confirmLabel}</button>
         </div>`,
-        onMount: () => {
+        onMount: (modalEl) => {
+          FormHelpers.wirePasswordToggles(modalEl);
           document.getElementById('confirm-password-action').addEventListener('click', async () => {
             const password = document.getElementById('confirm-password').value;
             if (!password) return FormHelpers.showError(document.getElementById('confirm-password-field'), 'Enter your password.');
@@ -350,18 +353,24 @@
       btn.addEventListener('click', async () => {
         const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
         if (!file) return;
-        FormHelpers.setLoading(btn, true);
+        const originalLabel = btn.textContent;
+        btn.disabled = true;
         try {
-          const uploaded = await Upload.uploadProfilePicture(file);
+          const uploaded = await Upload.uploadProfilePicture(file, (percent) => {
+            btn.textContent = `Uploading… ${percent}%`;
+          });
+          btn.textContent = originalLabel;
           await API.patch(currentUser.role === 'hirer' ? '/profiles/hirer/me' : '/profiles/worker/me', {
             profilePictureUrl: uploaded.publicUrl,
           });
           preview.src = uploaded.publicUrl;
+          preview.classList.add('icon-pop');
           Toast.success('Profile picture updated.');
         } catch (err) {
           Toast.error(err.message);
         } finally {
-          FormHelpers.setLoading(btn, false);
+          btn.textContent = originalLabel;
+          btn.disabled = false;
         }
       });
     }
@@ -899,7 +908,8 @@
           <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
           <button type="button" class="btn btn-primary" id="confirm-change-password-btn">Update password</button>
         </div>`,
-        onMount: () => {
+        onMount: (modalEl) => {
+          FormHelpers.wirePasswordToggles(modalEl);
           document.getElementById('confirm-change-password-btn').addEventListener('click', async () => {
             const currentPassword = document.getElementById('current-password').value;
             const newPassword = document.getElementById('new-password').value;

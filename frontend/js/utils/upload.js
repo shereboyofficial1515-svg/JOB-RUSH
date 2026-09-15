@@ -18,17 +18,20 @@ const Upload = (function () {
     });
   }
 
-  async function uploadPortfolioMedia(file) {
+  async function uploadPortfolioMedia(file, onProgress) {
     const isVideo = file.type.startsWith('video/');
     const formData = new FormData();
     formData.append('file', file);
-    return API.upload(`/storage/portfolio/${isVideo ? 'video' : 'image'}`, formData);
+    const path = `/storage/portfolio/${isVideo ? 'video' : 'image'}`;
+    return onProgress ? API.uploadWithProgress(path, formData, onProgress) : API.upload(path, formData);
   }
 
-  async function uploadProfilePicture(file) {
+  async function uploadProfilePicture(file, onProgress) {
     const formData = new FormData();
     formData.append('file', file);
-    return API.upload('/storage/profile-picture', formData);
+    return onProgress
+      ? API.uploadWithProgress('/storage/profile-picture', formData, onProgress)
+      : API.upload('/storage/profile-picture', formData);
   }
 
   async function uploadVerificationDocument(file, documentType) {

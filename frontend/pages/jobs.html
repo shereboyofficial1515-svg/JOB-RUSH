@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
 </head>
 
@@ -49,6 +50,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/chrome.js"></script>
@@ -98,7 +100,7 @@
         const result = await API.get(`/jobs?${query}`);
         if (result.jobs.length === 0) {
           list.innerHTML = `
-          <div class="empty-state">
+          <div class="empty-state fade-in">
             <img src="${ASSETS.emptyState}" alt="" />
             <h3>No jobs match your search</h3>
             <p>Try a different keyword or clear your filters.</p>
@@ -106,6 +108,7 @@
           return;
         }
         list.innerHTML = result.jobs.map(jobCardHtml).join('');
+        Animate.stagger(list);
       } catch (err) {
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }

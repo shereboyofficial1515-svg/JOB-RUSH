@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="../css/tokens.css" />
 <link rel="stylesheet" href="../css/base.css" />
 <link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
 </head>
 <body>
 <div class="auth-shell">
@@ -63,6 +64,7 @@
 <script src="../js/config/api.js"></script>
   <script src="../js/modules/accessibility.js"></script>
 <script src="../js/utils/toast.js"></script>
+<script src="../js/utils/animate.js"></script>
 <script src="../js/utils/formHelpers.js"></script>
 <script src="../js/modules/auth.js"></script>
 <script>
@@ -119,6 +121,8 @@
   };
 
   (async function init() {
+    FormHelpers.wirePasswordToggles();
+
     const params = new URLSearchParams(window.location.search);
     const returnTo = params.get('returnTo');
 

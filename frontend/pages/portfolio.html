@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
   <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
@@ -49,6 +50,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/upload.js"></script>
@@ -65,7 +67,7 @@
         : `<img src="${m.url}" alt="" style="width:100%; height:100%; object-fit:cover;" />`;
       const duration = m.duration_seconds ? `<span class="duration-badge" style="position:absolute; bottom:2px; right:2px; font-size:10px;">${VideoPlayer.formatTime(m.duration_seconds)}</span>` : '';
       return `
-      <div class="media-tile" data-media-id="${m.id}" style="position:relative; width:84px; height:84px; border-radius: var(--radius-sm); overflow:hidden; border: 2px solid ${m.is_primary ? 'var(--accent)' : 'transparent'}; cursor:pointer;">
+      <div class="media-tile card-img-zoom card-img-zoom-frame" data-media-id="${m.id}" style="position:relative; width:84px; height:84px; border-radius: var(--radius-sm); overflow:hidden; border: 2px solid ${m.is_primary ? 'var(--accent)' : 'transparent'}; cursor:pointer;">
         ${thumb}
         ${duration}
         ${m.is_primary ? '<span style="position:absolute; top:2px; left:2px; font-size:10px; background:var(--accent); color:var(--text-on-gold); padding:0 4px; border-radius:2px;">Primary</span>' : ''}
@@ -180,7 +182,7 @@
         const { portfolios } = await API.get('/portfolio/me');
         if (portfolios.length === 0) {
           grid.innerHTML = `
-          <div class="empty-state" style="grid-column: 1 / -1;">
+          <div class="empty-state fade-in" style="grid-column: 1 / -1;">
             <img src="${ASSETS.emptyState}" alt="" />
             <h3>No projects yet</h3>
             <p>Add your first project so hirers can see your work.</p>
@@ -188,6 +190,7 @@
           return;
         }
         grid.innerHTML = portfolios.map(projectCardHtml).join('');
+        Animate.stagger(grid, { stepMs: 40 });
         wireCardActions(portfolios);
       } catch (err) {
         grid.innerHTML = `<p class="text-secondary">${err.message}</p>`;
@@ -203,17 +206,21 @@
           openProjectModal(project, loadPortfolio);
         });
 
-        card.querySelector('[data-action="add-media"]').addEventListener('click', async () => {
+        const addMediaBtn = card.querySelector('[data-action="add-media"]');
+        addMediaBtn.addEventListener('click', async () => {
           const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4' });
           if (!file) return;
           const isVideo = file.type.startsWith('video/');
           if (isVideo) {
             Toast.show('Uploading video—work videos must be 2 minutes or shorter.', { duration: 2500 });
-          } else {
-            Toast.show('Uploading...', { duration: 1500 });
           }
+          const originalLabel = addMediaBtn.textContent;
+          addMediaBtn.disabled = true;
           try {
-            const uploaded = await Upload.uploadPortfolioMedia(file);
+            const uploaded = await Upload.uploadPortfolioMedia(file, (percent) => {
+              addMediaBtn.textContent = `Uploading… ${percent}%`;
+            });
+            addMediaBtn.textContent = 'Processing…';
             await API.post(`/portfolio/${id}/media`, {
               mediaType: isVideo ? 'video' : 'image',
               storagePath: uploaded.storagePath,
@@ -226,6 +233,8 @@
             loadPortfolio();
           } catch (err) {
             Toast.error(err.message);
+            addMediaBtn.textContent = originalLabel;
+            addMediaBtn.disabled = false;
           }
         });
 

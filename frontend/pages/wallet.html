@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
 </head>
 
@@ -61,6 +62,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
@@ -121,9 +123,12 @@
       const list = document.getElementById('transactions-list');
       try {
         const { transactions } = await API.get('/wallet/transactions');
-        list.innerHTML = transactions.length
-          ? transactions.map(ledgerRowHtml).join('')
-          : `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No transactions yet</h3></div>`;
+        if (transactions.length) {
+          list.innerHTML = transactions.map(ledgerRowHtml).join('');
+          Animate.stagger(list, { stepMs: 25 });
+        } else {
+          list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No transactions yet</h3></div>`;
+        }
       } catch (err) {
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
@@ -133,9 +138,12 @@
       const list = document.getElementById('withdrawals-list');
       try {
         const { withdrawals } = await API.get('/wallet/withdrawals');
-        list.innerHTML = withdrawals.length
-          ? withdrawals.map(withdrawalRowHtml).join('')
-          : `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No withdrawal requests yet</h3></div>`;
+        if (withdrawals.length) {
+          list.innerHTML = withdrawals.map(withdrawalRowHtml).join('');
+          Animate.stagger(list, { stepMs: 25 });
+        } else {
+          list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No withdrawal requests yet</h3></div>`;
+        }
       } catch (err) {
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
