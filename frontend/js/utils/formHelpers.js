@@ -44,19 +44,33 @@ const FormHelpers = (function () {
    * Adds a show/hide eye-icon button to every password input inside
    * `root` (defaults to the whole document) — every auth screen calls
    * this once on init instead of duplicating the toggle markup.
+   *
+   * The button is wrapped around the input itself, not just appended
+   * into the surrounding .field — .field also contains the <label>
+   * and (once shown) a .field-error message, so positioning the
+   * button at 50% of .field's own height put it off-center by however
+   * tall the label happened to be, and shifted again the moment an
+   * error appeared under the input. Anchoring to a wrapper that
+   * contains only the input keeps the button centered on the input
+   * alone regardless of label length, error state, text-size setting,
+   * or viewport width.
    */
   function wirePasswordToggles(root = document) {
     root.querySelectorAll('input[type="password"]').forEach((input) => {
       const field = input.closest('.field');
-      if (!field || field.querySelector('.password-toggle-btn')) return;
+      if (!field || input.parentElement.classList.contains('password-input-wrap')) return;
 
-      field.classList.add('has-password-toggle');
+      const wrap = document.createElement('div');
+      wrap.className = 'password-input-wrap';
+      input.replaceWith(wrap);
+      wrap.appendChild(input);
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'password-toggle-btn';
       btn.setAttribute('aria-label', 'Show password');
       btn.innerHTML = eyeIcon(false);
-      field.appendChild(btn);
+      wrap.appendChild(btn);
 
       btn.addEventListener('click', () => {
         const showing = input.type === 'text';

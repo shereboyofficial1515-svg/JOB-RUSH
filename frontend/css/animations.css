@@ -199,7 +199,17 @@
 .icon-pop { animation: scale-pop var(--duration-normal) var(--ease-standard); }
 
 /* Password visibility toggle (js/utils/formHelpers.js
-   wirePasswordToggles) */
+   wirePasswordToggles). The button lives inside .password-input-wrap,
+   a relative-positioned box that wraps only the <input> — not
+   .field.has-password-toggle, which wirePasswordToggles used to
+   anchor the button to; and it also contains the <label> and (once
+   shown) a .field-error message, so a `top: 50%` there was centered
+   on the whole field's height, not the input's, and shifted again the
+   moment an error appeared. Wrapping just the input keeps the button
+   centered on it alone at any viewport width, text-size setting, or
+   error state. */
+.password-input-wrap { position: relative; }
+.password-input-wrap input { padding-right: var(--space-8); }
 .password-toggle-btn {
   position: absolute;
   top: 50%;
@@ -208,13 +218,14 @@
   background: none;
   border: none;
   color: var(--text-secondary);
-  padding: var(--space-1);
   display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
   transition: color var(--transition-fast) var(--ease-standard);
 }
 .password-toggle-btn:hover { color: var(--text-primary); }
-.field.has-password-toggle { position: relative; }
-.field.has-password-toggle input { padding-right: var(--space-8); }
 
 /* ============================================================
    Buttons — subtle hover lift (skipped entirely on touch devices,
