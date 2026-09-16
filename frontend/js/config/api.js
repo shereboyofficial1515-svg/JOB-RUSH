@@ -98,5 +98,6 @@ const API = (function () {
     upload: (path, formData) => request(path, { method: 'POST', body: formData, isFormData: true }),
     uploadWithProgress,
     ApiError,
+    baseUrl: BASE_URL,
   };
 })();
