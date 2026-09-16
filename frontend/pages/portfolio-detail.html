@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Project — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
+  <link rel="stylesheet" href="../css/jobs.css" />
+  <link rel="stylesheet" href="../css/worker-profile.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9); max-width: 840px;">
+    <div id="pd-content">
+      <div class="skeleton" style="height: 32px; width: 60%; margin-bottom: var(--space-4);"></div>
+      <div class="skeleton" style="height: 340px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 120px;"></div>
+    </div>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/modules/accessibility.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/chrome.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/videoPlayer.js"></script>
+  <script>
+    /**
+     * Only http(s) links are ever rendered as a real clickable anchor
+     * — the backend already rejects anything else at save time
+     * (createPortfolioSchema), but a link saved before that validation
+     * existed, or any other unexpected value, gets the same treatment
+     * here rather than trusted at render time.
+     */
+    function safeExternalUrl(url) {
+      if (!url) return null;
+      try {
+        const parsed = new URL(url);
+        return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function verifiedProBadges(worker) {
+      return [
+        worker.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : '',
+        worker.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : '',
+      ].join('');
+    }
+
+    function creatorRowHtml(worker) {
+      return `
+      <a class="pd-creator-row" href="worker-profile.html?id=${worker.user_id}" style="color:inherit;">
+        <img src="${worker.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="pd-creator-avatar" />
+        <div>
+          <div class="pd-creator-name">${esc(worker.full_name)}</div>
+          <div style="display:flex; gap: var(--space-2); margin-top: 2px;">${verifiedProBadges(worker)}</div>
+        </div>
+      </a>`;
+    }
+
+    function mediaThumbInner(m) {
+      if (m.media_type === 'video') {
+        return `<div class="pd-thumb-video-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`;
+      }
+      return `<img src="${m.url}" alt="" loading="lazy" />`;
+    }
+
+    function thumbStripHtml(media, activeIndex) {
+      if (media.length <= 1) return '';
+      return `
+      <div class="pd-thumb-strip" id="pd-thumb-strip">
+        ${media
+          .map(
+            (m, i) => `
+          <div class="pd-thumb ${i === activeIndex ? 'is-active' : ''}" data-index="${i}">
+            ${mediaThumbInner(m)}
+            ${m.media_type === 'video' && m.duration_seconds ? `<span class="duration-badge" style="position:absolute; bottom:2px; right:2px; font-size:10px;">${VideoPlayer.formatTime(m.duration_seconds)}</span>` : ''}
+          </div>`
+          )
+          .join('')}
+      </div>`;
+    }
+
+    let activeVideoInstance = null;
+
+    function renderMainMedia(media, index) {
+      const mount = document.getElementById('pd-main-media');
+      if (activeVideoInstance) {
+        activeVideoInstance.destroy();
+        activeVideoInstance = null;
+      }
+      const m = media[index];
+      if (!m) {
+        mount.innerHTML = `<div class="pd-main-video-icon"><p class="text-secondary">No media for this project yet.</p></div>`;
+        return;
+      }
+      if (m.media_type === 'video') {
+        mount.innerHTML = '';
+        mount.classList.remove('pd-main-media');
+        mount.className = 'pd-main-media';
+        activeVideoInstance = VideoPlayer.mount(mount, { url: m.url });
+      } else {
+        mount.innerHTML = `<img src="${m.url}" alt="" />`;
+        mount.onclick = () => openLightbox(media, index);
+      }
+    }
+
+    function setActiveMedia(media, index) {
+      renderMainMedia(media, index);
+      document.querySelectorAll('.pd-thumb').forEach((el) => {
+        el.classList.toggle('is-active', Number(el.dataset.index) === index);
+      });
+    }
+
+    function openLightbox(media, index) {
+      const m = media[index];
+      if (!m || m.media_type === 'video') return; // videos already play large inline; no separate lightbox needed
+      Modal.open({
+        title: 'Photo',
+        bodyHtml: `
+          <img src="${m.url}" alt="" class="pd-lightbox-media lightbox-media" id="lightbox-img" />
+          <div class="pd-lightbox-nav">
+            <button type="button" class="btn btn-ghost btn-sm" id="lightbox-prev" ${index === 0 ? 'disabled' : ''} aria-label="Previous photo">← Previous</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="lightbox-next" ${index === media.length - 1 ? 'disabled' : ''} aria-label="Next photo">Next →</button>
+          </div>`,
+        onMount: () => {
+          document.getElementById('lightbox-prev')?.addEventListener('click', () => openLightbox(media, index - 1));
+          document.getElementById('lightbox-next')?.addEventListener('click', () => openLightbox(media, index + 1));
+        },
+      });
+    }
+
+    function infoGridHtml(portfolio) {
+      const items = [];
+      if (portfolio.category_name) items.push(['Category', esc(portfolio.category_name)]);
+      if (portfolio.project_type) items.push(['Project type', esc(portfolio.project_type)]);
+      if (items.length === 0) return '';
+      return `
+      <div class="wp-section">
+        <h2>Project information</h2>
+        <div class="pd-info-grid">
+          ${items.map(([label, value]) => `<div class="pd-info-item"><div class="pd-info-label">${label}</div><div class="pd-info-value">${value}</div></div>`).join('')}
+        </div>
+      </div>`;
+    }
+
+    function externalLinkHtml(portfolio) {
+      const safeUrl = safeExternalUrl(portfolio.external_link);
+      if (!safeUrl) return '';
+      return `
+      <div class="wp-section">
+        <h2>External project</h2>
+        <div class="pd-external-link-card">
+          <span class="pd-external-link-url">${esc(safeUrl)}</span>
+          <a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Visit live project</a>
+        </div>
+      </div>`;
+    }
+
+    async function shareProject(portfolio) {
+      const url = window.location.href;
+      const shareData = { title: portfolio.title, text: `Check out "${portfolio.title}" on JOB RUSH`, url };
+      if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+        } catch {
+          // User cancelled the share sheet — not an error.
+        }
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        Toast.success('Project link copied to clipboard.');
+      } catch {
+        Toast.error('Could not copy the link. Copy it from your address bar instead.');
+      }
+    }
+
+    async function openHireModal(portfolio) {
+      let jobs;
+      try {
+        ({ jobs } = await API.get('/jobs/mine?status=open'));
+      } catch (err) {
+        Toast.error(err.message);
+        return;
+      }
+      if (jobs.length === 0) {
+        Modal.open({
+          title: 'Post a job first',
+          bodyHtml: `
+            <p class="text-secondary">You don’t have any open jobs to invite ${esc(portfolio.worker.full_name)} to yet.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <a href="my-jobs.html" class="btn btn-primary">Post a job</a>
+            </div>`,
+        });
+        return;
+      }
+      Modal.open({
+        title: `Invite ${esc(portfolio.worker.full_name)} to a job`,
+        bodyHtml: `
+          <form id="hire-form" novalidate>
+            <div class="field">
+              <label for="jobSelect">Choose an open job</label>
+              <select id="jobSelect" name="jobSelect">
+                ${jobs.map((j) => `<option value="${j.id}">${esc(j.title)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="hire-submit">Send invitation</button>
+            </div>
+          </form>`,
+        onMount: () => {
+          document.getElementById('hire-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('hire-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              const jobId = document.getElementById('jobSelect').value;
+              await API.post(`/jobs/${jobId}/invitations`, { workerUserId: portfolio.worker.user_id });
+              Toast.success('Invitation sent.');
+              Modal.close();
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
+    function actionsHtml(isOwner) {
+      if (isOwner) {
+        return `
+        <div class="wp-section">
+          <div class="wp-actions" style="margin-top:0;">
+            <a href="portfolio.html" class="btn btn-secondary">Manage in Portfolio</a>
+            <button class="btn btn-ghost" id="share-btn">Share</button>
+          </div>
+        </div>`;
+      }
+      return `
+      <div class="wp-section">
+        <div class="wp-actions" style="margin-top:0;">
+          <a href="#" id="view-worker-link" class="btn btn-secondary">View worker</a>
+          <button class="btn btn-primary" id="contact-btn">Message</button>
+          <button class="btn btn-secondary" id="hire-btn" hidden>Hire</button>
+          <button class="btn btn-ghost" id="share-btn">Share</button>
+        </div>
+      </div>`;
+    }
+
+    async function wireActions(portfolio, user, isOwner) {
+      document.getElementById('share-btn')?.addEventListener('click', () => shareProject(portfolio));
+      if (isOwner) return;
+
+      const viewWorkerLink = document.getElementById('view-worker-link');
+      if (viewWorkerLink) viewWorkerLink.href = `worker-profile.html?id=${portfolio.worker.user_id}`;
+
+      const contactBtn = document.getElementById('contact-btn');
+      const hireBtn = document.getElementById('hire-btn');
+
+      if (!user) {
+        const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+        contactBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+        return;
+      }
+
+      contactBtn.addEventListener('click', async () => {
+        FormHelpers.setLoading(contactBtn, true);
+        try {
+          const { conversation } = await API.post('/messaging/conversations', { otherUserId: portfolio.worker.user_id });
+          window.location.href = `messages.html?conversation=${conversation.id}`;
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(contactBtn, false);
+        }
+      });
+
+      if (user.role === 'hirer' && user.id !== portfolio.worker.user_id) {
+        hireBtn.hidden = false;
+        hireBtn.addEventListener('click', () => openHireModal(portfolio));
+      }
+    }
+
+    (async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const portfolioId = params.get('id');
+      const user = await Auth.getCurrentUser();
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      const content = document.getElementById('pd-content');
+
+      if (!portfolioId) {
+        content.innerHTML = '<p class="text-secondary">No project specified.</p>';
+        return;
+      }
+
+      try {
+        const { portfolio } = await API.get(`/portfolio/${portfolioId}`);
+        const isOwner = user?.id === portfolio.worker.user_id;
+        const media = portfolio.media || [];
+        const primaryIndex = Math.max(0, media.findIndex((m) => m.is_primary));
+
+        content.innerHTML = `
+          <div class="pd-badges">
+            ${portfolio.category_name ? `<span class="badge badge-neutral">${esc(portfolio.category_name)}</span>` : ''}
+            ${portfolio.is_featured ? '<span class="badge badge-pro">Featured</span>' : ''}
+          </div>
+          <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-4);">${esc(portfolio.title)}</h1>
+          ${creatorRowHtml(portfolio.worker)}
+
+          <div class="pd-main-media" id="pd-main-media"></div>
+          ${thumbStripHtml(media, primaryIndex)}
+
+          <div class="wp-section">
+            <h2>Description</h2>
+            <p style="white-space: pre-wrap; max-width: none;">${esc(portfolio.description) || 'No description provided.'}</p>
+          </div>
+
+          ${infoGridHtml(portfolio)}
+          ${externalLinkHtml(portfolio)}
+          ${actionsHtml(isOwner)}
+        `;
+
+        renderMainMedia(media, media.length ? primaryIndex : -1);
+        document.querySelectorAll('.pd-thumb').forEach((el) => {
+          el.addEventListener('click', () => setActiveMedia(media, Number(el.dataset.index)));
+        });
+
+        content.classList.add('fade-in');
+        wireActions(portfolio, user, isOwner);
+      } catch (err) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <img src="${ASSETS.emptyState}" alt="" />
+            <h3>Project not found</h3>
+            <p>${esc(err.message)}</p>
+            <a href="search.html" class="btn btn-primary btn-sm">Find other professionals</a>
+          </div>`;
+      }
+    })();
+  </script>
+</body>
+
+</html>

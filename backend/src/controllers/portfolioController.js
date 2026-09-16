@@ -13,6 +13,18 @@ const listOwn = asyncHandler(async (req, res) => {
   res.status(200).json({ portfolios });
 });
 
+/**
+ * GET /api/portfolio/:id — public Portfolio Project Details view.
+ * `attachUserIfPresent` (not `authenticate`) on this route means
+ * req.user may be undefined for an anonymous visitor — the service
+ * only uses it to let the project's own owner see it even while their
+ * profile is set to private.
+ */
+const getById = asyncHandler(async (req, res) => {
+  const portfolio = await portfolioService.getPortfolioDetails(req.params.id, req.user?.id);
+  res.status(200).json({ portfolio });
+});
+
 /** POST /api/portfolio — worker_user_id is always req.user.id, never client-supplied */
 const create = asyncHandler(async (req, res) => {
   const portfolio = await portfolioService.createPortfolio(req.user.id, req.body);
@@ -53,6 +65,7 @@ const setPrimaryMedia = asyncHandler(async (req, res) => {
 module.exports = {
   listForWorker,
   listOwn,
+  getById,
   create,
   update,
   remove,

@@ -129,6 +129,14 @@ async function getOrCreateConversation(userIdA, userIdB, jobId) {
  * mirroring how the Chat Settings "Archived chats" screen and the
  * main conversation list both read from the same endpoint.
  */
+/**
+ * The conversation list used to return nothing about who was on the
+ * other end — no name, no picture — so every row rendered as the
+ * literal word "Conversation" client-side. `other` here is always the
+ * one other participant (these are 1-to-1 conversations only), joined
+ * through to `users` for the name and to whichever profile table
+ * (worker or hirer) actually has their picture.
+ */
 async function listConversationsForUser(userId, { archived = false } = {}) {
   const { rows } = await query(
     `SELECT c.*, cp.last_read_at, cp.archived_at,
@@ -136,9 +144,17 @@ async function listConversationsForUser(userId, { archived = false } = {}) {
             (SELECT COUNT(*) FROM messages m2
                WHERE m2.conversation_id = c.id AND m2.sender_id != $1 AND m2.deleted_at IS NULL
                  AND (cp.last_read_at IS NULL OR m2.created_at > cp.last_read_at)
-            )::int AS unread_count
+            )::int AS unread_count,
+            other_user.id AS other_user_id,
+            other_user.full_name AS other_full_name,
+            other_user.role AS other_role,
+            COALESCE(owp.profile_picture_url, ohp.profile_picture_url) AS other_profile_picture_url
        FROM conversations c
        JOIN conversation_participants cp ON cp.conversation_id = c.id
+       JOIN conversation_participants other ON other.conversation_id = c.id AND other.user_id != $1
+       JOIN users other_user ON other_user.id = other.user_id
+       LEFT JOIN worker_profiles owp ON owp.user_id = other.user_id
+       LEFT JOIN hirer_profiles ohp ON ohp.user_id = other.user_id
       WHERE cp.user_id = $1 AND cp.archived_at IS ${archived ? 'NOT NULL' : 'NULL'}
       ORDER BY c.last_message_at DESC NULLS LAST`,
     [userId]

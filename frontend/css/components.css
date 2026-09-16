@@ -277,6 +277,12 @@
   color: var(--text-secondary);
 }
 
+.badge-danger {
+  background: rgba(216, 71, 74, 0.12);
+  color: var(--status-danger);
+  border: 1px solid rgba(216, 71, 74, 0.35);
+}
+
 /* ---------- Top navigation ---------- */
 .site-header {
   border-bottom: 1px solid var(--border-subtle);
@@ -734,6 +740,72 @@
 @media (max-width: 480px) {
   .notif-dropdown { width: 280px; right: -60px; }
 }
+
+/* ============================================================
+   Reusable "More actions" overflow menu — opacity+transform only,
+   closes on outside click or Escape (see js/utils/moreMenu.js).
+   ============================================================ */
+.more-menu-wrap { position: relative; display: inline-flex; }
+.more-menu-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.more-menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 170px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  z-index: 50;
+  padding: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  width: 100%;
+}
+.more-menu-item:hover { background: rgba(240,240,240,0.06); }
+.more-menu-item.is-danger { color: var(--status-danger); }
+
+/* ============================================================
+   Icon-only action button — used for mobile card actions (edit /
+   delete / share / view) so labels don't force a card to wrap or
+   overflow. Always a real 44px touch target, never a bare glyph.
+   ============================================================ */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+.icon-btn:hover { border-color: var(--border-gold); color: var(--accent); }
+/* Without this, an inline <svg> child's width can collapse to 0 in
+   this flexbox layout despite its own width/height attributes — the
+   same fix already applied to .btn-google's icon above. */
+.icon-btn svg { flex-shrink: 0; width: 18px; height: 18px; }
 
 /* ---------- Modal ---------- */
 .modal-backdrop {

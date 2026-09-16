@@ -103,12 +103,29 @@
     return API.get(`/messaging/calls/${id}/token`);
   }
 
-  async function endCall(type, id) {
+  /**
+   * Direct calls (not interviews) go through the `calls` table's own
+   * status lifecycle so Call History can show what actually happened
+   * — this is the one place in the app that pushes those transitions,
+   * since LiveKit itself has no idea a `calls` row exists.
+   */
+  async function updateCallStatus(id, status, failureReason) {
+    try {
+      await API.post(`/messaging/calls/${id}/status`, { status, failureReason });
+    } catch {
+      // Best-effort — never block the call UI on a bookkeeping write.
+    }
+  }
+
+  async function endCall(type, id, hasConnected) {
     try {
       if (type === 'interview') {
         await API.post(`/interviews/${id}/leave`);
       } else {
-        await API.post(`/messaging/calls/${id}/status`, { status: 'ended' });
+        // A call that never got past ringing/connecting was backed out
+        // of by this side, not "completed" — 'cancelled' says that
+        // accurately in Call History instead of a generic 'ended'.
+        await updateCallStatus(id, hasConnected ? 'ended' : 'cancelled');
       }
     } catch {
       // Best-effort — the call is ending either way.
@@ -123,6 +140,7 @@
     const type = params.get('type') === 'call' ? 'call' : 'interview';
     const id = params.get('id');
     const statusBadge = document.getElementById('call-status');
+    let hasConnected = false;
 
     if (!id) {
       statusBadge.textContent = 'No call specified';
@@ -132,6 +150,7 @@
     if (typeof LivekitClient === 'undefined') {
       statusBadge.textContent = 'Video library failed to load';
       document.getElementById('fallback-note').hidden = false;
+      if (type === 'call') await updateCallStatus(id, 'failed', 'Video library failed to load');
       return;
     }
 
@@ -149,9 +168,12 @@
         statusBadge.textContent = 'Call ended';
       });
 
+      if (type === 'call') await updateCallStatus(id, 'connecting');
       await room.connect(token.livekitUrl, token.accessToken);
+      hasConnected = true;
       statusBadge.textContent = 'Connected';
       statusBadge.className = 'badge badge-verified';
+      if (type === 'call') await updateCallStatus(id, 'connected');
 
       await room.localParticipant.setMicrophoneEnabled(true);
       await room.localParticipant.setCameraEnabled(true);
@@ -163,6 +185,7 @@
       statusBadge.textContent = 'Could not connect';
       document.getElementById('fallback-note').hidden = false;
       Toast.error(err.message || 'Could not start the call.');
+      if (type === 'call' && !hasConnected) await updateCallStatus(id, 'failed', err.message || 'Connection failed');
     }
 
     document.getElementById('toggle-mic').addEventListener('click', async (e) => {
@@ -183,7 +206,7 @@
 
     document.getElementById('leave-call').addEventListener('click', async () => {
       if (room) await room.disconnect();
-      await endCall(type, id);
+      await endCall(type, id, hasConnected);
       window.location.href = type === 'interview' ? 'interviews.html' : 'messages.html';
     });
 

@@ -7,7 +7,7 @@ const initiateCall = asyncHandler(async (req, res) => {
 });
 
 const updateStatus = asyncHandler(async (req, res) => {
-  const call = await callService.updateCallStatus(req.params.id, req.user.id, req.body.status);
+  const call = await callService.updateCallStatus(req.params.id, req.user.id, req.body.status, req.body.failureReason);
   res.status(200).json({ call });
 });
 

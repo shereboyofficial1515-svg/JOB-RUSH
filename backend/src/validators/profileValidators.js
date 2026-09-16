@@ -32,12 +32,22 @@ const updateHirerProfileSchema = z.object({
   profilePictureUrl: z.string().url().optional(),
 });
 
+// Only http(s) links are ever rendered as a real clickable external
+// link — javascript:/data:/file: etc. are rejected here so there's
+// never a stored value that would need scheme-sniffing at render time.
+const externalLinkSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .url()
+  .refine((url) => /^https?:\/\//i.test(url), 'External link must start with http:// or https://');
+
 const createPortfolioSchema = z.object({
   title: z.string().trim().min(2).max(150),
   description: z.string().trim().max(3000).optional(),
   categoryId: uuid.optional(),
   projectType: z.string().trim().max(80).optional(),
-  externalLink: z.string().url().optional(),
+  externalLink: externalLinkSchema.optional(),
 });
 
 const updatePortfolioSchema = createPortfolioSchema.partial();

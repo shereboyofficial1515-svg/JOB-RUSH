@@ -44,7 +44,11 @@ const initiateCallSchema = z.object({
 });
 
 const updateCallStatusSchema = z.object({
-  status: z.enum(['ringing', 'connecting', 'connected', 'reconnecting', 'busy', 'declined', 'missed', 'ended']),
+  status: z.enum([
+    'ringing', 'connecting', 'connected', 'reconnecting',
+    'busy', 'declined', 'missed', 'ended', 'failed', 'cancelled',
+  ]),
+  failureReason: z.string().trim().max(300).optional(),
 });
 
 function validateBody(schema) {

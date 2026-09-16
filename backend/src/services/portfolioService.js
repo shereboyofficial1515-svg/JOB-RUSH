@@ -13,7 +13,11 @@ function attachPublicUrl(media) {
 
 async function listPortfoliosForWorker(workerUserId) {
   const { rows: portfolios } = await query(
-    `SELECT * FROM portfolios WHERE worker_user_id = $1 ORDER BY is_featured DESC, created_at DESC`,
+    `SELECT p.*, cat.name AS category_name
+       FROM portfolios p
+       LEFT JOIN categories cat ON cat.id = p.category_id
+      WHERE p.worker_user_id = $1
+      ORDER BY p.is_featured DESC, p.created_at DESC`,
     [workerUserId]
   );
 
@@ -31,6 +35,75 @@ async function listPortfoliosForWorker(workerUserId) {
   }, {});
 
   return portfolios.map((p) => ({ ...p, media: mediaByPortfolio[p.id] || [] }));
+}
+
+/**
+ * Single-project public view — everything the Portfolio Project
+ * Details page needs in one call: the project's own fields (title,
+ * description, category, external link), its media, and just enough
+ * about the creator to show "who made this" and link back to their
+ * profile. Hidden under the exact same rule as a worker's public
+ * profile (private visibility or a deactivated/inactive account) so a
+ * private profile can't be worked around by guessing a portfolio ID —
+ * the owner themselves is the one exception, same as getWorkerProfile.
+ */
+async function getPortfolioDetails(portfolioId, viewerUserId) {
+  const { rows } = await query(
+    `SELECT p.*, cat.name AS category_name,
+            u.full_name AS worker_full_name, u.account_status, u.deactivated_at,
+            wp.profile_picture_url AS worker_profile_picture_url,
+            wp.verification_status AS worker_verification_status,
+            wp.is_pro AS worker_is_pro,
+            COALESCE(us.profile_visibility, 'public') AS profile_visibility
+       FROM portfolios p
+       JOIN worker_profiles wp ON wp.user_id = p.worker_user_id
+       JOIN users u ON u.id = p.worker_user_id
+       LEFT JOIN user_settings us ON us.user_id = p.worker_user_id
+       LEFT JOIN categories cat ON cat.id = p.category_id
+      WHERE p.id = $1`,
+    [portfolioId]
+  );
+  const row = rows[0];
+
+  const isOwner = viewerUserId && row && viewerUserId === row.worker_user_id;
+  const isHidden =
+    !row ||
+    row.account_status !== 'active' ||
+    row.deactivated_at ||
+    (row.profile_visibility === 'private' && !isOwner);
+
+  if (isHidden) {
+    // Same error whether the project doesn't exist or is private —
+    // never confirm a private project's existence to a non-owner.
+    throw new AppError('Portfolio project not found.', 404, 'NOT_FOUND');
+  }
+
+  const { rows: media } = await query(
+    'SELECT * FROM portfolio_media WHERE portfolio_id = $1 ORDER BY sort_order',
+    [portfolioId]
+  );
+
+  return {
+    id: row.id,
+    worker_user_id: row.worker_user_id,
+    title: row.title,
+    description: row.description,
+    category_id: row.category_id,
+    category_name: row.category_name,
+    project_type: row.project_type,
+    external_link: row.external_link,
+    is_featured: row.is_featured,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    media: media.map(attachPublicUrl),
+    worker: {
+      user_id: row.worker_user_id,
+      full_name: row.worker_full_name,
+      profile_picture_url: row.worker_profile_picture_url,
+      verification_status: row.worker_verification_status,
+      is_pro: row.worker_is_pro,
+    },
+  };
 }
 
 async function getOwnedPortfolio(portfolioId, workerUserId) {
@@ -215,6 +288,7 @@ async function removePortfolioMedia(portfolioId, mediaId, workerUserId) {
 
 module.exports = {
   listPortfoliosForWorker,
+  getPortfolioDetails,
   getOwnedPortfolio,
   createPortfolio,
   updatePortfolio,

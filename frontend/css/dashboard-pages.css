@@ -79,6 +79,14 @@
 .thread-composer { display: flex; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-subtle); }
 .thread-composer input { flex: 1; background: var(--color-primary-navy); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--text-primary); }
 
+/* Base (desktop) rule must come before the mobile override below —
+   same specificity either way, so whichever is LAST in source order
+   wins the cascade regardless of the media query; with this rule
+   after the @media block instead, it silently beat the override on
+   every viewport and the "back to conversations" button never
+   actually appeared on mobile. */
+.back-to-list-btn { display: none; }
+
 @media (max-width: 900px) {
   .messages-layout { grid-template-columns: 1fr; height: auto; margin: calc(var(--space-5) * -1); min-height: 70vh; }
   /* Mobile shows one pane at a time: the conversation list by
@@ -91,5 +99,3 @@
   .conversation-list.is-hidden-on-mobile { display: none; }
   .back-to-list-btn { display: inline-flex; }
 }
-
-.back-to-list-btn { display: none; }

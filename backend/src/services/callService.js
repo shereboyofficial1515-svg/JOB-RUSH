@@ -4,13 +4,24 @@ const conversationService = require('./conversationService');
 const blockService = require('./blockService');
 const livekitService = require('./livekitService');
 
+// 'cancelled' (the caller backs out before the other side ever picks
+// up) and 'failed' (a real connection error, e.g. LiveKit couldn't
+// establish the session) are distinct from 'ended', which is reserved
+// for a call that actually reached 'connecting' or later and was then
+// hung up normally — see call-room.html for where each is sent.
 const TRANSITIONS = {
-  calling: ['ringing', 'busy', 'declined', 'missed', 'ended'],
-  ringing: ['connecting', 'declined', 'missed', 'ended'],
-  connecting: ['connected', 'ended'],
+  // call-room.html doesn't track a separate "ringing" UI phase — it
+  // goes straight from creating the call row (status: calling) to
+  // attempting the LiveKit connection, so 'calling' must be able to
+  // reach 'connecting' directly, not just through 'ringing'.
+  calling: ['ringing', 'connecting', 'busy', 'declined', 'missed', 'cancelled', 'failed', 'ended'],
+  ringing: ['connecting', 'declined', 'missed', 'cancelled', 'failed', 'ended'],
+  connecting: ['connected', 'failed', 'cancelled', 'ended'],
   connected: ['reconnecting', 'ended'],
   reconnecting: ['connected', 'ended'],
 };
+
+const TERMINAL_STATUSES = ['ended', 'declined', 'missed', 'busy', 'failed', 'cancelled'];
 
 async function assertCallParticipant(callId, userId) {
   const { rows } = await query(
@@ -38,7 +49,7 @@ async function initiateCall(callerUserId, conversationId, callType) {
   return rows[0];
 }
 
-async function updateCallStatus(callId, userId, newStatus) {
+async function updateCallStatus(callId, userId, newStatus, failureReason) {
   const call = await assertCallParticipant(callId, userId);
   const allowed = TRANSITIONS[call.status] || [];
   if (!allowed.includes(newStatus)) {
@@ -50,11 +61,15 @@ async function updateCallStatus(callId, userId, newStatus) {
   if (newStatus === 'connected' && call.status !== 'connected') {
     fields.push('connected_at = now()');
   }
-  if (['ended', 'declined', 'missed', 'busy'].includes(newStatus)) {
+  if (TERMINAL_STATUSES.includes(newStatus)) {
     fields.push('ended_at = now()');
     if (call.connected_at) {
       fields.push(`duration_seconds = EXTRACT(EPOCH FROM (now() - connected_at))::int`);
     }
+  }
+  if (newStatus === 'failed' && failureReason) {
+    params.push(failureReason.slice(0, 300));
+    fields.push(`failure_reason = $${params.length}`);
   }
 
   const { rows } = await query(`UPDATE calls SET ${fields.join(', ')} WHERE id = $1 RETURNING *`, params);
@@ -76,11 +91,23 @@ async function getCallToken(callId, userId, displayName) {
   return livekitService.createCallAccessToken({ callId, userId, displayName });
 }
 
+/**
+ * Call history for a conversation — every attempt, not just the ones
+ * that connected, so a failed/declined/missed/cancelled call still
+ * shows up. `direction` is relative to `userId` so the frontend can
+ * render "Outgoing"/"Incoming" without recomputing it against whoever
+ * happens to be logged in.
+ */
 async function listCallsForConversation(conversationId, userId) {
   await conversationService.assertParticipant(conversationId, userId);
-  const { rows } = await query('SELECT * FROM calls WHERE conversation_id = $1 ORDER BY started_at DESC', [
-    conversationId,
-  ]);
+  const { rows } = await query(
+    `SELECT c.*,
+            CASE WHEN c.caller_user_id = $2 THEN 'outgoing' ELSE 'incoming' END AS direction
+       FROM calls c
+      WHERE c.conversation_id = $1
+      ORDER BY c.started_at DESC`,
+    [conversationId, userId]
+  );
   return rows;
 }
 

@@ -39,7 +39,6 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
-  <script src="../js/modules/videoPlayer.js"></script>
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
@@ -110,50 +109,32 @@
       </div>`;
     }
 
-    function flattenMedia(portfolios) {
-      const items = [];
-      for (const p of portfolios) {
-        for (const m of p.media || []) {
-          items.push({ ...m, projectTitle: p.title });
-        }
-      }
-      return items;
-    }
+    // One card per portfolio PROJECT (not per media item) — clicking a
+    // project takes the visitor to the full Portfolio Project Details
+    // page, which is where the rest of what they entered actually
+    // lives (description, category, external link, full gallery).
+    function projectCardHtml(p) {
+      const media = p.media || [];
+      const primary = media.find((m) => m.is_primary) || media[0];
+      const thumb = primary
+        ? primary.media_type === 'video'
+          ? `<div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`
+          : `<img src="${primary.url}" alt="" loading="lazy" />`
+        : `<div class="wp-project-video-icon"><span class="text-xs text-secondary">No media</span></div>`;
 
-    function galleryItemHtml(m, index) {
-      if (m.media_type === 'video') {
-        const duration = m.duration_seconds ? VideoPlayer.formatTime(m.duration_seconds) : '';
-        return `
-        <div class="wp-gallery-item" data-action="open-media" data-index="${index}">
-          <div style="position:relative;">
-            <div style="width:100%; height:160px; background:var(--color-black); display:flex; align-items:center; justify-content:center; color:var(--text-secondary);">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-            </div>
-            ${duration ? `<span class="duration-badge">${duration}</span>` : ''}
-          </div>
-        </div>`;
-      }
-      return `<div class="wp-gallery-item card-img-zoom card-img-zoom-frame" data-action="open-media" data-index="${index}"><img src="${m.url}" alt="${esc(m.projectTitle)}" loading="lazy" /></div>`;
-    }
-
-    function openMediaLightbox(media, index) {
-      const m = media[index];
-      Modal.open({
-        title: esc(m.projectTitle) || 'Portfolio media',
-        bodyHtml: m.media_type === 'video'
-          ? `<div id="lightbox-video-mount"></div>`
-          : `<img src="${m.url}" alt="" style="width:100%; border-radius: var(--radius-md);" />`,
-        onMount: () => {
-          if (m.media_type === 'video') {
-            VideoPlayer.mount(document.getElementById('lightbox-video-mount'), { url: m.url });
-          }
-        },
-      });
+      return `
+      <a class="wp-project-card card-img-zoom" href="portfolio-detail.html?id=${p.id}">
+        <div class="wp-project-thumb-frame card-img-zoom-frame">${thumb}</div>
+        <div class="wp-project-card-body">
+          <h3>${esc(p.title)}</h3>
+          ${p.category_name ? `<span class="badge badge-neutral">${esc(p.category_name)}</span>` : ''}
+          <div class="wp-project-media-count">${media.length} media item${media.length === 1 ? '' : 's'}</div>
+        </div>
+      </a>`;
     }
 
     function portfolioHtml(portfolios) {
-      const media = flattenMedia(portfolios);
-      if (media.length === 0) {
+      if (portfolios.length === 0) {
         return `
         <div class="wp-section">
           <h2>Portfolio</h2>
@@ -163,7 +144,7 @@
       return `
       <div class="wp-section">
         <h2>Portfolio</h2>
-        <div class="wp-gallery" id="wp-gallery">${media.map(galleryItemHtml).join('')}</div>
+        <div class="wp-gallery" id="wp-gallery">${portfolios.map(projectCardHtml).join('')}</div>
       </div>`;
     }
 
@@ -301,7 +282,6 @@
         ]);
 
         const isOwner = user?.id === workerId;
-        const media = flattenMedia(portfolioResult.portfolios || []);
 
         content.innerHTML =
           headerHtml(profile, isOwner) +
@@ -318,10 +298,6 @@
         if (reviewsList) Animate.stagger(reviewsList, { selector: '.wp-review', stepMs: 40 });
 
         wireActions(profile, user);
-
-        document.querySelectorAll('[data-action="open-media"]').forEach((el) => {
-          el.addEventListener('click', () => openMediaLightbox(media, Number(el.dataset.index)));
-        });
       } catch (err) {
         content.innerHTML = `
           <div class="empty-state">
