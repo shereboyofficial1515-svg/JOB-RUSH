@@ -1,4 +1,5 @@
 const disputeService = require('../services/disputeService');
+const storageService = require('../services/storageService');
 const { query } = require('../config/db');
 const asyncHandler = require('../utils/asyncHandler');
 
@@ -38,12 +39,27 @@ const getForAdmin = asyncHandler(async (req, res) => {
   res.status(200).json({ dispute });
 });
 
-/** Admin bypasses the participant check by construction — gated by requireAdmin on the route, not getOwnedDispute. */
+/**
+ * Admin bypasses the participant check by construction — gated by
+ * requireAdmin on the route, not getOwnedDispute. dispute-evidence is
+ * a private bucket, so the raw storage_path isn't fetchable directly
+ * — sign it the same way verificationController.getDocuments does.
+ */
 const listEvidenceForAdmin = asyncHandler(async (req, res) => {
   const { rows } = await query('SELECT * FROM dispute_evidence WHERE dispute_id = $1 ORDER BY created_at', [
     req.params.id,
   ]);
-  res.status(200).json({ evidence: rows });
+  const evidence = await Promise.all(
+    rows.map(async (row) => ({
+      id: row.id,
+      uploadedBy: row.uploaded_by,
+      fileType: row.file_type,
+      description: row.description,
+      createdAt: row.created_at,
+      signedUrl: await storageService.getSignedUrl('DISPUTE_EVIDENCE', row.storage_path, 300),
+    }))
+  );
+  res.status(200).json({ evidence });
 });
 
 const updateStatus = asyncHandler(async (req, res) => {

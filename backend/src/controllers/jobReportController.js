@@ -22,4 +22,24 @@ const remove = asyncHandler(async (req, res) => {
   res.status(200).json({ job });
 });
 
-module.exports = { report, listReported, getReports, remove };
+const listAll = asyncHandler(async (req, res) => {
+  const jobs = await jobReportService.listJobsForAdmin(req.query);
+  res.status(200).json({ jobs });
+});
+
+const getDetail = asyncHandler(async (req, res) => {
+  const job = await jobReportService.getJobDetailForAdmin(req.params.jobId);
+  res.status(200).json({ job });
+});
+
+const hide = asyncHandler(async (req, res) => {
+  const job = await jobReportService.hideJob(req.params.jobId, req.user.id, req.body.reason);
+  res.status(200).json({ job });
+});
+
+const restore = asyncHandler(async (req, res) => {
+  const job = await jobReportService.restoreJob(req.params.jobId, req.user.id);
+  res.status(200).json({ job });
+});
+
+module.exports = { report, listReported, getReports, remove, listAll, getDetail, hide, restore };

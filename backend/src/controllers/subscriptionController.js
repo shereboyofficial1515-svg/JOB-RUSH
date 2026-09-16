@@ -45,4 +45,9 @@ const suspend = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Subscription suspended.' });
 });
 
-module.exports = { initiate, verify, getOwn, getOwnPaymentHistory, cancel, listForAdmin, revenue, suspend };
+const restore = asyncHandler(async (req, res) => {
+  const subscription = await subscriptionService.restoreSubscription(req.params.id, req.user.id);
+  res.status(200).json({ subscription });
+});
+
+module.exports = { initiate, verify, getOwn, getOwnPaymentHistory, cancel, listForAdmin, revenue, suspend, restore };

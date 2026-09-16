@@ -148,6 +148,48 @@ async function disableSubscription({ subscriptionCode, emailToken }) {
   });
 }
 
+/** Re-enables a previously disabled Paystack-managed subscription so it resumes auto-renewing. */
+async function enableSubscription({ subscriptionCode, emailToken }) {
+  return paystackRequest('/subscription/enable', {
+    method: 'POST',
+    body: { code: subscriptionCode, token: emailToken },
+  });
+}
+
+/**
+ * Creates a recurring billing plan on Paystack (e.g. "JOB RUSH PRO —
+ * ₦4,000/month"). This is a one-time setup call, not something the
+ * app runs per-subscriber — the resulting plan_code is what every
+ * subscriber's transaction gets initialized against afterwards
+ * (see initializeSubscriptionTransaction). Returns the created plan,
+ * including its plan_code.
+ */
+async function createPlan({ name, amountKobo, interval = 'monthly', description }) {
+  return paystackRequest('/plan', {
+    method: 'POST',
+    body: { name, amount: amountKobo, interval, description },
+  });
+}
+
+/** Lists existing Paystack plans — used to check whether one already exists before creating a duplicate. */
+async function listPlans() {
+  return paystackRequest('/plan');
+}
+
+/**
+ * Updates a plan's price at Paystack. This is the actual source of
+ * truth for what a subscriber is charged — initializeSubscriptionTransaction
+ * passes only the plan code, never an amount, so changing our local
+ * price setting does nothing to real billing unless the plan itself
+ * is updated too.
+ */
+async function updatePlan(planCodeOrId, { amountKobo }) {
+  return paystackRequest(`/plan/${encodeURIComponent(planCodeOrId)}`, {
+    method: 'PUT',
+    body: { amount: amountKobo },
+  });
+}
+
 module.exports = {
   initializeTransaction,
   initializeSubscriptionTransaction,
@@ -156,6 +198,10 @@ module.exports = {
   initiateTransfer,
   initiateRefund,
   disableSubscription,
+  enableSubscription,
+  createPlan,
+  listPlans,
+  updatePlan,
   verifyWebhookSignature,
   nairaToKobo,
 };

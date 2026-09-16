@@ -4,6 +4,7 @@ const env = require('../config/env');
 const AppError = require('../utils/AppError');
 const paystackService = require('./paystackService');
 const notificationService = require('./notificationService');
+const platformSettingsService = require('./platformSettingsService');
 const { recordAuditEvent } = require('../security/auditLogger');
 
 function assertPlanConfigured() {
@@ -29,7 +30,7 @@ async function initiateSubscription(workerUserId, { payerEmail, callbackUrl }) {
   }
 
   const reference = `sub_${randomUUID()}`;
-  const amount = env.PRO_MONTHLY_PRICE_NGN;
+  const amount = await platformSettingsService.getProMonthlyPriceNgn();
 
   const { rows } = await query(
     `INSERT INTO subscriptions (worker_user_id, plan, amount, paystack_reference, status)
@@ -334,6 +335,42 @@ async function suspendSubscription(subscriptionId, adminUserId, reason) {
   });
 }
 
+/**
+ * Admin-only: reverses an admin suspension. Only meaningful while the
+ * paid period hasn't actually lapsed yet — if expiry_date has already
+ * passed, there's nothing to restore to; the worker would need to buy
+ * a new subscription, same as any other expiry.
+ */
+async function restoreSubscription(subscriptionId, adminUserId) {
+  const { rows } = await query('SELECT * FROM subscriptions WHERE id = $1', [subscriptionId]);
+  const subscription = rows[0];
+  if (!subscription) throw new AppError('Subscription not found.', 404, 'NOT_FOUND');
+  if (subscription.status !== 'suspended') {
+    throw new AppError(`Cannot restore a subscription with status "${subscription.status}".`, 400, 'INVALID_STATUS_TRANSITION');
+  }
+  if (subscription.expiry_date && new Date(subscription.expiry_date) <= new Date()) {
+    throw new AppError('This subscription\'s paid period has already ended — it cannot be restored.', 400, 'ALREADY_EXPIRED');
+  }
+
+  return withTransaction(async (client) => {
+    const { rows: updated } = await client.query(
+      `UPDATE subscriptions SET status = 'active', suspended_at = NULL, suspension_reason = NULL WHERE id = $1 RETURNING *`,
+      [subscriptionId]
+    );
+    await activateProOnProfile(subscription.worker_user_id, subscription.expiry_date, client);
+
+    await recordAuditEvent({
+      actorUserId: adminUserId,
+      action: 'SUBSCRIPTION_RESTORED',
+      resourceType: 'subscription',
+      resourceId: subscriptionId,
+      result: 'success',
+    });
+
+    return updated[0];
+  });
+}
+
 module.exports = {
   initiateSubscription,
   finalizeInitialPayment,
@@ -344,4 +381,5 @@ module.exports = {
   listSubscriptionsForAdmin,
   getRevenueSummary,
   suspendSubscription,
+  restoreSubscription,
 };

@@ -9,7 +9,7 @@ const listForWorker = asyncHandler(async (req, res) => {
 
 /** GET /api/portfolio/me */
 const listOwn = asyncHandler(async (req, res) => {
-  const portfolios = await portfolioService.listPortfoliosForWorker(req.user.id);
+  const portfolios = await portfolioService.listPortfoliosForWorker(req.user.id, { includeHidden: true });
   res.status(200).json({ portfolios });
 });
 

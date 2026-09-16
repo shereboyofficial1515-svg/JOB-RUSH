@@ -23,5 +23,6 @@ adminRouter.use(authenticate);
 adminRouter.get('/', requireAdmin('finance_admin'), controller.listForAdmin);
 adminRouter.get('/revenue', requireAdmin('finance_admin'), controller.revenue);
 adminRouter.post('/:id/suspend', requireAdmin('finance_admin'), validateBody(suspendSubscriptionSchema), controller.suspend);
+adminRouter.post('/:id/restore', requireAdmin('finance_admin'), controller.restore);
 
 module.exports = { router, adminRouter };

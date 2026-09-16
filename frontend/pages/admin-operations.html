@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Operations — JOB RUSH Admin</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="../index.html" class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+      <span>JOB RUSH</span>
+    </a>
+    <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+    <nav class="sidebar-nav" aria-label="Operations sections">
+      <a href="#applications">Applications</a>
+      <a href="#interviews">Interviews</a>
+      <a href="#contracts">Contracts</a>
+      <a href="#calls">Call history</a>
+    </nav>
+
+    <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+  </aside>
+
+  <div class="admin-main">
+    <div class="dashboard-topbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Operations</h1>
+    </div>
+
+    <div id="operations-content">
+      <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/modules/accessibility.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/animate.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function sectionShell(id, title, filterHtml, bodyHtml) {
+    return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header"><h3 style="margin-bottom:0;">${title}</h3></div>
+        ${filterHtml || ''}
+        ${bodyHtml}
+      </section>
+    `;
+  }
+
+  function emptyRow(colspan, message) {
+    return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  function statusFilterHtml(name, options) {
+    return `
+      <form class="admin-status-filter" data-filter-for="${name}" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
+        <select name="status">
+          <option value="">Any status</option>
+          ${options.map((o) => `<option value="${o}">${o}</option>`).join('')}
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+      </form>`;
+  }
+
+  // ---------------- Applications ----------------
+
+  async function loadApplicationsSection() {
+    try {
+      await API.get('/admin/operations/applications?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('applications', 'Applications',
+      statusFilterHtml('applications', ['applied', 'invited', 'accepted', 'declined', 'shortlisted', 'hired', 'rejected', 'withdrawn']),
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Job</th><th>Worker</th><th>Hirer</th><th>Status</th><th>Applied</th><th></th></tr></thead>
+        <tbody id="applications-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function runApplicationsFilter(status) {
+    const tbody = document.getElementById('applications-body');
+    tbody.innerHTML = emptyRow(6, 'Loading…');
+    try {
+      const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+      const { applications } = await API.get(`/admin/operations/applications${qs}`);
+      tbody.innerHTML = applications.length
+        ? applications.map((a) => `
+          <tr>
+            <td>${esc(a.job_title)}</td>
+            <td>${esc(a.worker_name)}</td>
+            <td>${esc(a.hirer_name)}</td>
+            <td><span class="badge badge-neutral">${esc(a.status)}</span></td>
+            <td>${new Date(a.applied_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-sm btn-secondary" data-view-application="${a.id}">View</button></td>
+          </tr>`).join('')
+        : emptyRow(6, 'No applications match.');
+      wireApplicationActions();
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wireApplicationActions() {
+    document.querySelectorAll('[data-view-application]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const { application: a } = await API.get(`/admin/operations/applications/${btn.dataset.viewApplication}`);
+          Modal.open({
+            title: esc(a.job_title),
+            bodyHtml: `
+              <p class="text-secondary text-sm"><strong>Worker:</strong> ${esc(a.worker_name)}</p>
+              <p class="text-secondary text-sm"><strong>Hirer:</strong> ${esc(a.hirer_name)}</p>
+              <p class="text-secondary text-sm"><strong>Status:</strong> <span class="badge badge-neutral">${esc(a.status)}</span></p>
+              ${a.cover_note ? `<p class="text-secondary text-sm">${esc(a.cover_note)}</p>` : ''}
+              ${a.interview_id ? `<p class="text-secondary text-sm"><strong>Interview:</strong> ${esc(a.interview_status)}</p>` : ''}
+              ${a.contract_id ? `<p class="text-secondary text-sm"><strong>Contract:</strong> ${esc(a.contract_status)}</p>` : ''}
+              <div class="modal-actions"><button type="button" class="btn btn-ghost" data-action="close-modal">Close</button></div>`,
+          });
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+  }
+
+  // ---------------- Interviews ----------------
+
+  async function loadInterviewsSection() {
+    try {
+      await API.get('/admin/operations/interviews?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('interviews', 'Interviews',
+      statusFilterHtml('interviews', ['pending', 'accepted', 'declined', 'reschedule_requested', 'scheduled', 'in_progress', 'completed', 'cancelled', 'no_show', 'passed', 'failed']),
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Job</th><th>Worker</th><th>Hirer</th><th>Type</th><th>Status</th><th>Scheduled</th></tr></thead>
+        <tbody id="interviews-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function runInterviewsFilter(status) {
+    const tbody = document.getElementById('interviews-body');
+    tbody.innerHTML = emptyRow(6, 'Loading…');
+    try {
+      const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+      const { interviews } = await API.get(`/admin/operations/interviews${qs}`);
+      tbody.innerHTML = interviews.length
+        ? interviews.map((i) => `
+          <tr>
+            <td>${esc(i.job_title)}</td>
+            <td>${esc(i.worker_name)}</td>
+            <td>${esc(i.hirer_name)}</td>
+            <td>${esc(i.interview_type)}</td>
+            <td><span class="badge badge-neutral">${esc(i.status)}</span></td>
+            <td>${i.scheduled_start_at ? new Date(i.scheduled_start_at).toLocaleString() : '—'}</td>
+          </tr>`).join('')
+        : emptyRow(6, 'No interviews match.');
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  // ---------------- Contracts ----------------
+
+  async function loadContractsSection() {
+    try {
+      await API.get('/admin/operations/contracts?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('contracts', 'Contracts',
+      statusFilterHtml('contracts', ['active', 'completed', 'cancelled', 'disputed']),
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Job</th><th>Worker</th><th>Hirer</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody id="contracts-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function runContractsFilter(status) {
+    const tbody = document.getElementById('contracts-body');
+    tbody.innerHTML = emptyRow(6, 'Loading…');
+    try {
+      const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+      const { contracts } = await API.get(`/admin/operations/contracts${qs}`);
+      tbody.innerHTML = contracts.length
+        ? contracts.map((c) => `
+          <tr>
+            <td>${esc(c.job_title)}</td>
+            <td>${esc(c.worker_name)}</td>
+            <td>${esc(c.hirer_name)}</td>
+            <td>${esc(c.currency)} ${Number(c.agreed_amount).toLocaleString()}</td>
+            <td><span class="badge badge-neutral">${esc(c.status)}</span></td>
+            <td><button class="btn btn-sm btn-secondary" data-view-contract="${c.id}">View</button></td>
+          </tr>`).join('')
+        : emptyRow(6, 'No contracts match.');
+      wireContractActions();
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wireContractActions() {
+    document.querySelectorAll('[data-view-contract]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          const { contract: c } = await API.get(`/admin/operations/contracts/${btn.dataset.viewContract}`);
+          const milestonesHtml = c.milestones.length
+            ? c.milestones.map((m) => `<div style="display:flex; justify-content:space-between; padding: var(--space-1) 0;"><span>${esc(m.title)}</span><span class="badge badge-neutral">${esc(m.status)}</span></div>`).join('')
+            : '<p class="text-secondary text-sm">No milestones.</p>';
+          const escrowHtml = c.escrowTransactions.length
+            ? c.escrowTransactions.map((e) => `<div style="display:flex; justify-content:space-between; padding: var(--space-1) 0;"><span>${esc(e.currency)} ${Number(e.amount).toLocaleString()}</span><span class="badge badge-neutral">${esc(e.status)}</span></div>`).join('')
+            : '<p class="text-secondary text-sm">No escrow transactions.</p>';
+          Modal.open({
+            title: esc(c.job_title),
+            bodyHtml: `
+              <p class="text-secondary text-sm"><strong>Worker:</strong> ${esc(c.worker_name)}</p>
+              <p class="text-secondary text-sm"><strong>Hirer:</strong> ${esc(c.hirer_name)}</p>
+              <p class="text-secondary text-sm"><strong>Status:</strong> <span class="badge badge-neutral">${esc(c.status)}</span></p>
+              <h4 style="margin: var(--space-4) 0 var(--space-2);">Milestones</h4>${milestonesHtml}
+              <h4 style="margin: var(--space-4) 0 var(--space-2);">Escrow</h4>${escrowHtml}
+              <div class="modal-actions"><button type="button" class="btn btn-ghost" data-action="close-modal">Close</button></div>`,
+          });
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+  }
+
+  // ---------------- Calls ----------------
+
+  async function loadCallsSection() {
+    try {
+      await API.get('/admin/operations/calls?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('calls', 'Call history',
+      statusFilterHtml('calls', ['calling', 'ringing', 'connecting', 'connected', 'reconnecting', 'busy', 'declined', 'missed', 'ended', 'failed', 'cancelled']),
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Caller</th><th>Callee</th><th>Type</th><th>Status</th><th>Duration</th><th>Started</th></tr></thead>
+        <tbody id="calls-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function runCallsFilter(status) {
+    const tbody = document.getElementById('calls-body');
+    tbody.innerHTML = emptyRow(6, 'Loading…');
+    try {
+      const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+      const { calls } = await API.get(`/admin/operations/calls${qs}`);
+      tbody.innerHTML = calls.length
+        ? calls.map((c) => `
+          <tr>
+            <td>${esc(c.caller_name)}</td>
+            <td>${esc(c.callee_name)}</td>
+            <td>${esc(c.call_type)}</td>
+            <td><span class="badge badge-neutral">${esc(c.status)}</span>${c.failure_reason ? ` <span class="text-secondary text-xs">${esc(c.failure_reason)}</span>` : ''}</td>
+            <td>${c.duration_seconds ? `${c.duration_seconds}s` : '—'}</td>
+            <td>${new Date(c.started_at).toLocaleString()}</td>
+          </tr>`).join('')
+        : emptyRow(6, 'No calls match.');
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wireFilterForms() {
+    const runners = {
+      applications: runApplicationsFilter,
+      interviews: runInterviewsFilter,
+      contracts: runContractsFilter,
+      calls: runCallsFilter,
+    };
+    document.querySelectorAll('[data-filter-for]').forEach((form) => {
+      const name = form.dataset.filterFor;
+      form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        runners[name](new FormData(form).get('status'));
+      });
+    });
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('admin-login.html');
+    if (!user) return;
+
+    const sections = await Promise.all([
+      loadApplicationsSection(),
+      loadInterviewsSection(),
+      loadContractsSection(),
+      loadCallsSection(),
+    ]);
+    const rendered = sections.filter(Boolean);
+    const content = document.getElementById('operations-content');
+
+    if (rendered.length === 0) {
+      content.innerHTML = `
+        <div class="admin-no-access">
+          <h3>No access</h3>
+          <p>Operations visibility requires the support_admin role.</p>
+        </div>`;
+      return;
+    }
+
+    content.innerHTML = rendered.join('');
+    wireFilterForms();
+    runApplicationsFilter('');
+    runInterviewsFilter('');
+    runContractsFilter('');
+    runCallsFilter('');
+  })();
+</script>
+</body>
+</html>

@@ -11,12 +11,19 @@ function attachPublicUrl(media) {
   return { ...media, url: getPublicUrlForPath('PORTFOLIO_MEDIA', media.storage_path) };
 }
 
-async function listPortfoliosForWorker(workerUserId) {
+/**
+ * `includeHidden` is only ever true for a worker viewing their own
+ * portfolio (GET /me) — a public visitor (GET /worker/:workerUserId)
+ * must never see a project an admin has hidden, same rule the single-
+ * project detail view (getPortfolioDetails) already enforces.
+ */
+async function listPortfoliosForWorker(workerUserId, { includeHidden = false } = {}) {
+  const hiddenClause = includeHidden ? '' : 'AND p.hidden = false';
   const { rows: portfolios } = await query(
     `SELECT p.*, cat.name AS category_name
        FROM portfolios p
        LEFT JOIN categories cat ON cat.id = p.category_id
-      WHERE p.worker_user_id = $1
+      WHERE p.worker_user_id = $1 ${hiddenClause}
       ORDER BY p.is_featured DESC, p.created_at DESC`,
     [workerUserId]
   );
@@ -68,6 +75,7 @@ async function getPortfolioDetails(portfolioId, viewerUserId) {
   const isOwner = viewerUserId && row && viewerUserId === row.worker_user_id;
   const isHidden =
     !row ||
+    row.hidden ||
     row.account_status !== 'active' ||
     row.deactivated_at ||
     (row.profile_visibility === 'private' && !isOwner);

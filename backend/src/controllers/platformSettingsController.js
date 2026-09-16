@@ -20,4 +20,17 @@ const updateFeePercent = asyncHandler(async (req, res) => {
   res.status(200).json({ settings });
 });
 
-module.exports = { getSettings, updateFeePercent };
+const updateProPrice = asyncHandler(async (req, res) => {
+  const settings = await platformSettingsService.updateProPrice(req.body.proMonthlyPriceNgn, req.user.id);
+  await recordAuditEvent({
+    actorUserId: req.user.id,
+    action: 'PRO_PRICE_UPDATED',
+    resourceType: 'platform_settings',
+    resourceId: null,
+    result: 'success',
+    metadata: { newPriceNgn: req.body.proMonthlyPriceNgn },
+  });
+  res.status(200).json({ settings });
+});
+
+module.exports = { getSettings, updateFeePercent, updateProPrice };

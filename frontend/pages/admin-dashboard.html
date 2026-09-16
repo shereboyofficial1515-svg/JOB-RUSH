@@ -31,12 +31,16 @@
         <a href="#subscriptions">PRO subscriptions</a>
         <a href="#reviews">Reported reviews</a>
         <a href="#jobs">Reported jobs</a>
+        <a href="#reported-messages">Reported messages</a>
         <a href="#tickets">Support tickets</a>
       </nav>
 
       <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
       <a href="admin-settings.html" class="btn btn-secondary btn-block" style="margin-top: var(--space-2);">Categories
         &amp; Locations</a>
+      <a href="admin-moderation.html" class="btn btn-secondary btn-block" style="margin-top: var(--space-2);">Job &amp; Portfolio Moderation</a>
+      <a href="admin-operations.html" class="btn btn-secondary btn-block" style="margin-top: var(--space-2);">Operations</a>
+      <a href="admin-security.html" class="btn btn-secondary btn-block" style="margin-top: var(--space-2);">Security &amp; Audit</a>
     </aside>
 
     <div class="admin-main">
@@ -319,6 +323,163 @@
       }
     }
 
+    function wireVerificationActions() {
+      document.querySelectorAll('[data-approve]').forEach((btn) => {
+        btn.addEventListener('click', () => openVerificationReviewModal(btn.dataset.approve));
+      });
+    }
+
+    async function openVerificationReviewModal(requestId) {
+      let documents;
+      try {
+        ({ documents } = await API.get(`/admin/verification/${requestId}/documents`));
+      } catch (err) {
+        Toast.error(err.message);
+        return;
+      }
+
+      const docsHtml = documents.length
+        ? documents.map((d) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle);">
+            <span>${esc(d.documentType)}</span>
+            <a href="${encodeURI(d.signedUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">Open</a>
+          </div>`).join('')
+        : '<p class="text-secondary text-sm">No documents were submitted with this request.</p>';
+
+      Modal.open({
+        title: 'Review verification request',
+        bodyHtml: `
+        <div style="margin-bottom: var(--space-4);">${docsHtml}</div>
+        <div class="field">
+          <label for="verification-reason">Reason (shown to the worker on rejection)</label>
+          <textarea id="verification-reason" rows="3"></textarea>
+        </div>
+        <label style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-4);">
+          <input type="checkbox" id="verification-resubmission" />
+          <span class="text-sm">Allow resubmission instead of a hard rejection</span>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="reject-verification-btn">Reject</button>
+          <button type="button" class="btn btn-primary" id="approve-verification-btn">Approve</button>
+        </div>`,
+        onMount: () => {
+          document.getElementById('approve-verification-btn').addEventListener('click', async () => {
+            try {
+              await API.post(`/admin/verification/${requestId}/approve`, {});
+              Toast.success('Worker verified.');
+              Modal.close();
+              refreshSectionByLoader('verification', loadVerificationSection, wireVerificationActions);
+            } catch (err) { Toast.error(err.message); }
+          });
+          document.getElementById('reject-verification-btn').addEventListener('click', async () => {
+            try {
+              await API.post(`/admin/verification/${requestId}/reject`, {
+                reason: document.getElementById('verification-reason').value.trim() || undefined,
+                requiresResubmission: document.getElementById('verification-resubmission').checked,
+              });
+              Toast.success('Verification request rejected.');
+              Modal.close();
+              refreshSectionByLoader('verification', loadVerificationSection, wireVerificationActions);
+            } catch (err) { Toast.error(err.message); }
+          });
+        },
+      });
+    }
+
+    function wireDisputeActions() {
+      document.querySelectorAll('[data-view-dispute]').forEach((btn) => {
+        btn.addEventListener('click', () => openDisputeReviewModal(btn.dataset.viewDispute));
+      });
+    }
+
+    async function openDisputeReviewModal(disputeId) {
+      let dispute, evidence;
+      try {
+        [{ dispute }, { evidence }] = await Promise.all([
+          API.get(`/admin/disputes/${disputeId}`),
+          API.get(`/admin/disputes/${disputeId}/evidence`),
+        ]);
+      } catch (err) {
+        Toast.error(err.message);
+        return;
+      }
+
+      const evidenceHtml = evidence.length
+        ? evidence.map((e) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle);">
+            <span>${esc(e.fileType)}${e.description ? ` — ${esc(e.description)}` : ''}</span>
+            <a href="${encodeURI(e.signedUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">Open</a>
+          </div>`).join('')
+        : '<p class="text-secondary text-sm">No evidence was submitted.</p>';
+
+      const canAct = ['open', 'under_review', 'awaiting_information'].includes(dispute.status);
+      const actionsHtml = canAct
+        ? `
+        <div class="field">
+          <label for="dispute-decision">Decision notes</label>
+          <textarea id="dispute-decision" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label for="dispute-action">Resolution</label>
+          <select id="dispute-action">
+            <option value="release_to_worker">Release escrow to worker</option>
+            <option value="refund_to_hirer">Refund escrow to hirer</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="reject-dispute-btn">Reject dispute</button>
+          <button type="button" class="btn btn-primary" id="resolve-dispute-btn">Resolve</button>
+        </div>`
+        : `<p class="text-secondary text-sm">This dispute is already ${esc(dispute.status)} and can no longer be acted on.</p>`;
+
+      Modal.open({
+        title: 'Review dispute',
+        bodyHtml: `
+        <p class="text-secondary text-sm"><strong>Reason:</strong> ${esc(dispute.reason)}</p>
+        ${dispute.description ? `<p class="text-secondary text-sm">${esc(dispute.description)}</p>` : ''}
+        <p class="text-secondary text-sm">Status: <span class="badge badge-neutral">${esc(dispute.status)}</span></p>
+        <div style="margin: var(--space-4) 0;">${evidenceHtml}</div>
+        ${actionsHtml}`,
+        onMount: () => {
+          if (!canAct) return;
+          document.getElementById('resolve-dispute-btn').addEventListener('click', async () => {
+            const decision = document.getElementById('dispute-decision').value.trim();
+            if (decision.length < 3) { Toast.error('Add decision notes first.'); return; }
+            try {
+              await API.post(`/admin/disputes/${disputeId}/resolve`, {
+                decision,
+                action: document.getElementById('dispute-action').value,
+              });
+              Toast.success('Dispute resolved.');
+              Modal.close();
+              refreshSectionByLoader('disputes', loadDisputesSection, wireDisputeActions);
+            } catch (err) { Toast.error(err.message); }
+          });
+          document.getElementById('reject-dispute-btn').addEventListener('click', async () => {
+            try {
+              await API.post(`/admin/disputes/${disputeId}/reject`, {
+                reason: document.getElementById('dispute-decision').value.trim() || undefined,
+              });
+              Toast.success('Dispute rejected.');
+              Modal.close();
+              refreshSectionByLoader('disputes', loadDisputesSection, wireDisputeActions);
+            } catch (err) { Toast.error(err.message); }
+          });
+        },
+      });
+    }
+
+    async function refreshSectionByLoader(id, loader, rewire) {
+      const html = await loader();
+      const existing = document.getElementById(id);
+      if (existing && html) {
+        existing.outerHTML = html;
+        rewire();
+      }
+    }
+
     async function loadWithdrawalsSection() {
       try {
         const { withdrawals } = await API.get('/admin/finance/withdrawals/pending');
@@ -373,22 +534,61 @@
           API.get('/admin/subscriptions?status=active'),
           API.get('/admin/subscriptions/revenue'),
         ]);
-        const rows = subscriptions.length
-          ? subscriptions.slice(0, 10).map((s) => `
-            <tr>
-              <td>${esc(s.full_name)}</td>
-              <td>${new Date(s.expiry_date).toLocaleDateString()}</td>
-              <td>${s.auto_renew ? 'Yes' : 'No'}</td>
-            </tr>`).join('')
-          : emptyRow(3, 'No active PRO subscriptions.');
         return sectionShell('subscriptions', `PRO subscriptions — ₦${Number(summary.total_revenue).toLocaleString()} total revenue`, `
+        <form id="subscription-filter-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
+          <select name="status">
+            <option value="active" selected>Active</option>
+            <option value="expired">Expired</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="suspended">Suspended</option>
+            <option value="failed">Failed</option>
+            <option value="pending">Pending</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+        </form>
         <div class="admin-table-scroll"><table class="admin-table">
-          <thead><tr><th>Worker</th><th>Renews / expires</th><th>Auto-renew</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th>Worker</th><th>Renews / expires</th><th>Auto-renew</th><th>Reference</th><th></th></tr></thead>
+          <tbody id="subscription-results-body">${subscriptionRowsHtml(subscriptions)}</tbody>
         </table></div>`);
       } catch (err) {
         return '';
       }
+    }
+
+    function subscriptionRowsHtml(subscriptions) {
+      if (subscriptions.length === 0) return emptyRow(5, 'No subscriptions match.');
+      return subscriptions.slice(0, 25).map((s) => `
+        <tr data-subscription-row="${s.id}">
+          <td>${esc(s.full_name)}</td>
+          <td>${s.expiry_date ? new Date(s.expiry_date).toLocaleDateString() : '—'}</td>
+          <td>${s.auto_renew ? 'Yes' : 'No'}</td>
+          <td class="text-secondary text-xs">${esc(s.paystack_reference) || '—'}</td>
+          <td>${s.status === 'suspended' ? `<button class="btn btn-sm btn-primary" data-restore-subscription="${s.id}">Restore</button>` : '—'}</td>
+        </tr>`).join('');
+    }
+
+    async function runSubscriptionFilter(status) {
+      const tbody = document.getElementById('subscription-results-body');
+      tbody.innerHTML = emptyRow(5, 'Loading…');
+      try {
+        const { subscriptions } = await API.get(`/admin/subscriptions?status=${encodeURIComponent(status)}`);
+        tbody.innerHTML = subscriptionRowsHtml(subscriptions);
+        wireSubscriptionActions();
+      } catch (err) {
+        tbody.innerHTML = emptyRow(5, err.message);
+      }
+    }
+
+    function wireSubscriptionActions() {
+      document.querySelectorAll('[data-restore-subscription]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/subscriptions/${btn.dataset.restoreSubscription}/restore`, {});
+            Toast.success('Subscription restored.');
+            btn.closest('tr').querySelector('td:last-child').innerHTML = '—';
+          } catch (err) { Toast.error(err.message); }
+        });
+      });
     }
 
     async function loadReviewsSection() {
@@ -405,6 +605,30 @@
         return sectionShell('reviews', `Reported reviews (${reviews.length})`, `
         <div class="admin-table-scroll"><table class="admin-table">
           <thead><tr><th>Rating</th><th>Review</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+      } catch (err) {
+        return '';
+      }
+    }
+
+    async function loadReportedMessagesSection() {
+      try {
+        const { reports } = await API.get('/admin/messaging/reported');
+        const rows = reports.length
+          ? reports.map((r) => `
+            <tr data-message-report-row="${r.id}">
+              <td>${esc(r.sender_name) || '—'}</td>
+              <td>${r.content ? esc(r.content.slice(0, 80)) : '<em class="text-secondary">removed</em>'}</td>
+              <td>${esc(r.reason)}</td>
+              <td>${new Date(r.created_at).toLocaleDateString()}</td>
+              <td>${r.content ? `<button class="btn btn-sm btn-danger" data-remove-message="${r.message_id}">Remove</button>` : '—'}</td>
+            </tr>`).join('')
+          : emptyRow(5, 'No reported messages.');
+        return sectionShell('reported-messages', `Reported messages (${reports.length})`, `
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-3);">Viewing this list is itself recorded in the audit log.</p>
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>Sender</th><th>Message</th><th>Reason</th><th>Reported</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>`);
       } catch (err) {
@@ -434,6 +658,33 @@
           } catch (err) {
             Toast.error(err.message);
           }
+        });
+      });
+
+      container.querySelectorAll('[data-remove-message]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const messageId = btn.dataset.removeMessage;
+          Modal.open({
+            title: 'Remove this message?',
+            bodyHtml: `
+            <p class="text-secondary">The message content is permanently cleared for everyone in the conversation.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-remove-message">Remove</button>
+            </div>`,
+            onMount: () => {
+              document.getElementById('confirm-remove-message').addEventListener('click', async () => {
+                try {
+                  await API.post(`/admin/messaging/messages/${messageId}/remove`, {});
+                  Toast.success('Message removed.');
+                  Modal.close();
+                  const row = btn.closest('tr');
+                  row.querySelector('td:nth-child(2)').innerHTML = '<em class="text-secondary">removed</em>';
+                  btn.remove();
+                } catch (err) { Toast.error(err.message); }
+              });
+            },
+          });
         });
       });
 
@@ -476,6 +727,17 @@
       });
 
       wireTicketActions();
+      wireVerificationActions();
+      wireDisputeActions();
+      wireSubscriptionActions();
+
+      const subscriptionFilterForm = document.getElementById('subscription-filter-form');
+      if (subscriptionFilterForm) {
+        subscriptionFilterForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          runSubscriptionFilter(new FormData(subscriptionFilterForm).get('status'));
+        });
+      }
 
       const userSearchForm = document.getElementById('user-search-form');
       if (userSearchForm) {
@@ -503,6 +765,7 @@
         loadReviewsSection(),
         loadJobModerationSection(),
         loadSupportTicketsSection(),
+        loadReportedMessagesSection(),
       ]);
 
       const rendered = sections.filter(Boolean);

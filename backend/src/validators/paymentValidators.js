@@ -35,6 +35,10 @@ const updateFeePercentSchema = z.object({
   platformFeePercent: z.number().min(0).max(100),
 });
 
+const updateProPriceSchema = z.object({
+  proMonthlyPriceNgn: z.number().int().min(0),
+});
+
 function validateBody(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);
@@ -57,5 +61,6 @@ module.exports = {
   requestWithdrawalSchema,
   rejectWithdrawalSchema,
   updateFeePercentSchema,
+  updateProPriceSchema,
   validateBody,
 };

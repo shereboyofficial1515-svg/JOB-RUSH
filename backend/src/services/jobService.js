@@ -215,7 +215,7 @@ async function searchJobs({
   page = 1,
   pageSize = 20,
 }) {
-  const conditions = [`j.status = 'open'`];
+  const conditions = [`j.status = 'open'`, `j.hidden = false`];
   const params = [];
 
   if (categoryId) {

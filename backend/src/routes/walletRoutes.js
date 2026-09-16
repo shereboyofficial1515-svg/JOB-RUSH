@@ -8,6 +8,7 @@ const {
   requestWithdrawalSchema,
   rejectWithdrawalSchema,
   updateFeePercentSchema,
+  updateProPriceSchema,
 } = require('../validators/paymentValidators');
 
 const router = express.Router();
@@ -38,6 +39,12 @@ adminRouter.patch(
   requireAdmin('finance_admin'),
   validateBody(updateFeePercentSchema),
   settingsController.updateFeePercent
+);
+adminRouter.patch(
+  '/settings/pro-price',
+  requireAdmin('finance_admin'),
+  validateBody(updateProPriceSchema),
+  settingsController.updateProPrice
 );
 
 module.exports = { router, adminRouter };

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moderation — JOB RUSH Admin</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="../index.html" class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+      <span>JOB RUSH</span>
+    </a>
+    <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+    <nav class="sidebar-nav" aria-label="Moderation sections">
+      <a href="#jobs">Jobs</a>
+      <a href="#portfolio">Portfolio projects</a>
+    </nav>
+
+    <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+  </aside>
+
+  <div class="admin-main">
+    <div class="dashboard-topbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Moderation</h1>
+    </div>
+
+    <div id="moderation-content">
+      <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/modules/accessibility.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/animate.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function sectionShell(id, title, bodyHtml) {
+    return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header"><h3 style="margin-bottom:0;">${title}</h3></div>
+        ${bodyHtml}
+      </section>
+    `;
+  }
+
+  function emptyRow(colspan, message) {
+    return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  // ---------------- Jobs ----------------
+
+  function jobRowHtml(j) {
+    const actions = j.hidden
+      ? `<button class="btn btn-sm btn-primary" data-restore-job="${j.id}">Restore</button>`
+      : `<button class="btn btn-sm btn-secondary" data-hide-job="${j.id}">Hide</button>`;
+    return `
+      <tr data-job-row="${j.id}">
+        <td>${esc(j.title)}</td>
+        <td>${esc(j.hirer_display_name)}</td>
+        <td><span class="badge badge-neutral">${esc(j.status)}</span></td>
+        <td>${j.hidden ? '<span class="badge badge-neutral">Hidden</span>' : '—'}</td>
+        <td>${new Date(j.created_at).toLocaleDateString()}</td>
+        <td style="display:flex; gap: var(--space-2);">
+          <button class="btn btn-sm btn-secondary" data-view-job="${j.id}">View</button>
+          ${actions}
+        </td>
+      </tr>`;
+  }
+
+  async function loadJobsSection() {
+    try {
+      await API.get('/admin/jobs?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('jobs', 'Jobs', `
+      <form id="job-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; min-width:180px; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+        <select name="status" style="background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
+          <option value="">Any status</option>
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
+          <option value="filled">Filled</option>
+          <option value="cancelled">Cancelled</option>
+          <option value="expired">Expired</option>
+          <option value="draft">Draft</option>
+        </select>
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+      </form>
+      <div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Title</th><th>Hirer</th><th>Status</th><th>Visibility</th><th>Posted</th><th></th></tr></thead>
+        <tbody id="job-results-body">${emptyRow(6, 'Search above, or submit with no filters to browse recent jobs.')}</tbody>
+      </table></div>
+    `);
+  }
+
+  async function runJobSearch(params) {
+    const tbody = document.getElementById('job-results-body');
+    tbody.innerHTML = emptyRow(6, 'Searching…');
+    try {
+      const { jobs } = await API.get(`/admin/jobs?${params.toString()}`);
+      tbody.innerHTML = jobs.length ? jobs.map(jobRowHtml).join('') : emptyRow(6, 'No jobs match.');
+      wireJobRowActions();
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wireJobRowActions() {
+    document.querySelectorAll('[data-view-job]').forEach((btn) => {
+      btn.addEventListener('click', () => openJobDetailModal(btn.dataset.viewJob));
+    });
+    document.querySelectorAll('[data-hide-job]').forEach((btn) => {
+      btn.addEventListener('click', () => openHideJobModal(btn.dataset.hideJob));
+    });
+    document.querySelectorAll('[data-restore-job]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.post(`/admin/jobs/${btn.dataset.restoreJob}/restore`, {});
+          Toast.success('Job restored to public search.');
+          document.getElementById('job-search-form').requestSubmit();
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+  }
+
+  async function openJobDetailModal(jobId) {
+    let job;
+    try {
+      ({ job } = await API.get(`/admin/jobs/${jobId}`));
+    } catch (err) {
+      Toast.error(err.message);
+      return;
+    }
+    const applicantsHtml = job.applicants.length
+      ? job.applicants.map((a) => `
+        <div style="display:flex; justify-content:space-between; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle);">
+          <span>${esc(a.full_name)}${a.professional_title ? ` — ${esc(a.professional_title)}` : ''}</span>
+          <span class="badge badge-neutral">${esc(a.status)}</span>
+        </div>`).join('')
+      : '<p class="text-secondary text-sm">No applicants yet.</p>';
+
+    Modal.open({
+      title: esc(job.title),
+      bodyHtml: `
+        <p class="text-secondary text-sm"><strong>Hirer:</strong> ${esc(job.hirer_display_name)}</p>
+        <p class="text-secondary text-sm"><strong>Status:</strong> <span class="badge badge-neutral">${esc(job.status)}</span>${job.hidden ? ' <span class="badge badge-neutral">Hidden</span>' : ''}</p>
+        ${job.hiredWorker ? `<p class="text-secondary text-sm"><strong>Hired:</strong> ${esc(job.hiredWorker.full_name)}</p>` : ''}
+        <p class="text-secondary text-sm" style="white-space:pre-wrap;">${esc(job.description)}</p>
+        <h4 style="margin: var(--space-4) 0 var(--space-2);">Applicants (${job.applicants.length})</h4>
+        ${applicantsHtml}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+        </div>`,
+    });
+  }
+
+  function openHideJobModal(jobId) {
+    Modal.open({
+      title: 'Hide this job?',
+      bodyHtml: `
+        <p class="text-secondary">The job is pulled from public search immediately. This is reversible — restore it any time.</p>
+        <div class="field"><label for="hide-job-reason">Reason (optional)</label><input type="text" id="hide-job-reason" /></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-hide-job">Hide job</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-hide-job').addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/jobs/${jobId}/hide`, {
+              reason: document.getElementById('hide-job-reason').value.trim() || undefined,
+            });
+            Toast.success('Job hidden.');
+            Modal.close();
+            document.getElementById('job-search-form').requestSubmit();
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  // ---------------- Portfolio ----------------
+
+  function portfolioRowHtml(p) {
+    const actions = p.hidden
+      ? `<button class="btn btn-sm btn-primary" data-restore-portfolio="${p.id}">Restore</button>`
+      : `<button class="btn btn-sm btn-secondary" data-hide-portfolio="${p.id}">Hide</button>`;
+    return `
+      <tr data-portfolio-row="${p.id}">
+        <td>${esc(p.title)}</td>
+        <td>${esc(p.worker_full_name)}</td>
+        <td>${esc(p.category_name) || '—'}</td>
+        <td>${p.hidden ? '<span class="badge badge-neutral">Hidden</span>' : '—'}</td>
+        <td>${new Date(p.created_at).toLocaleDateString()}</td>
+        <td style="display:flex; gap: var(--space-2);">
+          <button class="btn btn-sm btn-secondary" data-view-portfolio="${p.id}">View</button>
+          ${actions}
+        </td>
+      </tr>`;
+  }
+
+  async function loadPortfolioSection() {
+    try {
+      await API.get('/admin/portfolio?pageSize=1');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('portfolio', 'Portfolio projects', `
+      <form id="portfolio-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
+        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+      </form>
+      <div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Title</th><th>Worker</th><th>Category</th><th>Visibility</th><th>Created</th><th></th></tr></thead>
+        <tbody id="portfolio-results-body">${emptyRow(6, 'Search above, or submit with no filters to browse recent projects.')}</tbody>
+      </table></div>
+    `);
+  }
+
+  async function runPortfolioSearch(params) {
+    const tbody = document.getElementById('portfolio-results-body');
+    tbody.innerHTML = emptyRow(6, 'Searching…');
+    try {
+      const { portfolios } = await API.get(`/admin/portfolio?${params.toString()}`);
+      tbody.innerHTML = portfolios.length ? portfolios.map(portfolioRowHtml).join('') : emptyRow(6, 'No projects match.');
+      wirePortfolioRowActions();
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wirePortfolioRowActions() {
+    document.querySelectorAll('[data-view-portfolio]').forEach((btn) => {
+      btn.addEventListener('click', () => openPortfolioDetailModal(btn.dataset.viewPortfolio));
+    });
+    document.querySelectorAll('[data-hide-portfolio]').forEach((btn) => {
+      btn.addEventListener('click', () => openHidePortfolioModal(btn.dataset.hidePortfolio));
+    });
+    document.querySelectorAll('[data-restore-portfolio]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await API.post(`/admin/portfolio/${btn.dataset.restorePortfolio}/restore`, {});
+          Toast.success('Project restored.');
+          document.getElementById('portfolio-search-form').requestSubmit();
+        } catch (err) { Toast.error(err.message); }
+      });
+    });
+  }
+
+  async function openPortfolioDetailModal(portfolioId) {
+    let portfolio;
+    try {
+      ({ portfolio } = await API.get(`/admin/portfolio/${portfolioId}`));
+    } catch (err) {
+      Toast.error(err.message);
+      return;
+    }
+    const mediaHtml = portfolio.media.length
+      ? portfolio.media.map((m) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle);">
+          <span>${esc(m.media_type)}</span>
+          <a href="${encodeURI(m.url)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-secondary">Open</a>
+        </div>`).join('')
+      : '<p class="text-secondary text-sm">No media attached.</p>';
+
+    Modal.open({
+      title: esc(portfolio.title),
+      bodyHtml: `
+        <p class="text-secondary text-sm"><strong>Worker:</strong> ${esc(portfolio.worker_full_name)}</p>
+        <p class="text-secondary text-sm"><strong>Category:</strong> ${esc(portfolio.category_name) || '—'}</p>
+        ${portfolio.external_link ? `<p class="text-secondary text-sm"><strong>Link:</strong> <a href="${encodeURI(portfolio.external_link)}" target="_blank" rel="noopener noreferrer">${esc(portfolio.external_link)}</a></p>` : ''}
+        <p class="text-secondary text-sm" style="white-space:pre-wrap;">${esc(portfolio.description) || ''}</p>
+        <h4 style="margin: var(--space-4) 0 var(--space-2);">Media (${portfolio.media.length})</h4>
+        ${mediaHtml}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+        </div>`,
+    });
+  }
+
+  function openHidePortfolioModal(portfolioId) {
+    Modal.open({
+      title: 'Hide this project?',
+      bodyHtml: `
+        <p class="text-secondary">The project is pulled from the worker's public profile immediately. This is reversible — restore it any time.</p>
+        <div class="field"><label for="hide-portfolio-reason">Reason (optional)</label><input type="text" id="hide-portfolio-reason" /></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-hide-portfolio">Hide project</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-hide-portfolio').addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/portfolio/${portfolioId}/hide`, {
+              reason: document.getElementById('hide-portfolio-reason').value.trim() || undefined,
+            });
+            Toast.success('Project hidden.');
+            Modal.close();
+            document.getElementById('portfolio-search-form').requestSubmit();
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('admin-login.html');
+    if (!user) return;
+
+    const sections = await Promise.all([loadJobsSection(), loadPortfolioSection()]);
+    const rendered = sections.filter(Boolean);
+    const content = document.getElementById('moderation-content');
+
+    if (rendered.length === 0) {
+      content.innerHTML = `
+        <div class="admin-no-access">
+          <h3>No access</h3>
+          <p>Job and portfolio moderation require the moderation_admin role.</p>
+        </div>`;
+      return;
+    }
+
+    content.innerHTML = rendered.join('');
+
+    const jobForm = document.getElementById('job-search-form');
+    if (jobForm) jobForm.addEventListener('submit', (e) => { e.preventDefault(); runJobSearch(new URLSearchParams(new FormData(jobForm))); });
+
+    const portfolioForm = document.getElementById('portfolio-search-form');
+    if (portfolioForm) portfolioForm.addEventListener('submit', (e) => { e.preventDefault(); runPortfolioSearch(new URLSearchParams(new FormData(portfolioForm))); });
+  })();
+</script>
+</body>
+</html>

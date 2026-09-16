@@ -21,6 +21,7 @@
     <span class="badge badge-neutral admin-badge">Admin Portal</span>
 
     <nav class="sidebar-nav" aria-label="Settings sections">
+      <a href="#platform">Platform settings</a>
       <a href="#categories">Categories</a>
       <a href="#skills">Skills</a>
       <a href="#locations">Locations</a>
@@ -66,6 +67,27 @@
 
   function emptyRow(colspan, message) {
     return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  async function loadPlatformSettingsSection() {
+    try {
+      const { settings } = await API.get('/admin/finance/settings');
+      return sectionShell('platform', 'Platform settings', '', `
+        <div class="field">
+          <label for="platform-fee-input">Service fee (%)</label>
+          <input type="number" id="platform-fee-input" min="0" max="100" step="0.01" value="${Number(settings.platform_fee_percent)}" />
+          <div class="field-hint">Taken from the hirer's payment when an escrow milestone is released.</div>
+        </div>
+        <div class="field" style="margin-top: var(--space-4);">
+          <label for="pro-price-input">JOB RUSH PRO price (₦/month)</label>
+          <input type="number" id="pro-price-input" min="0" step="1" value="${Number(settings.pro_monthly_price_ngn)}" />
+          <div class="field-hint">Updates the live Paystack plan too — takes effect for new and renewing subscriptions immediately.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="save-platform-settings-btn" style="margin-top: var(--space-4);">Save</button>
+      `);
+    } catch (err) {
+      return '';
+    }
   }
 
   async function loadCategoriesSection() {
@@ -291,6 +313,26 @@
       });
     });
 
+    const savePlatformSettingsBtn = document.getElementById('save-platform-settings-btn');
+    if (savePlatformSettingsBtn) {
+      savePlatformSettingsBtn.addEventListener('click', async () => {
+        const platformFeePercent = Number(document.getElementById('platform-fee-input').value);
+        const proMonthlyPriceNgn = Number(document.getElementById('pro-price-input').value);
+        savePlatformSettingsBtn.disabled = true;
+        try {
+          await Promise.all([
+            API.patch('/admin/finance/settings/fee', { platformFeePercent }),
+            API.patch('/admin/finance/settings/pro-price', { proMonthlyPriceNgn }),
+          ]);
+          Toast.success('Platform settings saved.');
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          savePlatformSettingsBtn.disabled = false;
+        }
+      });
+    }
+
     const addCategoryBtn = document.getElementById('add-category-btn');
     if (addCategoryBtn) addCategoryBtn.addEventListener('click', openAddCategoryModal);
     const addSkillBtn = document.getElementById('add-skill-btn');
@@ -304,6 +346,7 @@
     if (!user) return;
 
     const sections = await Promise.all([
+      loadPlatformSettingsSection(),
       loadCategoriesSection(),
       loadSkillsSection(),
       loadLocationsSection(),
@@ -317,7 +360,7 @@
       content.innerHTML = `
         <div class="admin-no-access">
           <h3>No access</h3>
-          <p>Platform settings require the content_admin role.</p>
+          <p>These settings require the content_admin or finance_admin role.</p>
         </div>`;
       return;
     }

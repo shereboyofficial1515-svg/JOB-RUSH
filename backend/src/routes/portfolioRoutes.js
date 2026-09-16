@@ -1,5 +1,6 @@
 const express = require('express');
 const controller = require('../controllers/portfolioController');
+const adminPortfolioController = require('../controllers/adminPortfolioController');
 const { authenticate, attachUserIfPresent } = require('../middleware/authenticate');
 const { requireRole } = require('../middleware/authorize');
 const {
@@ -9,6 +10,7 @@ const {
   addPortfolioMediaSchema,
   reorderPortfolioMediaSchema,
 } = require('../validators/profileValidators');
+const { reportPortfolioSchema } = require('../validators/adminValidators');
 
 const router = express.Router();
 
@@ -38,5 +40,7 @@ router.patch(
   controller.reorderMedia
 );
 router.patch('/:id/media/:mediaId/primary', authenticate, requireRole('worker'), controller.setPrimaryMedia);
+
+router.post('/:id/report', authenticate, validateBody(reportPortfolioSchema), adminPortfolioController.report);
 
 module.exports = router;

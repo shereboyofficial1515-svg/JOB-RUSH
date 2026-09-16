@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Security &amp; Audit — JOB RUSH Admin</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="../index.html" class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+      <span>JOB RUSH</span>
+    </a>
+    <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+    <nav class="sidebar-nav" aria-label="Security sections">
+      <a href="#admins">Admin roles</a>
+      <a href="#audit-log">Audit log</a>
+    </nav>
+
+    <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+  </aside>
+
+  <div class="admin-main">
+    <div class="dashboard-topbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Security &amp; Audit</h1>
+    </div>
+
+    <div id="security-content">
+      <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/modules/accessibility.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/animate.js"></script>
+<script src="../js/utils/formHelpers.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  const ADMIN_ROLES = ['super_admin', 'verification_admin', 'support_admin', 'finance_admin', 'moderation_admin', 'content_admin'];
+
+  function sectionShell(id, title, actionHtml, bodyHtml) {
+    return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header">
+          <h3 style="margin-bottom:0;">${title}</h3>
+          ${actionHtml || ''}
+        </div>
+        ${bodyHtml}
+      </section>
+    `;
+  }
+
+  function emptyRow(colspan, message) {
+    return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  async function loadAdminsSection() {
+    try {
+      const { admins } = await API.get('/admin/admins');
+      const rows = admins.length
+        ? admins.map((a) => `
+            <tr data-admin-row="${a.id}">
+              <td>${esc(a.full_name)}</td>
+              <td>${esc(a.email)}</td>
+              <td><span class="badge badge-neutral">${esc(a.admin_role)}</span></td>
+              <td>${a.requires_2fa ? 'Yes' : 'No'}</td>
+              <td>${a.revoked_at ? `<span class="badge badge-neutral">Revoked</span>` : '<span class="badge badge-verified">Active</span>'}</td>
+              <td>${a.revoked_at ? '—' : `<button class="btn btn-sm btn-danger" data-revoke-admin="${a.id}">Revoke</button>`}</td>
+            </tr>`).join('')
+        : emptyRow(6, 'No admins yet.');
+      return sectionShell('admins', `Admin roles (${admins.length})`,
+        `<button class="btn btn-sm btn-primary" id="grant-admin-btn">Grant admin role</button>`,
+        `<div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>2FA required</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      );
+    } catch (err) {
+      return '';
+    }
+  }
+
+  function openGrantAdminModal() {
+    const roleOptions = ADMIN_ROLES.map((r) => `<option value="${r}">${r}</option>`).join('');
+    Modal.open({
+      title: 'Grant admin role',
+      bodyHtml: `
+        <div class="field" id="grant-email-field">
+          <label for="grant-email">User email</label>
+          <input type="email" id="grant-email" />
+          <div class="field-error" hidden></div>
+        </div>
+        <div class="field">
+          <label for="grant-role">Admin role</label>
+          <select id="grant-role">${roleOptions}</select>
+        </div>
+        <label style="display:flex; align-items:center; gap: var(--space-2); margin-bottom: var(--space-4);">
+          <input type="checkbox" id="grant-requires-2fa" checked />
+          <span class="text-sm">Require two-factor authentication for this role</span>
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirm-grant-admin">Grant</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-grant-admin').addEventListener('click', async () => {
+          const email = document.getElementById('grant-email').value.trim();
+          if (!email) return FormHelpers.showError(document.getElementById('grant-email-field'), 'Enter an email address.');
+          try {
+            await API.post('/admin/admins', {
+              email,
+              adminRole: document.getElementById('grant-role').value,
+              requires2FA: document.getElementById('grant-requires-2fa').checked,
+            });
+            Toast.success('Admin role granted.');
+            Modal.close();
+            refreshSection('admins', loadAdminsSection);
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
+  async function loadAuditLogSection() {
+    try {
+      const { logs, total } = await API.get('/admin/audit-logs?pageSize=50');
+      const rows = logs.length
+        ? logs.map((l) => `
+            <tr>
+              <td>${new Date(l.created_at).toLocaleString()}</td>
+              <td>${esc(l.actor_name) || '—'}</td>
+              <td>${esc(l.action)}</td>
+              <td>${esc(l.resource_type) || '—'}${l.resource_id ? ` <span class="text-secondary text-xs">${esc(l.resource_id).slice(0, 8)}…</span>` : ''}</td>
+              <td><span class="badge ${l.result === 'success' ? 'badge-verified' : 'badge-neutral'}">${esc(l.result)}</span></td>
+            </tr>`).join('')
+        : emptyRow(5, 'No audit events recorded yet.');
+      return sectionShell('audit-log', `Audit log (${total} total, showing latest ${logs.length})`, '', `
+        <div class="admin-table-scroll"><table class="admin-table">
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Resource</th><th>Result</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`);
+    } catch (err) {
+      return '';
+    }
+  }
+
+  async function refreshSection(id, loader) {
+    const html = await loader();
+    const existing = document.getElementById(id);
+    if (existing && html) {
+      existing.outerHTML = html;
+      wireAll();
+    }
+  }
+
+  function wireAll() {
+    document.querySelectorAll('[data-revoke-admin]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const adminRowId = btn.dataset.revokeAdmin;
+        Modal.open({
+          title: 'Revoke admin access?',
+          bodyHtml: `
+            <p class="text-secondary">This immediately removes all administrative permissions for this account.</p>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="button" class="btn btn-danger" id="confirm-revoke-admin">Revoke</button>
+            </div>`,
+          onMount: () => {
+            document.getElementById('confirm-revoke-admin').addEventListener('click', async () => {
+              try {
+                await API.post(`/admin/admins/${adminRowId}/revoke`, {});
+                Toast.success('Admin access revoked.');
+                Modal.close();
+                refreshSection('admins', loadAdminsSection);
+              } catch (err) { Toast.error(err.message); }
+            });
+          },
+        });
+      });
+    });
+
+    const grantBtn = document.getElementById('grant-admin-btn');
+    if (grantBtn) grantBtn.addEventListener('click', openGrantAdminModal);
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('admin-login.html');
+    if (!user) return;
+
+    const sections = await Promise.all([loadAdminsSection(), loadAuditLogSection()]);
+    const rendered = sections.filter(Boolean);
+    const content = document.getElementById('security-content');
+
+    if (rendered.length === 0) {
+      content.innerHTML = `
+        <div class="admin-no-access">
+          <h3>No access</h3>
+          <p>Admin role management and the audit log require the super_admin role.</p>
+        </div>`;
+      return;
+    }
+
+    content.innerHTML = rendered.join('');
+    wireAll();
+  })();
+</script>
+</body>
+</html>
