@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -50,7 +51,29 @@ const app = express();
 // for req.secure / x-forwarded-for to be trusted correctly.
 app.set('trust proxy', 1);
 
-app.use(helmet());
+// This server now also serves the frontend's static HTML/CSS/JS
+// (see the express.static block below) — Helmet's default Content-
+// Security-Policy would silently block every page's own inline
+// <script> block (all 29 pages use one; there's no bundler to move
+// that logic into external files), plus the two CDN libraries the
+// app already loads (LiveKit's client SDK, qrcodejs) and images/
+// videos served from Supabase Storage's own domain. Every other
+// default Helmet protection (frame-ancestors, object-src 'none',
+// etc.) stays exactly as-is; only script-src/img-src/media-src/
+// connect-src are widened to cover what this app already does.
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
+        'img-src': ["'self'", 'data:', 'https://*.supabase.co'],
+        'media-src': ["'self'", 'https://*.supabase.co'],
+        'connect-src': ["'self'", 'https://*.livekit.cloud', 'wss://*.livekit.cloud'],
+      },
+    },
+  })
+);
 
 // APP_BASE_URL is normally one origin, but accepts a comma-separated
 // list so the same deployment can be pointed at more than one
@@ -124,6 +147,16 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/email-preview', emailPreviewRoutes);
 app.use('/api/email', emailUnsubscribeRoutes);
+
+// Serves the frontend (plain static HTML/CSS/JS, no build step) from
+// this same service. Registered after every /api/* route above, so
+// Express always matches a real API route first — this can never
+// shadow the API. Not a single-page app (every page is its own real
+// .html file, no client-side router), so no wildcard "serve
+// index.html for anything unmatched" fallback: express.static already
+// serves index.html for "/" on its own, and correctly 404s a genuinely
+// missing path instead of masking it as a fake success.
+app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
 
 app.use(notFoundHandler);
 app.use(errorHandler);

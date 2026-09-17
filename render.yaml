@@ -1,25 +1,38 @@
 # Render Blueprint for JOB RUSH.
 #
-# Two services, matching the actual repo layout:
-#   backend/  — Node/Express API (real entry point: backend/src/server.js,
-#               started via the existing "start" script in backend/package.json)
-#   frontend/ — plain static HTML/CSS/JS, no build step, no bundler
+# ONE combined web service: the Express backend (backend/src/server.js)
+# now also serves the frontend's static files directly (see the
+# express.static block in server.js) — this matches what's actually
+# deployed and working on Render today (confirmed by directly probing
+# the live service: /health returns 200, and the response headers are
+# unmistakably this app's own Helmet/error-handling middleware). No
+# separate frontend static site exists, and none is required — the
+# frontend has no build step, so there's nothing a second service
+# would add beyond CORS complexity between two different .onrender.com
+# hostnames instead of one same-origin app.
 #
-# None of the field names here are guessed blind — rootDir, buildCommand,
-# and startCommand all come directly from what's actually in this repo.
-# That said, Render's Blueprint schema does evolve; verify the top-level
-# keys below (`runtime`, `staticPublishPath`, etc.) against Render's
-# current Blueprint reference before relying on this, since this file
-# was written without live access to Render's docs.
+# If you'd rather split them into two Render services later (e.g. to
+# scale or redeploy them independently), that's still possible: create
+# a second `runtime: static` service with rootDir: frontend and
+# staticPublishPath: ., then set frontend/js/config/env.js's
+# PRODUCTION_API_BASE_URL back to that backend's absolute URL instead
+# of the current relative '/api'.
+#
+# None of the field names here are guessed blind — rootDir,
+# buildCommand, and startCommand all come directly from what's
+# actually in this repo and from the service that's actually running.
+# That said, Render's Blueprint schema does evolve; verify the
+# top-level keys below against Render's current Blueprint reference
+# before relying on this, since this file was written without live
+# access to Render's docs.
 #
 # No secret values live in this file. Every sensitive var is marked
 # `sync: false`, which tells Render to prompt for the value in the
 # dashboard instead of reading one from here.
 
 services:
-  # ---------------- Backend (Express API) ----------------
   - type: web
-    name: job-rush-backend
+    name: job-rush
     runtime: node
     rootDir: backend
     buildCommand: npm install
@@ -33,9 +46,9 @@ services:
       # all interfaces by default (Node's server.listen(port) with no
       # host argument), which is what Render's containers require.
       - key: APP_BASE_URL
-        sync: false # the frontend's real deployed origin — set once the frontend service exists
+        sync: false # this service's own deployed origin — frontend and backend are the same origin now, e.g. https://job-rush.onrender.com
       - key: API_BASE_URL
-        sync: false # this backend's own deployed origin, e.g. https://job-rush-backend.onrender.com
+        sync: false # same origin as above, e.g. https://job-rush.onrender.com
       - key: COOKIE_DOMAIN
         sync: false
       - key: DATABASE_URL
@@ -75,23 +88,10 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_REDIRECT_URI
-        sync: false # must exactly match this backend's deployed URL + /api/auth/google/callback
+        sync: false # must exactly match this service's deployed URL + /api/auth/google/callback
       - key: GEMINI_API_KEY
         sync: false
       # See backend/.env.example for the full variable list (email
       # branding, rate limiting, OTP, video-processing tunables, etc.)
       # — only the ones with no safe default are required here;
       # everything else falls back to the same defaults env.js uses locally.
-
-  # ---------------- Frontend (static site) ----------------
-  # No envVars section: the frontend has no build step and reads
-  # nothing from process.env (browsers can't see it anyway) — its API
-  # base URL is chosen at runtime by frontend/js/config/env.js based
-  # on window.location.hostname instead. See that file's comment for
-  # the one line to update once this service's real backend URL is known.
-  - type: web
-    name: job-rush-frontend
-    runtime: static
-    rootDir: frontend
-    buildCommand: "" # no build step — plain HTML/CSS/JS served as-is
-    staticPublishPath: .
