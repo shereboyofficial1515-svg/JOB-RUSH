@@ -2,10 +2,19 @@ const fs = require('fs/promises');
 const { randomUUID } = require('crypto');
 const { getSupabaseClient } = require('../config/supabase');
 const { validateFile } = require('../utils/fileValidation');
+const { resizeImage } = require('./imageProcessingService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 
 const MAX_VIDEO_DURATION_SECONDS = 120;
+
+// A profile photo is never displayed larger than ~120px anywhere in
+// the app; a portfolio image needs to hold up in a full-page/lightbox
+// view, so it keeps a much larger ceiling, plus its own small
+// thumbnail (below) for grid/card contexts.
+const AVATAR_MAX_DIMENSION_PX = 400;
+const PORTFOLIO_IMAGE_MAX_DIMENSION_PX = 1600;
+const THUMBNAIL_MAX_DIMENSION_PX = 400;
 
 // Supabase's own project-wide storage limit (Settings > Storage),
 // independent of anything this app validates — an upload under our
@@ -67,6 +76,11 @@ async function uploadToBucket({ bucket, ownerUserId, buffer, mimeType, limitProf
   const { error } = await supabase.storage.from(bucket.name).upload(storagePath, buffer, {
     contentType: mimeType,
     upsert: false,
+    // Every object gets a random, never-reused filename and is never
+    // overwritten in place (upsert: false) — the content at a given
+    // path is permanently immutable, so a year-long cache is always
+    // safe and never risks serving stale content after an edit.
+    cacheControl: '31536000',
   });
 
   if (error) {
@@ -101,14 +115,38 @@ async function uploadToBucket({ bucket, ownerUserId, buffer, mimeType, limitProf
   return { storagePath, publicUrl, bucket: bucket.name, sizeBytes: buffer.length };
 }
 
+/**
+ * Portfolio photos get two uploads: the image itself capped to a
+ * generous "full view" ceiling (still much smaller than a typical
+ * unedited phone photo, which is routinely 3000px+), and a small
+ * thumbnail for grid/card contexts — reusing the same
+ * thumbnail_storage_path column video posters already use, since a
+ * portfolio_media row is either a video or an image, never both.
+ */
 async function uploadPortfolioImage(workerUserId, file) {
-  return uploadToBucket({
-    bucket: BUCKETS.PORTFOLIO_MEDIA,
-    ownerUserId: workerUserId,
-    buffer: file.buffer,
-    mimeType: file.mimeType,
-    limitProfile: 'image',
-  });
+  const [mainBuffer, thumbBuffer] = await Promise.all([
+    resizeImage(file.buffer, file.mimeType, PORTFOLIO_IMAGE_MAX_DIMENSION_PX),
+    resizeImage(file.buffer, file.mimeType, THUMBNAIL_MAX_DIMENSION_PX),
+  ]);
+
+  const [main, thumbnail] = await Promise.all([
+    uploadToBucket({
+      bucket: BUCKETS.PORTFOLIO_MEDIA,
+      ownerUserId: workerUserId,
+      buffer: mainBuffer,
+      mimeType: file.mimeType,
+      limitProfile: 'image',
+    }),
+    uploadToBucket({
+      bucket: BUCKETS.PORTFOLIO_MEDIA,
+      ownerUserId: workerUserId,
+      buffer: thumbBuffer,
+      mimeType: file.mimeType,
+      limitProfile: 'image',
+    }),
+  ]);
+
+  return { ...main, thumbnailStoragePath: thumbnail.storagePath, thumbnailUrl: thumbnail.publicUrl };
 }
 
 /**
@@ -145,11 +183,18 @@ async function uploadPortfolioVideoThumbnail(workerUserId, thumbnailFilePath) {
   });
 }
 
+/**
+ * A profile photo is never shown larger than ~120px anywhere in the
+ * app (messaging, search cards, the profile page itself), so it only
+ * needs the one resized version — no separate thumbnail column exists
+ * for it, and none is needed at this size.
+ */
 async function uploadProfilePicture(userId, file) {
+  const resized = await resizeImage(file.buffer, file.mimeType, AVATAR_MAX_DIMENSION_PX);
   return uploadToBucket({
     bucket: BUCKETS.PROFILE_PICTURES,
     ownerUserId: userId,
-    buffer: file.buffer,
+    buffer: resized,
     mimeType: file.mimeType,
     limitProfile: 'image',
   });

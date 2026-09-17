@@ -65,7 +65,7 @@
         ? `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:${m.thumbnailUrl ? `url('${m.thumbnailUrl}') center/cover` : 'var(--color-black)'}; color:var(--text-secondary);">
              <svg width="20" height="20" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg>
            </div>`
-        : `<img src="${m.url}" alt="" style="width:100%; height:100%; object-fit:cover;" />`;
+        : `<img src="${m.thumbnailUrl || m.url}" alt="" loading="lazy" width="84" height="84" style="width:100%; height:100%; object-fit:cover;" />`;
       const duration = m.duration_seconds ? `<span class="duration-badge" style="position:absolute; bottom:2px; right:2px; font-size:10px;">${VideoPlayer.formatTime(m.duration_seconds)}</span>` : '';
       return `
       <div class="media-tile card-img-zoom card-img-zoom-frame" data-media-id="${m.id}" style="position:relative; width:84px; height:84px; border-radius: var(--radius-sm); overflow:hidden; border: 2px solid ${m.is_primary ? 'var(--accent)' : 'transparent'}; cursor:pointer;">
@@ -427,6 +427,7 @@
             await API.post(`/portfolio/${id}/media`, {
               mediaType: 'image',
               storagePath: uploaded.storagePath,
+              thumbnailStoragePath: uploaded.thumbnailStoragePath || undefined,
               isPrimary: (project.media || []).length === 0,
             });
             Toast.success('Media added.');

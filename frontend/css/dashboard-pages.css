@@ -74,7 +74,10 @@
 .message-bubble { max-width: 60%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--text-sm); }
 .message-bubble.own { align-self: flex-end; background: var(--color-primary-gold); color: var(--text-on-gold); }
 .message-bubble.other { align-self: flex-start; background: var(--bg-elevated); }
-.message-meta { font-size: var(--text-xs); opacity: 0.7; margin-top: var(--space-1); }
+.message-bubble.is-sending { opacity: 0.6; }
+.message-bubble.is-failed { opacity: 0.85; border: 1px solid var(--status-danger); }
+.message-meta { font-size: var(--text-xs); opacity: 0.7; margin-top: var(--space-1); display:flex; align-items:center; gap: var(--space-1); }
+.message-meta .retry-send-btn { color: inherit; text-decoration: underline; font-size: var(--text-xs); background:none; border:none; padding:0; cursor:pointer; opacity: 1; }
 
 .thread-composer { display: flex; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-subtle); }
 .thread-composer input { flex: 1; background: var(--color-primary-navy); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--text-primary); }

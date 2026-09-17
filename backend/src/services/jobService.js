@@ -256,8 +256,15 @@ async function searchJobs({
   const offset = (Math.max(parseInt(page, 10) || 1, 1) - 1) * limit;
 
   params.push(limit, offset);
+  // Card view only ever shows a ~140-char slice of description and
+  // never touches additional_requirements/deadline/view_count/etc at
+  // all — SELECT j.* was shipping the full (sometimes multi-KB)
+  // description text and every other detail-only column to a list
+  // that never renders them; getJobById (the actual detail-page
+  // fetch) is a separate, unaffected query.
   const sql = `
-    SELECT j.*, hp.display_name AS hirer_display_name
+    SELECT j.id, j.title, LEFT(j.description, 200) AS description, j.employment_type,
+           j.budget_min, j.budget_max, j.created_at, hp.display_name AS hirer_display_name
       FROM jobs j
       JOIN hirer_profiles hp ON hp.user_id = j.hirer_user_id
      WHERE ${conditions.join(' AND ')}

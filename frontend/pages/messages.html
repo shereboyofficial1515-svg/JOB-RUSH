@@ -81,7 +81,7 @@
       return `
       <a class="conversation-item ${c.id === activeConversationId ? 'is-active' : ''}" data-conversation-id="${c.id}">
         <div style="display:flex; gap: var(--space-3); align-items:center;">
-          <img src="${c.other_profile_picture_url || ASSETS.defaultAvatar}" alt="" width="40" height="40" style="border-radius:50%; object-fit:cover; flex-shrink:0;" />
+          <img src="${c.other_profile_picture_url || ASSETS.defaultAvatar}" alt="" width="40" height="40" loading="lazy" style="border-radius:50%; object-fit:cover; flex-shrink:0;" />
           <div style="min-width:0; flex:1;">
             <div style="display:flex; justify-content:space-between; align-items:baseline; gap: var(--space-2);">
               <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</strong>
@@ -138,22 +138,112 @@
       if (badge) badge.remove();
     }
 
-    // Every full re-render (each 5s poll, plus right after sending)
-    // replaces the whole thread's innerHTML \u2014 tracking which message
-    // IDs were already on screen lets only the genuinely new bubbles
-    // play an entrance animation, so polling never makes the existing
-    // history jump or replay.
+    // Polling now appends only genuinely new messages (see
+    // pollForNewMessages) instead of rebuilding the whole thread \u2014
+    // this set is what makes "genuinely new" decidable, and also
+    // guards against ever rendering the same message twice.
     let renderedMessageIds = new Set();
+    let lastMessageId = null; // cursor for the next incremental poll
 
     function messageBubbleHtml(m, isNew) {
       const isOwn = m.sender_id === currentUser.id;
       const content = m.deleted_at ? '<em>Message deleted</em>' : esc(m.content || '[attachment]');
+      const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const metaHtml = m._status === 'sending'
+        ? `<span class="spinner-inline" style="width:10px; height:10px; border-width:1.5px;"></span> Sending\u2026`
+        : m._status === 'failed'
+          ? `<span style="color:var(--status-danger);">Not sent</span> \u00B7 <button type="button" class="retry-send-btn" data-retry-message="1">Retry</button>`
+          : `${time}${m.is_edited ? ' \u00B7 edited' : ''}`;
       return `
-      <div class="message-bubble ${isOwn ? 'own' : 'other'} ${isNew ? 'msg-enter' : ''}">
+      <div class="message-bubble ${isOwn ? 'own' : 'other'} ${isNew ? 'msg-enter' : ''} ${m._status === 'sending' ? 'is-sending' : ''} ${m._status === 'failed' ? 'is-failed' : ''}" data-message-id="${m.id}" data-message-content="${esc(m.content || '')}">
         <div>${content}</div>
-        <div class="message-meta">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${m.is_edited ? ' \u00B7 edited' : ''}</div>
+        <div class="message-meta">${metaHtml}</div>
       </div>
     `;
+    }
+
+    function isNearBottom(container) {
+      return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
+    }
+
+    function scrollToBottom(container) {
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderBubbleElement(m, isNew) {
+      const wrap = document.createElement('div');
+      wrap.innerHTML = messageBubbleHtml(m, isNew).trim();
+      return wrap.firstElementChild;
+    }
+
+    /** Appends without touching any existing bubble \u2014 auto-scrolls only if the user was already at (or near) the bottom, never yanking them away from history they scrolled up to read. */
+    function appendMessageBubble(container, m, isNew) {
+      const wasNearBottom = isNearBottom(container);
+      container.appendChild(renderBubbleElement(m, isNew));
+      if (wasNearBottom) scrollToBottom(container);
+    }
+
+    /** Swaps one bubble in place (optimistic \u2192 confirmed, or sending \u2192 failed) without touching any other bubble or the scroll position of the rest of the thread. */
+    function replaceMessageBubble(container, existingId, m, isNew) {
+      const old = container.querySelector(`[data-message-id="${existingId}"]`);
+      const wasNearBottom = isNearBottom(container);
+      const fresh = renderBubbleElement(m, isNew);
+      if (old) old.replaceWith(fresh);
+      else container.appendChild(fresh);
+      if (wasNearBottom) scrollToBottom(container);
+    }
+
+    /**
+     * One delegated listener per opened conversation (the container
+     * itself is recreated fresh on every conversation switch, via
+     * panel.innerHTML in openConversation, so this never double-wires)
+     * handles Retry for every failed bubble, present now or appended
+     * later \u2014 no per-button listener bookkeeping needed.
+     */
+    function wireMessageRetryDelegation(container, conversationId) {
+      container.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-retry-message]');
+        if (!btn) return;
+        const bubble = btn.closest('[data-message-id]');
+        const tempId = bubble.dataset.messageId;
+        const content = bubble.dataset.messageContent;
+        await sendMessage(conversationId, content, tempId);
+      });
+    }
+
+    /**
+     * Optimistic send: render immediately with a "sending" state,
+     * POST in the background, then swap in the server's own message
+     * (real id/timestamp) on success or a "failed \u00B7 Retry" state on
+     * failure \u2014 the typed content is never lost either way, unlike
+     * the old flow where a failed send silently discarded it.
+     */
+    async function sendMessage(conversationId, content, existingBubbleId) {
+      const container = document.getElementById('thread-messages');
+      if (!container) return;
+      const emptyState = container.querySelector('p.text-secondary');
+      if (emptyState) container.innerHTML = '';
+
+      const tempId = existingBubbleId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const sendingMsg = { id: tempId, sender_id: currentUser.id, content, created_at: new Date().toISOString(), _status: 'sending' };
+
+      if (existingBubbleId) {
+        replaceMessageBubble(container, existingBubbleId, sendingMsg, false);
+      } else {
+        appendMessageBubble(container, sendingMsg, true);
+        renderedMessageIds.add(tempId);
+        scrollToBottom(container);
+      }
+
+      try {
+        const { message } = await API.post(`/messaging/conversations/${conversationId}/messages`, { content });
+        renderedMessageIds.delete(tempId);
+        renderedMessageIds.add(message.id);
+        replaceMessageBubble(container, tempId, message, false);
+        lastMessageId = message.id; // so the next poll doesn't re-fetch the message we already rendered
+      } catch (err) {
+        replaceMessageBubble(container, tempId, { ...sendingMsg, _status: 'failed' }, false);
+      }
     }
 
     const CALL_STATUS_LABEL = {
@@ -257,7 +347,8 @@
         if (!historyPanel.hidden) loadCallHistory(conversationId);
       });
 
-      await loadMessages();
+      wireMessageRetryDelegation(document.getElementById('thread-messages'), conversationId);
+      await loadInitialMessages(conversationId);
       try {
         await API.post(`/messaging/conversations/${conversationId}/read`);
         markConversationReadLocally(conversationId);
@@ -265,26 +356,21 @@
         // Best-effort — the thread is still fully usable even if this failed.
       }
 
-      document.getElementById('composer-form').addEventListener('submit', async (e) => {
+      document.getElementById('composer-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const form = e.target;
         const content = form.content.value.trim();
         if (!content) return;
-        const sendBtn = document.getElementById('send-btn');
         form.content.value = '';
-        FormHelpers.setLoading(sendBtn, true);
-        try {
-          await API.post(`/messaging/conversations/${conversationId}/messages`, { content });
-          await loadMessages();
-        } catch (err) {
-          Toast.error(err.message);
-        } finally {
-          FormHelpers.setLoading(sendBtn, false);
-        }
+        // Fire-and-forget: sendMessage renders the optimistic bubble
+        // itself and reconciles it when the server responds — the
+        // composer doesn't wait on it, exactly the "don't make the
+        // user stare at a spinner after pressing Send" requirement.
+        sendMessage(conversationId, content);
       });
 
       clearInterval(pollTimer);
-      pollTimer = setInterval(loadMessages, 5000);
+      pollTimer = setInterval(() => pollForNewMessages(conversationId), 5000);
     }
 
     async function startCall(conversationId, callType) {
@@ -296,27 +382,59 @@
       }
     }
 
-    async function loadMessages() {
-      if (!activeConversationId) return;
+    /** Full render \u2014 used once when a conversation is opened. Every later update is an incremental append (see pollForNewMessages) or a targeted swap (see sendMessage), never another full rebuild. */
+    async function loadInitialMessages(conversationId) {
+      const container = document.getElementById('thread-messages');
+      if (!container) return;
       try {
-        const { messages } = await API.get(`/messaging/conversations/${activeConversationId}/messages`);
-        const container = document.getElementById('thread-messages');
-        if (!container) return;
-
-        // The very first load of a conversation shouldn't stagger its
-        // entire history in one by one \u2014 only messages that arrive
-        // after that (a reply comes in, or one you just sent) get the
-        // per-bubble entrance.
-        const isFirstLoad = renderedMessageIds.size === 0;
+        const { messages } = await API.get(`/messaging/conversations/${conversationId}/messages`);
         container.innerHTML = messages.length
-          ? messages.map((m) => messageBubbleHtml(m, !isFirstLoad && !renderedMessageIds.has(m.id))).join('')
+          ? messages.map((m) => messageBubbleHtml(m, false)).join('')
           : `<p class="text-secondary text-sm">No messages yet \u2014 say hello.</p>`;
         renderedMessageIds = new Set(messages.map((m) => m.id));
+        lastMessageId = messages.length ? messages[messages.length - 1].id : null;
         container.scrollTop = container.scrollHeight;
       } catch (err) {
-        // Silent on poll failures — don't spam toasts every 5 seconds.
+        container.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
       }
     }
+
+    /**
+     * Runs every 5s for the open conversation. Fetches only messages
+     * newer than the last one already on screen and appends them --
+     * no full re-fetch, no full DOM rebuild, no forced scroll unless
+     * the user was already at the bottom. If a conversation has never
+     * successfully loaded yet (lastMessageId still null), falls back
+     * to a full load instead of guessing.
+     */
+    async function pollForNewMessages(conversationId) {
+      if (activeConversationId !== conversationId) return;
+      if (lastMessageId === null) return loadInitialMessages(conversationId);
+      try {
+        const { messages } = await API.get(
+          `/messaging/conversations/${conversationId}/messages?afterMessageId=${encodeURIComponent(lastMessageId)}`
+        );
+        if (messages.length === 0) return;
+        const container = document.getElementById('thread-messages');
+        if (!container) return;
+        const emptyState = container.querySelector('p.text-secondary');
+        if (emptyState) container.innerHTML = '';
+        messages.forEach((m) => {
+          if (renderedMessageIds.has(m.id)) return; // e.g. our own just-sent message, already reconciled by sendMessage
+          appendMessageBubble(container, m, true);
+          renderedMessageIds.add(m.id);
+        });
+        lastMessageId = messages[messages.length - 1].id;
+      } catch (err) {
+        // Silent on poll failures \u2014 the next tick (or the 'online' listener below) just tries again.
+      }
+    }
+
+    // A dropped connection shouldn't have to wait for the next fixed
+    // 5s tick once it comes back \u2014 catch up immediately.
+    window.addEventListener('online', () => {
+      if (activeConversationId) pollForNewMessages(activeConversationId);
+    });
 
     (async function init() {
       const user = await Auth.requireSession('login.html');

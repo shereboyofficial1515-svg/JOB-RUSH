@@ -95,7 +95,36 @@ async function deleteMessage(messageId, userId) {
  * excluded — deleted messages are shown as tombstones (content
  * already nulled by deleteMessage) rather than hidden entirely.
  */
-async function listMessages(conversationId, userId, { before, limit = 50 } = {}) {
+async function attachMedia(messages) {
+  if (messages.length === 0) return [];
+  const ids = messages.map((m) => m.id);
+  const { rows: media } = await query('SELECT * FROM message_media WHERE message_id = ANY($1::uuid[])', [ids]);
+  const mediaByMessage = media.reduce((acc, m) => {
+    (acc[m.message_id] ||= []).push(m);
+    return acc;
+  }, {});
+  return messages.map((m) => ({ ...m, media: mediaByMessage[m.id] || [] }));
+}
+
+/**
+ * `afterMessageId` is the incremental-polling path — "just what
+ * arrived since the last message I already have," ascending order,
+ * so the client can append rather than re-fetch-and-rebuild the last
+ * 50 on every poll tick. Takes a message ID, not a client-supplied
+ * timestamp: comparing the row-value tuple (created_at, id) against
+ * that message's OWN stored values (looked up server-side) avoids two
+ * real correctness bugs a plain `created_at > $timestamp` cursor has
+ * — a JS Date/toISOString() round trip truncates Postgres's
+ * microsecond precision to milliseconds (confirmed empirically: it
+ * re-included the cursor message itself), and two messages landing in
+ * the same millisecond would be ambiguous on timestamp alone. The
+ * tuple comparison is exact and gap-free either way.
+ *
+ * `before` is the older-history/backward-pagination path, unchanged.
+ * The two are mutually exclusive; a caller doing infinite-scroll-up
+ * never also wants "since my last poll."
+ */
+async function listMessages(conversationId, userId, { before, afterMessageId, limit = 50 } = {}) {
   const participant = await conversationService.assertParticipant(conversationId, userId);
   const cappedLimit = Math.min(Math.max(limit, 1), 100);
 
@@ -106,6 +135,16 @@ async function listMessages(conversationId, userId, { before, limit = 50 } = {})
     params.push(participant.cleared_before);
     sql += ` AND created_at > $${params.length}`;
   }
+
+  if (afterMessageId) {
+    params.push(afterMessageId);
+    sql += ` AND (created_at, id) > (SELECT created_at, id FROM messages WHERE id = $${params.length})`;
+    params.push(cappedLimit);
+    sql += ` ORDER BY created_at ASC LIMIT $${params.length}`;
+    const { rows: messages } = await query(sql, params);
+    return attachMedia(messages);
+  }
+
   if (before) {
     params.push(before);
     sql += ` AND created_at < $${params.length}`;
@@ -114,16 +153,8 @@ async function listMessages(conversationId, userId, { before, limit = 50 } = {})
   sql += ` ORDER BY created_at DESC LIMIT $${params.length}`;
 
   const { rows: messages } = await query(sql, params);
-
-  if (messages.length === 0) return [];
-  const ids = messages.map((m) => m.id);
-  const { rows: media } = await query('SELECT * FROM message_media WHERE message_id = ANY($1::uuid[])', [ids]);
-  const mediaByMessage = media.reduce((acc, m) => {
-    (acc[m.message_id] ||= []).push(m);
-    return acc;
-  }, {});
-
-  return messages.reverse().map((m) => ({ ...m, media: mediaByMessage[m.id] || [] }));
+  const withMedia = await attachMedia(messages);
+  return withMedia.reverse();
 }
 
 async function searchOwnMessages(userId, keyword) {

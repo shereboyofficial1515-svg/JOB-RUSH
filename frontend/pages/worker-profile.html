@@ -65,7 +65,7 @@
       const price = formatMoney(profile.starting_price, profile.price_currency);
       return `
       <div class="wp-header">
-        <img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" />
+        <img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="120" height="120" />
         <div class="wp-identity">
           <div class="wp-name-row">
             <span class="wp-name">${esc(profile.full_name)}</span>
@@ -121,7 +121,7 @@
           ? primary.thumbnailUrl
             ? `<img src="${primary.thumbnailUrl}" alt="" loading="lazy" /><div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg></div>`
             : `<div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`
-          : `<img src="${primary.url}" alt="" loading="lazy" />`
+          : `<img src="${primary.thumbnailUrl || primary.url}" alt="" loading="lazy" />`
         : `<div class="wp-project-video-icon"><span class="text-xs text-secondary">No media</span></div>`;
 
       return `

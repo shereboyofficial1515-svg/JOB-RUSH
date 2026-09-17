@@ -77,7 +77,7 @@
       return `
       <a class="card card-interactive job-card" href="worker-profile.html?id=${w.user_id}" style="display:block; color: inherit;">
         <div style="display:flex; gap: var(--space-3); align-items:center; margin-bottom: var(--space-3);">
-          <img src="${w.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="44" height="44" style="border-radius:50%; object-fit:cover;" />
+          <img src="${w.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="44" height="44" loading="lazy" style="border-radius:50%; object-fit:cover;" />
           <div>
             <strong>${esc(w.full_name)}</strong>
             <div class="text-sm text-secondary">${esc(w.professional_title) || 'Professional'}</div>
