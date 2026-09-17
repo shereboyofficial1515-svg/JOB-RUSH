@@ -1,0 +1,97 @@
+# Render Blueprint for JOB RUSH.
+#
+# Two services, matching the actual repo layout:
+#   backend/  — Node/Express API (real entry point: backend/src/server.js,
+#               started via the existing "start" script in backend/package.json)
+#   frontend/ — plain static HTML/CSS/JS, no build step, no bundler
+#
+# None of the field names here are guessed blind — rootDir, buildCommand,
+# and startCommand all come directly from what's actually in this repo.
+# That said, Render's Blueprint schema does evolve; verify the top-level
+# keys below (`runtime`, `staticPublishPath`, etc.) against Render's
+# current Blueprint reference before relying on this, since this file
+# was written without live access to Render's docs.
+#
+# No secret values live in this file. Every sensitive var is marked
+# `sync: false`, which tells Render to prompt for the value in the
+# dashboard instead of reading one from here.
+
+services:
+  # ---------------- Backend (Express API) ----------------
+  - type: web
+    name: job-rush-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render provides PORT automatically; the app already reads
+      # process.env.PORT (see backend/src/config/env.js) and binds to
+      # all interfaces by default (Node's server.listen(port) with no
+      # host argument), which is what Render's containers require.
+      - key: APP_BASE_URL
+        sync: false # the frontend's real deployed origin — set once the frontend service exists
+      - key: API_BASE_URL
+        sync: false # this backend's own deployed origin, e.g. https://job-rush-backend.onrender.com
+      - key: COOKIE_DOMAIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        sync: false
+      - key: TERMII_BASE_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_PRO_PLAN_CODE
+        sync: false
+      - key: PRO_MONTHLY_PRICE_NGN
+        value: "4000"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false # must exactly match this backend's deployed URL + /api/auth/google/callback
+      - key: GEMINI_API_KEY
+        sync: false
+      # See backend/.env.example for the full variable list (email
+      # branding, rate limiting, OTP, video-processing tunables, etc.)
+      # — only the ones with no safe default are required here;
+      # everything else falls back to the same defaults env.js uses locally.
+
+  # ---------------- Frontend (static site) ----------------
+  # No envVars section: the frontend has no build step and reads
+  # nothing from process.env (browsers can't see it anyway) — its API
+  # base URL is chosen at runtime by frontend/js/config/env.js based
+  # on window.location.hostname instead. See that file's comment for
+  # the one line to update once this service's real backend URL is known.
+  - type: web
+    name: job-rush-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: "" # no build step — plain HTML/CSS/JS served as-is
+    staticPublishPath: .

@@ -1,3 +1,45 @@
+# Dependencies
 node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# Environment files — real secrets never get committed.
+# The !.env.example exceptions must come after the broader patterns
+# they'd otherwise be excluded by.
 .env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Build output (the frontend itself is plain static HTML/CSS/JS with
+# no build step — its real source lives under frontend/pages, frontend/js,
+# frontend/css, frontend/assets, none of which are named dist/build)
+dist/
+build/
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# Temp files
+*.tmp
+*.temp
+
+# Claude Code local agent worktree scratch state — launch.json (dev
+# server config, not secret) stays tracked.
+.claude/worktrees/

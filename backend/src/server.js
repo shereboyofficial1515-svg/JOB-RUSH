@@ -51,9 +51,21 @@ const app = express();
 app.set('trust proxy', 1);
 
 app.use(helmet());
+
+// APP_BASE_URL is normally one origin, but accepts a comma-separated
+// list so the same deployment can be pointed at more than one
+// frontend at once if needed (e.g. testing a deployed Render backend
+// against a local dev frontend). credentials:true means this can
+// never be "*" — the session cookie requires an explicit, real origin.
+const allowedOrigins = env.APP_BASE_URL.split(',').map((o) => o.trim()).filter(Boolean);
 app.use(
   cors({
-    origin: env.APP_BASE_URL,
+    origin: (origin, callback) => {
+      // No Origin header at all (server-to-server calls, curl, the
+      // Paystack webhook) — nothing to check against, let it through.
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true, // required so the session cookie is sent cross-origin from the frontend
   })
 );

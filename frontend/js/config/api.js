@@ -6,7 +6,7 @@
  * to duplicate response-parsing/error-handling logic.
  */
 const API = (function () {
-  const BASE_URL = 'http://127.0.0.1:4000/api';
+  const BASE_URL = ENV.API_BASE_URL;
 
   class ApiError extends Error {
     constructor(message, status, code) {
