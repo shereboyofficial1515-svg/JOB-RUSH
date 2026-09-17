@@ -34,7 +34,6 @@ const env = {
   // frontend page). Needed for links that must hit this server
   // directly, like the one-click email unsubscribe endpoint.
   API_BASE_URL: optional('API_BASE_URL', `http://localhost:${optional('PORT', '4000')}`),
-  COOKIE_DOMAIN: optional('COOKIE_DOMAIN', 'localhost'),
 
   DATABASE_URL: requiredInProduction('DATABASE_URL', process.env.DATABASE_URL),
 
