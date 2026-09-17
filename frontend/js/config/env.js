@@ -15,7 +15,7 @@ const ENV = (function () {
   // this is intentionally a placeholder rather than a guess. Replace
   // it with the real URL once that service exists, before deploying
   // the frontend.
-  const PRODUCTION_API_BASE_URL = 'https://REPLACE_WITH_YOUR_RENDER_BACKEND_URL.onrender.com/api';
+  const PRODUCTION_API_BASE_URL = 'https://job-rush.onrender.com/api';
 
   return {
     API_BASE_URL: isLocalDev ? 'http://127.0.0.1:4000/api' : PRODUCTION_API_BASE_URL,
