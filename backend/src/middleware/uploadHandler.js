@@ -7,12 +7,13 @@ const AppError = require('../utils/AppError');
 // executed.
 const storage = multer.memoryStorage();
 
-// Ceiling here is intentionally generous (matches the largest limit
-// across upload categories); storageService enforces the tighter,
-// category-specific limit (image/video/document) after this.
+// Matches the largest limit across upload categories (video, 50MB —
+// also Supabase's own project-wide storage ceiling, so nothing bigger
+// could ever be stored regardless); storageService enforces the
+// tighter, category-specific limits (image/video/document) after this.
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
 });
 
 function singleFile(fieldName) {

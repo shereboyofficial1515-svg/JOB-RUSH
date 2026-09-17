@@ -3,8 +3,16 @@ const { getSupabaseClient } = require('../config/supabase');
 const { validateFile } = require('../utils/fileValidation');
 const { readMp4Metadata } = require('../utils/mp4Duration');
 const AppError = require('../utils/AppError');
+const logger = require('../utils/logger');
 
 const MAX_VIDEO_DURATION_SECONDS = 120;
+
+// Supabase's own project-wide storage limit (Settings > Storage),
+// independent of anything this app validates — an upload under our
+// own LIMITS below can still be rejected by Supabase itself if it
+// exceeds this. Confirmed empirically against the live project: 50MB
+// succeeds, 51MB fails with EntityTooLarge/413.
+const SUPABASE_MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 /**
  * Bucket policy in one place. `public: true` buckets are readable by
@@ -23,7 +31,12 @@ const BUCKETS = {
 
 const LIMITS = {
   image: { allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], maxSizeBytes: 8 * 1024 * 1024 },
-  video: { allowedMimeTypes: ['video/mp4'], maxSizeBytes: 100 * 1024 * 1024 },
+  // Was 100MB — silently unreachable, since Supabase itself rejects
+  // anything over SUPABASE_MAX_UPLOAD_BYTES (50MB) regardless of what
+  // we allow here. Capped to match reality so an oversized video is
+  // rejected immediately with a clear message instead of failing
+  // opaquely after the whole file has already been uploaded to us.
+  video: { allowedMimeTypes: ['video/mp4'], maxSizeBytes: SUPABASE_MAX_UPLOAD_BYTES },
   document: {
     allowedMimeTypes: [
       'application/pdf',
@@ -57,6 +70,25 @@ async function uploadToBucket({ bucket, ownerUserId, buffer, mimeType, limitProf
   });
 
   if (error) {
+    logger.error('Supabase Storage upload failed', {
+      bucket: bucket.name,
+      sizeBytes: buffer.length,
+      supabaseError: error.message,
+      supabaseStatusCode: error.statusCode,
+      supabaseCode: error.code,
+    });
+
+    // "Retry" would never help here — Supabase's own project-wide
+    // storage limit rejected the object outright, independent of the
+    // per-category limits above. Told to the user plainly instead of
+    // the generic "please try again" every other storage failure gets.
+    if (error.statusCode === '413' || error.code === 'EntityTooLarge') {
+      throw new AppError(
+        `This file is too large. Please upload a file under ${Math.floor(SUPABASE_MAX_UPLOAD_BYTES / (1024 * 1024))}MB.`,
+        400,
+        'FILE_TOO_LARGE'
+      );
+    }
     throw new AppError('File upload failed. Please try again.', 502, 'STORAGE_UPLOAD_FAILED');
   }
 
