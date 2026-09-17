@@ -6,6 +6,7 @@ const { getPublicUrlForPath, deleteObject } = require('./storageService');
 const MAX_MEDIA_PER_PORTFOLIO = 20;
 const MAX_VIDEOS_PER_WORKER = 3;
 const ALLOWED_MEDIA_TYPES = ['image', 'video', 'document'];
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function attachPublicUrl(media) {
   return { ...media, url: getPublicUrlForPath('PORTFOLIO_MEDIA', media.storage_path) };
@@ -55,6 +56,10 @@ async function listPortfoliosForWorker(workerUserId, { includeHidden = false } =
  * the owner themselves is the one exception, same as getWorkerProfile.
  */
 async function getPortfolioDetails(portfolioId, viewerUserId) {
+  if (!UUID_REGEX.test(portfolioId)) {
+    throw new AppError('Portfolio project not found.', 404, 'NOT_FOUND');
+  }
+
   const { rows } = await query(
     `SELECT p.*, cat.name AS category_name,
             u.full_name AS worker_full_name, u.account_status, u.deactivated_at,
@@ -115,6 +120,10 @@ async function getPortfolioDetails(portfolioId, viewerUserId) {
 }
 
 async function getOwnedPortfolio(portfolioId, workerUserId) {
+  if (!UUID_REGEX.test(portfolioId)) {
+    throw new AppError('Portfolio project not found.', 404, 'NOT_FOUND');
+  }
+
   const { rows } = await query(
     `SELECT * FROM portfolios WHERE id = $1 AND worker_user_id = $2`,
     [portfolioId, workerUserId]
