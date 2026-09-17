@@ -1,7 +1,7 @@
+const fs = require('fs/promises');
 const { randomUUID } = require('crypto');
 const { getSupabaseClient } = require('../config/supabase');
 const { validateFile } = require('../utils/fileValidation');
-const { readMp4Metadata } = require('../utils/mp4Duration');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
 
@@ -112,37 +112,37 @@ async function uploadPortfolioImage(workerUserId, file) {
 }
 
 /**
- * Video uploads get an extra, server-side-only check on top of the
- * shared MIME/signature/size validation: the file's actual duration is
- * read from its container boxes (never trusted from the client) and
- * anything over 2 minutes — or anything whose duration can't be
- * determined at all, since an upload claiming to be a playable video
- * that we can't parse is not something to silently allow — is rejected
- * before it ever reaches storage.
+ * Uploads the FINAL processed video produced by videoProcessingService
+ * — always a real MP4/H.264 file by this point (verified via ffprobe,
+ * either because the source already was one or because it was just
+ * transcoded into one), so the mimeType passed to uploadToBucket is
+ * always the literal 'video/mp4' this function hands storagePath's
+ * validateFile, never whatever the original browser upload claimed.
+ * Duration/dimension validation already happened against the real
+ * decoded stream in videoProcessingService — this function's job is
+ * only to move verified bytes into the bucket.
  */
-async function uploadPortfolioVideo(workerUserId, file) {
-  const metadata = readMp4Metadata(file.buffer);
-  if (metadata.durationSeconds === null) {
-    throw new AppError('Could not read this video file. Please upload a valid MP4 video.', 400, 'INVALID_VIDEO_FILE');
-  }
-  if (metadata.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-    throw new AppError('Work videos must be 2 minutes or shorter.', 400, 'VIDEO_TOO_LONG');
-  }
-
-  const result = await uploadToBucket({
+async function uploadProcessedPortfolioVideo(workerUserId, videoFilePath) {
+  const buffer = await fs.readFile(videoFilePath);
+  return uploadToBucket({
     bucket: BUCKETS.PORTFOLIO_MEDIA,
     ownerUserId: workerUserId,
-    buffer: file.buffer,
-    mimeType: file.mimeType,
+    buffer,
+    mimeType: 'video/mp4',
     limitProfile: 'video',
   });
+}
 
-  return {
-    ...result,
-    durationSeconds: Math.round(metadata.durationSeconds),
-    width: metadata.width,
-    height: metadata.height,
-  };
+/** The poster frame generated alongside a processed video — a small JPEG, uploaded to the same public bucket as ordinary portfolio images. */
+async function uploadPortfolioVideoThumbnail(workerUserId, thumbnailFilePath) {
+  const buffer = await fs.readFile(thumbnailFilePath);
+  return uploadToBucket({
+    bucket: BUCKETS.PORTFOLIO_MEDIA,
+    ownerUserId: workerUserId,
+    buffer,
+    mimeType: 'image/jpeg',
+    limitProfile: 'image',
+  });
 }
 
 async function uploadProfilePicture(userId, file) {
@@ -249,8 +249,10 @@ async function deleteObject(bucketKey, storagePath) {
 
 module.exports = {
   BUCKETS,
+  MAX_VIDEO_DURATION_SECONDS,
   uploadPortfolioImage,
-  uploadPortfolioVideo,
+  uploadProcessedPortfolioVideo,
+  uploadPortfolioVideoThumbnail,
   uploadProfilePicture,
   uploadVerificationDocument,
   uploadChatMedia,

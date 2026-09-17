@@ -78,7 +78,8 @@
 
     function mediaThumbInner(m) {
       if (m.media_type === 'video') {
-        return `<div class="pd-thumb-video-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`;
+        const icon = `<div class="pd-thumb-video-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg></div>`;
+        return m.thumbnailUrl ? `<img src="${m.thumbnailUrl}" alt="" loading="lazy" />${icon}` : icon;
       }
       return `<img src="${m.url}" alt="" loading="lazy" />`;
     }

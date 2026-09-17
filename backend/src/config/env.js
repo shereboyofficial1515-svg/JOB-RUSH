@@ -101,6 +101,21 @@ const env = {
 
   GEMINI_API_KEY: optional('GEMINI_API_KEY', ''),
   GEMINI_MODEL: optional('GEMINI_MODEL', 'gemini-1.5-flash'),
+
+  // Portfolio video processing. HARD_LIMIT matches Supabase Storage's
+  // own project-wide ceiling (see storageService) — nothing above it
+  // could ever be stored regardless of what this app allows. TARGET
+  // is deliberately below that with a safety margin, since bitrate-based
+  // encoding only approximates a target file size. MAX_SOURCE_BYTES is
+  // a separate, larger ceiling that exists purely to stop someone from
+  // submitting an enormous file just to make the server transcode it —
+  // sized to comfortably fit a real 2-minute phone recording (the
+  // existing MAX_VIDEO_DURATION_SECONDS limit) at up to ~4K.
+  VIDEO_MAX_SOURCE_BYTES: parseInt(optional('VIDEO_MAX_SOURCE_BYTES', String(500 * 1024 * 1024)), 10),
+  VIDEO_TARGET_BYTES: parseInt(optional('VIDEO_TARGET_BYTES', String(48 * 1024 * 1024)), 10),
+  VIDEO_HARD_LIMIT_BYTES: parseInt(optional('VIDEO_HARD_LIMIT_BYTES', String(50 * 1024 * 1024)), 10),
+  VIDEO_MAX_CONCURRENT_PROCESSING: parseInt(optional('VIDEO_MAX_CONCURRENT_PROCESSING', '2'), 10),
+  VIDEO_PROCESSING_TIMEOUT_MS: parseInt(optional('VIDEO_PROCESSING_TIMEOUT_MS', String(5 * 60 * 1000)), 10),
 };
 
 if (env.NODE_ENV === 'production' && env.SESSION_SECRET.startsWith('dev-only')) {

@@ -62,8 +62,8 @@
   <script>
     function mediaTileHtml(m, i, total) {
       const thumb = m.media_type === 'video'
-        ? `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--color-black); color:var(--text-secondary);">
-             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        ? `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:${m.thumbnailUrl ? `url('${m.thumbnailUrl}') center/cover` : 'var(--color-black)'}; color:var(--text-secondary);">
+             <svg width="20" height="20" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg>
            </div>`
         : `<img src="${m.url}" alt="" style="width:100%; height:100%; object-fit:cover;" />`;
       const duration = m.duration_seconds ? `<span class="duration-badge" style="position:absolute; bottom:2px; right:2px; font-size:10px;">${VideoPlayer.formatTime(m.duration_seconds)}</span>` : '';
@@ -258,6 +258,144 @@
       });
     }
 
+    function formatBytes(bytes) {
+      if (!bytes) return '0 KB';
+      const units = ['bytes', 'KB', 'MB', 'GB'];
+      let i = 0;
+      let n = bytes;
+      while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+      return `${n.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    /**
+     * Video upload gets its own modal-driven flow instead of the
+     * simple icon-button spinner images use — server-side compression
+     * means a real, possibly multi-stage wait (upload, then transcode)
+     * that deserves an actual status readout, a preview before
+     * committing, and a way to retry without re-picking the file.
+     * Maximum final video size is always shown up front (spec:
+     * "clearly display maximum final video size").
+     */
+    function openVideoUploadModal(file, projectId, project) {
+      const objectUrl = URL.createObjectURL(file);
+      let xhrRef = null;
+      let cancelled = false;
+
+      const bodyHtml = `
+        <p class="text-secondary text-sm">${esc(file.name)} — ${formatBytes(file.size)}</p>
+        <p class="text-secondary text-xs" style="margin-bottom: var(--space-3);">Maximum final video size: 50MB. Longer or larger videos are automatically optimized to fit.</p>
+        <video id="video-preview" src="${objectUrl}" controls style="width:100%; max-height:280px; border-radius: var(--radius-md); background:#000; display:block;"></video>
+        <div id="video-upload-status" class="text-secondary text-sm" style="margin-top: var(--space-3);">Ready to upload.</div>
+        <div class="upload-progress-track" id="video-upload-track" hidden>
+          <div class="upload-progress-bar" id="video-upload-bar" style="width:0%;"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="video-modal-secondary-btn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="video-modal-primary-btn">Upload video</button>
+        </div>
+      `;
+
+      Modal.open({
+        title: 'Add work video',
+        bodyHtml,
+        onClose: () => URL.revokeObjectURL(objectUrl),
+        onMount: () => {
+          const statusEl = document.getElementById('video-upload-status');
+          const track = document.getElementById('video-upload-track');
+          const bar = document.getElementById('video-upload-bar');
+          const primaryBtn = document.getElementById('video-modal-primary-btn');
+          const secondaryBtn = document.getElementById('video-modal-secondary-btn');
+
+          function setDeterminateProgress(percent) {
+            track.hidden = false;
+            bar.classList.remove('is-indeterminate');
+            bar.style.width = `${percent}%`;
+          }
+          function setIndeterminateProgress() {
+            track.hidden = false;
+            bar.classList.add('is-indeterminate');
+          }
+
+          async function startUpload() {
+            cancelled = false;
+            primaryBtn.hidden = true;
+            secondaryBtn.textContent = 'Cancel upload';
+            secondaryBtn.disabled = false;
+            statusEl.textContent = 'Preparing your video…';
+            setIndeterminateProgress();
+
+            try {
+              const uploaded = await Upload.uploadPortfolioMedia(file, (percent) => {
+                statusEl.textContent = `Uploading… ${percent}%`;
+                setDeterminateProgress(percent);
+              }, {
+                onXhrReady: (xhr) => { xhrRef = xhr; },
+                onUploadComplete: () => {
+                  // Every byte has arrived — from here the server is
+                  // transcoding, which has no meaningful percentage to
+                  // show, and can no longer be cancelled from here.
+                  statusEl.textContent = 'Optimizing your video… this can take a moment.';
+                  setIndeterminateProgress();
+                  secondaryBtn.disabled = true;
+                },
+              });
+
+              statusEl.textContent = 'Saving to your portfolio…';
+              await API.post(`/portfolio/${projectId}/media`, {
+                mediaType: 'video',
+                storagePath: uploaded.storagePath,
+                thumbnailStoragePath: uploaded.thumbnailStoragePath || undefined,
+                isPrimary: (project.media || []).length === 0,
+                fileSize: uploaded.sizeBytes || undefined,
+                durationSeconds: uploaded.durationSeconds || undefined,
+                width: uploaded.width || undefined,
+                height: uploaded.height || undefined,
+              });
+
+              setDeterminateProgress(100);
+              statusEl.textContent = uploaded.wasProcessed
+                ? `Video uploaded successfully — optimized to ${formatBytes(uploaded.sizeBytes)}.`
+                : `Video uploaded successfully — ${formatBytes(uploaded.sizeBytes)}.`;
+              Toast.success('Video added.');
+              secondaryBtn.textContent = 'Done';
+              secondaryBtn.disabled = false;
+              secondaryBtn.onclick = () => { Modal.close(); loadPortfolio(); };
+              primaryBtn.hidden = true;
+            } catch (err) {
+              if (cancelled) {
+                statusEl.textContent = 'Upload cancelled.';
+              } else {
+                statusEl.textContent = err.message;
+              }
+              track.hidden = true;
+              primaryBtn.hidden = false;
+              primaryBtn.textContent = 'Retry';
+              secondaryBtn.textContent = 'Choose different file';
+              secondaryBtn.disabled = false;
+              secondaryBtn.onclick = async () => {
+                const newFile = await Upload.pickFile({
+                  accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,.mov',
+                });
+                if (!newFile) return;
+                Modal.close();
+                openVideoUploadModal(newFile, projectId, project);
+              };
+            }
+          }
+
+          primaryBtn.addEventListener('click', startUpload);
+          secondaryBtn.addEventListener('click', () => {
+            if (xhrRef && secondaryBtn.textContent === 'Cancel upload') {
+              cancelled = true;
+              xhrRef.abort();
+              return;
+            }
+            Modal.close();
+          });
+        },
+      });
+    }
+
     function wireCardActions(portfolios) {
       document.querySelectorAll('.portfolio-card').forEach((card) => {
         const id = card.dataset.projectId;
@@ -272,32 +410,31 @@
 
         const addMediaBtn = card.querySelector('[data-action="add-media"]');
         addMediaBtn.addEventListener('click', async () => {
-          const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4' });
+          const file = await Upload.pickFile({
+            accept: 'image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,.mov',
+          });
           if (!file) return;
           const isVideo = file.type.startsWith('video/');
+
           if (isVideo) {
-            Toast.show('Uploading video—work videos must be 2 minutes or shorter.', { duration: 2500 });
+            openVideoUploadModal(file, id, project);
+            return;
           }
+
           FormHelpers.setLoading(addMediaBtn, true);
           try {
-            const uploaded = await Upload.uploadPortfolioMedia(file, (percent) => {
-              addMediaBtn.setAttribute('title', `Uploading… ${percent}%`);
-            });
-            addMediaBtn.setAttribute('title', 'Processing…');
+            const uploaded = await Upload.uploadPortfolioMedia(file);
             await API.post(`/portfolio/${id}/media`, {
-              mediaType: isVideo ? 'video' : 'image',
+              mediaType: 'image',
               storagePath: uploaded.storagePath,
               isPrimary: (project.media || []).length === 0,
-              durationSeconds: uploaded.durationSeconds || undefined,
-              width: uploaded.width || undefined,
-              height: uploaded.height || undefined,
             });
             Toast.success('Media added.');
             loadPortfolio();
           } catch (err) {
             Toast.error(err.message);
+          } finally {
             FormHelpers.setLoading(addMediaBtn, false);
-            addMediaBtn.setAttribute('title', 'Add photo/video');
           }
         });
 

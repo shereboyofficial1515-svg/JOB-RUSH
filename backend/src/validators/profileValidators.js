@@ -60,6 +60,7 @@ const addPortfolioMediaSchema = z.object({
   durationSeconds: z.number().int().positive().max(120).optional(),
   width: z.number().int().positive().max(20000).optional(),
   height: z.number().int().positive().max(20000).optional(),
+  thumbnailStoragePath: z.string().trim().min(1).max(500).optional(),
 });
 
 const reorderPortfolioMediaSchema = z.object({

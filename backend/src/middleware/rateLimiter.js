@@ -57,6 +57,20 @@ const uploadLimiter = rateLimit({
   message: { error: 'Too many uploads. Please slow down and try again shortly.' },
 });
 
+// Video processing (transcoding) costs real CPU/RAM per request, far
+// more than a plain image/document upload — the generic uploadLimiter
+// alone would let someone queue up 30 transcode jobs in 15 minutes.
+// This runs in addition to, not instead of, the concurrency gate in
+// videoProcessingService (that one bounds simultaneous jobs; this one
+// bounds how often any single user can start one).
+const videoUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many video uploads. Please slow down and try again shortly.' },
+});
+
 module.exports = {
   loginLimiter,
   registrationLimiter,
@@ -64,4 +78,5 @@ module.exports = {
   otpVerifyLimiter,
   passwordResetLimiter,
   uploadLimiter,
+  videoUploadLimiter,
 };

@@ -118,7 +118,9 @@
       const primary = media.find((m) => m.is_primary) || media[0];
       const thumb = primary
         ? primary.media_type === 'video'
-          ? `<div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`
+          ? primary.thumbnailUrl
+            ? `<img src="${primary.thumbnailUrl}" alt="" loading="lazy" /><div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg></div>`
+            : `<div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`
           : `<img src="${primary.url}" alt="" loading="lazy" />`
         : `<div class="wp-project-video-icon"><span class="text-xs text-secondary">No media</span></div>`;
 

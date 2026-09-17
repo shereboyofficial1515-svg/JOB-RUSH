@@ -18,12 +18,14 @@ const Upload = (function () {
     });
   }
 
-  async function uploadPortfolioMedia(file, onProgress) {
+  async function uploadPortfolioMedia(file, onProgress, lifecycleCallbacks) {
     const isVideo = file.type.startsWith('video/');
     const formData = new FormData();
     formData.append('file', file);
     const path = `/storage/portfolio/${isVideo ? 'video' : 'image'}`;
-    return onProgress ? API.uploadWithProgress(path, formData, onProgress) : API.upload(path, formData);
+    return onProgress
+      ? API.uploadWithProgress(path, formData, onProgress, lifecycleCallbacks)
+      : API.upload(path, formData);
   }
 
   async function uploadProfilePicture(file, onProgress) {

@@ -7,9 +7,11 @@
 const Modal = (function () {
   let activeBackdrop = null;
   let lastFocused = null;
+  let activeOnClose = null;
 
-  function open({ title, bodyHtml, onMount }) {
+  function open({ title, bodyHtml, onMount, onClose }) {
     close(); // only one at a time
+    activeOnClose = onClose || null;
 
     lastFocused = document.activeElement;
     document.body.style.overflow = 'hidden';
@@ -69,10 +71,13 @@ const Modal = (function () {
   function close() {
     if (!activeBackdrop) return;
     const backdrop = activeBackdrop;
+    const onClose = activeOnClose;
     activeBackdrop = null;
+    activeOnClose = null;
     document.body.style.overflow = '';
     document.removeEventListener('keydown', escHandler);
     if (lastFocused) lastFocused.focus();
+    if (onClose) onClose();
 
     backdrop.classList.add('is-closing');
     let removed = false;

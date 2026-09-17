@@ -247,3 +247,47 @@
 @media (prefers-reduced-motion: reduce) {
   .stagger-item, .reveal, .fade-in, .slide-up, .scale-in { animation: none !important; transition: none !important; opacity: 1 !important; transform: none !important; }
 }
+
+/* ============================================================
+   Video upload — real progress during the byte transfer, an
+   indeterminate sweep while the server transcodes (no fake percentage
+   — see js/utils/videoUploadFlow.js), and a standalone spinner for
+   places .btn-loading's button-only ::after trick doesn't apply.
+   ============================================================ */
+.spinner-inline {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+  vertical-align: -3px;
+}
+
+.upload-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  overflow: hidden;
+  margin: var(--space-3) 0;
+}
+.upload-progress-bar {
+  height: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  transition: width var(--transition-fast) var(--ease-standard);
+}
+.upload-progress-bar.is-indeterminate {
+  width: 40% !important;
+  animation: upload-progress-sweep 1.2s ease-in-out infinite;
+}
+@keyframes upload-progress-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-inline { animation: none; }
+  .upload-progress-bar.is-indeterminate { animation: none; width: 100% !important; opacity: 0.5; }
+}

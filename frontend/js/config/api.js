@@ -55,17 +55,32 @@ const API = (function () {
    * upload percentages — fetch has no upload-progress event. Only
    * used where a caller actually wants a progress bar; everything
    * else keeps using the simpler fetch-based upload().
+   *
+   * `onUploadComplete` (optional) fires once every byte has actually
+   * left the browser but before the response arrives — the point
+   * where a caller doing server-side processing (e.g. video
+   * compression) should switch its UI from "Uploading X%" to an
+   * indeterminate "Processing…" state, since real progress no longer
+   * exists to report from here. `onXhrReady` (optional) hands back
+   * the underlying XHR synchronously so a caller can keep a
+   * reference and call `.abort()` on it later — the returned promise
+   * itself has no cancel method, to avoid changing this function's
+   * existing return shape for every other caller.
    */
-  function uploadWithProgress(path, formData, onProgress) {
+  function uploadWithProgress(path, formData, onProgress, { onUploadComplete, onXhrReady } = {}) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `${BASE_URL}${path}`);
       xhr.withCredentials = true;
+      if (onXhrReady) onXhrReady(xhr);
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
         });
+      }
+      if (onUploadComplete) {
+        xhr.upload.addEventListener('load', onUploadComplete);
       }
 
       xhr.addEventListener('load', () => {
@@ -83,6 +98,9 @@ const API = (function () {
       });
       xhr.addEventListener('error', () => {
         reject(new ApiError('Could not reach the server. Check your connection and try again.', 0, 'NETWORK_ERROR'));
+      });
+      xhr.addEventListener('abort', () => {
+        reject(new ApiError('Upload cancelled.', 0, 'UPLOAD_CANCELLED'));
       });
 
       xhr.send(formData);

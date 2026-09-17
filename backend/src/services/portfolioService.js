@@ -8,7 +8,13 @@ const MAX_VIDEOS_PER_WORKER = 3;
 const ALLOWED_MEDIA_TYPES = ['image', 'video', 'document'];
 
 function attachPublicUrl(media) {
-  return { ...media, url: getPublicUrlForPath('PORTFOLIO_MEDIA', media.storage_path) };
+  return {
+    ...media,
+    url: getPublicUrlForPath('PORTFOLIO_MEDIA', media.storage_path),
+    thumbnailUrl: media.thumbnail_storage_path
+      ? getPublicUrlForPath('PORTFOLIO_MEDIA', media.thumbnail_storage_path)
+      : null,
+  };
 }
 
 /**
@@ -187,7 +193,7 @@ async function countWorkerVideos(workerUserId) {
 async function addPortfolioMedia(
   portfolioId,
   workerUserId,
-  { mediaType, storagePath, isPrimary = false, fileSize, durationSeconds, width, height }
+  { mediaType, storagePath, isPrimary = false, fileSize, durationSeconds, width, height, thumbnailStoragePath }
 ) {
   await getOwnedPortfolio(portfolioId, workerUserId);
 
@@ -215,10 +221,20 @@ async function addPortfolioMedia(
       await client.query('UPDATE portfolio_media SET is_primary = false WHERE portfolio_id = $1', [portfolioId]);
     }
     const { rows } = await client.query(
-      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary, file_size, duration_seconds, width, height)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO portfolio_media (portfolio_id, media_type, storage_path, is_primary, file_size, duration_seconds, width, height, thumbnail_storage_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [portfolioId, mediaType, storagePath, isPrimary, fileSize || null, durationSeconds || null, width || null, height || null]
+      [
+        portfolioId,
+        mediaType,
+        storagePath,
+        isPrimary,
+        fileSize || null,
+        durationSeconds || null,
+        width || null,
+        height || null,
+        thumbnailStoragePath || null,
+      ]
     );
     return attachPublicUrl(rows[0]);
   });
@@ -276,21 +292,26 @@ async function setPrimaryPortfolioMedia(portfolioId, mediaId, workerUserId) {
 
 async function removePortfolioMedia(portfolioId, mediaId, workerUserId) {
   await getOwnedPortfolio(portfolioId, workerUserId);
-  const { rows } = await query('SELECT storage_path FROM portfolio_media WHERE id = $1 AND portfolio_id = $2', [
-    mediaId,
-    portfolioId,
-  ]);
+  const { rows } = await query(
+    'SELECT storage_path, thumbnail_storage_path FROM portfolio_media WHERE id = $1 AND portfolio_id = $2',
+    [mediaId, portfolioId]
+  );
   await query('DELETE FROM portfolio_media WHERE id = $1 AND portfolio_id = $2', [mediaId, portfolioId]);
 
   if (rows.length > 0) {
     // Best-effort storage cleanup — the DB row is already gone (the
     // part the user actually sees), so a storage-side failure here
     // must not turn into a failed delete from the user's perspective.
-    try {
-      await deleteObject('PORTFOLIO_MEDIA', rows[0].storage_path);
-    } catch (_err) {
-      // Orphaned storage object — acceptable; not surfaced to the user.
-    }
+    // A video's generated thumbnail is a separate object in the same
+    // bucket and needs its own delete, or it's left orphaned forever.
+    const pathsToDelete = [rows[0].storage_path, rows[0].thumbnail_storage_path].filter(Boolean);
+    await Promise.all(
+      pathsToDelete.map((p) =>
+        deleteObject('PORTFOLIO_MEDIA', p).catch(() => {
+          // Orphaned storage object — acceptable; not surfaced to the user.
+        })
+      )
+    );
   }
 }
 
