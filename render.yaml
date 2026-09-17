@@ -49,8 +49,6 @@ services:
         sync: false # this service's own deployed origin — frontend and backend are the same origin now, e.g. https://job-rush.onrender.com
       - key: API_BASE_URL
         sync: false # same origin as above, e.g. https://job-rush.onrender.com
-      - key: COOKIE_DOMAIN
-        sync: false
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_URL

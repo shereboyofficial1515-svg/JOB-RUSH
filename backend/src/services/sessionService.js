@@ -3,11 +3,17 @@ const env = require('../config/env');
 const { generateOpaqueToken, sha256Hex } = require('../utils/tokenUtils');
 const AppError = require('../utils/AppError');
 
+// No explicit `domain` here: the frontend and backend are served from
+// the same Render service (same origin), so a host-only cookie (the
+// default when `domain` is omitted) always matches whatever host
+// actually served it. A hardcoded domain would need to be kept in
+// sync with wherever this ends up deployed and silently breaks login
+// the moment it doesn't match exactly (browsers reject the whole
+// cookie on a domain mismatch).
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: env.NODE_ENV === 'production',
   sameSite: 'lax',
-  domain: env.NODE_ENV === 'production' ? env.COOKIE_DOMAIN : undefined,
   path: '/',
 };
 
