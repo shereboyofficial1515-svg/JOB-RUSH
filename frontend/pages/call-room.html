@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Call — JOB RUSH</title>
 <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
 <link rel="stylesheet" href="../css/tokens.css" />
@@ -12,91 +12,345 @@
 <link rel="stylesheet" href="../css/call-room.css" />
 </head>
 <body class="call-room-body">
-<div class="call-room">
+<div class="call-room" id="call-room">
   <div class="call-room-header">
     <div class="brand">
       <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="32" height="32" />
       <span>JOB RUSH</span>
     </div>
-    <span id="call-status" class="badge badge-neutral">Connecting\u2026</span>
+    <span id="call-status" class="badge badge-neutral">Setting up your call…</span>
   </div>
 
   <div class="call-stage" id="call-stage">
     <div class="call-placeholder" id="call-placeholder">
-      <p class="text-secondary">Setting up your call\u2026</p>
+      <p class="text-secondary">Setting up your call…</p>
     </div>
   </div>
 
-  <div class="call-controls">
-    <button class="call-control-btn" id="toggle-mic" aria-label="Mute microphone" aria-pressed="false">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
-    </button>
-    <button class="call-control-btn" id="toggle-camera" aria-label="Turn off camera" aria-pressed="false">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-    </button>
-    <button class="call-control-btn call-control-leave" id="leave-call" aria-label="Leave call">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-    </button>
-  </div>
+  <div class="call-controls" id="call-controls"></div>
 
   <p class="text-xs text-secondary call-fallback-note" id="fallback-note" hidden>
     Live video couldn't start in this browser session. You can still use the call controls once the connection succeeds, or return to the interview list.
   </p>
+  <div class="call-retry-row" id="call-retry-row" hidden>
+    <button class="btn btn-secondary btn-sm" id="call-retry-btn" type="button">Try again</button>
+  </div>
 </div>
+
+<div id="remote-audio-sink" hidden></div>
 
 <script src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"></script>
 <script src="../js/config/assets.js"></script>
 <script src="../js/config/env.js"></script>
 <script src="../js/config/api.js"></script>
-  <script src="../js/modules/accessibility.js"></script>
+<script src="../js/modules/accessibility.js"></script>
 <script src="../js/utils/sanitize.js"></script>
 <script src="../js/utils/toast.js"></script>
 <script src="../js/utils/animate.js"></script>
 <script src="../js/modules/auth.js"></script>
 <script>
   /**
-   * This page is written against the documented LiveKit JS client
-   * v2 API (Room, RoomEvent, Track lifecycle, LocalParticipant
-   * enable/disable methods). It has not been runtime-verified against
-   * a live LiveKit server or real browser WebRTC stack in this build
-   * environment. The token-issuing endpoints it calls ARE live and
-   * tested; this page is the one piece of the app that needs a
-   * real-device smoke test before shipping.
+   * This page is written against the documented LiveKit JS client v2
+   * API (Room, RoomEvent, Track lifecycle, LocalParticipant
+   * enable/disable methods). The token-issuing endpoints it calls are
+   * live and tested.
+   *
+   * Audio calls and video calls are genuinely different UIs, driven
+   * by `callType` from the token response (authoritative -- it comes
+   * from the call/interview row itself, never trusted from the URL):
+   * an audio call never requests or publishes camera media and never
+   * renders a video element; a video call does both. See
+   * renderAudioStage / renderVideoStage below.
    */
+  const ICONS = {
+    micOn: '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+    micOff: '<line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+    cameraOn: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
+    cameraOff: '<path d="M16 16v1a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m4.5 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/>',
+    speaker: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+    endCall: '<path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/>',
+  };
+
+  function svgIcon(pathData, filled) {
+    return `<svg width="22" height="22" viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="${filled ? 'none' : 'currentColor'}" stroke-width="2">${pathData}</svg>`;
+  }
+
+  /**
+   * Syncs a control button's icon/label/pressed-state to what the
+   * device actually did, not what was merely requested -- e.g. if
+   * setCameraEnabled(true) throws (permission denied), the button
+   * must show "off", not the "on" state its static template assumed.
+   */
+  function syncControlButton(id, enabled, onIcon, offIcon, onLabel, offLabel) {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle('is-off', !enabled);
+    btn.setAttribute('aria-pressed', String(!enabled));
+    const label = enabled ? onLabel : offLabel;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+    btn.innerHTML = svgIcon(enabled ? onIcon : offIcon);
+  }
+
   let room = null;
+  let callType = 'video'; // overwritten from the token response before anything connects
+  let otherParticipant = null;
   let micEnabled = true;
   let cameraEnabled = true;
+  const playableElements = []; // every <audio>/<video> element holding a remote track, for speaker switching
 
-  function participantTileId(identity) {
-    return `tile-${identity.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  function avatarUrl(participant) {
+    return (participant && participant.profilePictureUrl) || ASSETS.defaultAvatar;
   }
 
-  function ensureTile(identity, label) {
-    const stage = document.getElementById('call-stage');
-    const id = participantTileId(identity);
-    let tile = document.getElementById(id);
-    if (!tile) {
-      const placeholder = document.getElementById('call-placeholder');
-      if (placeholder) placeholder.remove();
-      tile = document.createElement('div');
-      tile.className = 'call-tile';
-      tile.id = id;
-      tile.innerHTML = `<div class="call-tile-label">${esc(label)}</div>`;
-      stage.appendChild(tile);
+  function displayName(participant) {
+    return (participant && participant.fullName) || 'Participant';
+  }
+
+  // ---- Call state (IDLE / CONNECTING / CONNECTED / RECONNECTING / FAILED / ENDED) ----
+  function setCallState(state, message) {
+    const badge = document.getElementById('call-status');
+    const retryRow = document.getElementById('call-retry-row');
+    const fallbackNote = document.getElementById('fallback-note');
+    retryRow.hidden = state !== 'failed';
+    if (state === 'failed') fallbackNote.hidden = false;
+
+    const room = document.getElementById('call-room');
+    room.dataset.callState = state;
+
+    switch (state) {
+      case 'idle':
+        badge.textContent = message || 'Setting up your call…';
+        badge.className = 'badge badge-neutral';
+        break;
+      case 'connecting':
+        badge.textContent = message || 'Connecting…';
+        badge.className = 'badge badge-neutral';
+        break;
+      case 'connected':
+        badge.textContent = 'Connected';
+        badge.className = 'badge badge-verified';
+        break;
+      case 'reconnecting':
+        badge.textContent = 'Reconnecting…';
+        badge.className = 'badge badge-neutral';
+        break;
+      case 'failed':
+        badge.textContent = message || 'Could not connect';
+        badge.className = 'badge badge-danger';
+        break;
+      case 'ended':
+        badge.textContent = 'Call ended';
+        badge.className = 'badge badge-neutral';
+        break;
     }
-    return tile;
   }
 
-  function attachTrack(track, identity, label) {
-    const tile = ensureTile(identity, label);
+  // ---- Stage rendering (built once callType + otherParticipant are known) ----
+  function renderAudioStage() {
+    const stage = document.getElementById('call-stage');
+    stage.className = 'call-stage call-stage-audio';
+    stage.innerHTML = `
+      <div class="audio-card">
+        <img class="audio-avatar" id="audio-avatar" src="${esc(avatarUrl(otherParticipant))}" alt="" />
+        <h2 class="audio-name">${esc(displayName(otherParticipant))}</h2>
+        ${otherParticipant && otherParticipant.professionalTitle ? `<p class="audio-title">${esc(otherParticipant.professionalTitle)}</p>` : ''}
+        <p class="audio-type-label">Audio call</p>
+      </div>
+    `;
+  }
+
+  function renderVideoStage() {
+    const stage = document.getElementById('call-stage');
+    stage.className = 'call-stage call-stage-video';
+    stage.innerHTML = `
+      <div class="call-tile remote-tile" id="remote-tile">
+        <img class="call-tile-avatar" id="remote-avatar" src="${esc(avatarUrl(otherParticipant))}" alt="" />
+        <div class="call-tile-label">${esc(displayName(otherParticipant))}</div>
+      </div>
+      <div class="local-pip" id="local-pip">
+        <div class="local-pip-off" id="local-pip-off">
+          ${svgIcon(ICONS.cameraOff)}
+        </div>
+        <div class="call-tile-label">You</div>
+      </div>
+    `;
+  }
+
+  function showRemoteVideo(track) {
+    const tile = document.getElementById('remote-tile');
+    if (!tile) return;
+    const avatar = document.getElementById('remote-avatar');
+    if (avatar) avatar.hidden = true;
+    const existing = tile.querySelector('video.call-media');
+    if (existing) existing.remove();
     const el = track.attach();
     el.className = 'call-media';
-    tile.appendChild(el);
+    tile.insertBefore(el, tile.firstChild);
   }
 
-  function detachParticipant(identity) {
-    const tile = document.getElementById(participantTileId(identity));
-    if (tile) tile.remove();
+  function hideRemoteVideo() {
+    const tile = document.getElementById('remote-tile');
+    if (!tile) return;
+    const existing = tile.querySelector('video.call-media');
+    if (existing) existing.remove();
+    const avatar = document.getElementById('remote-avatar');
+    if (avatar) avatar.hidden = false;
+  }
+
+  function showLocalVideo(track) {
+    const pip = document.getElementById('local-pip');
+    if (!pip) return;
+    const off = document.getElementById('local-pip-off');
+    if (off) off.hidden = true;
+    const existing = pip.querySelector('video.call-media');
+    if (existing) existing.remove();
+    const el = track.attach();
+    el.className = 'call-media';
+    el.muted = true; // never play back your own mic/video loopback
+    pip.insertBefore(el, pip.firstChild);
+  }
+
+  function hideLocalVideo() {
+    const pip = document.getElementById('local-pip');
+    if (!pip) return;
+    const existing = pip.querySelector('video.call-media');
+    if (existing) existing.remove();
+    const off = document.getElementById('local-pip-off');
+    if (off) off.hidden = false;
+  }
+
+  // Remote audio must always be attached to the DOM to actually play,
+  // in both audio and video calls -- this is separate from any video
+  // rendering decision.
+  function attachRemoteAudio(track) {
+    const sink = document.getElementById('remote-audio-sink');
+    const el = track.attach();
+    sink.appendChild(el);
+    playableElements.push(el);
+    applyCurrentSink(el);
+  }
+
+  function handleRemoteTrackSubscribed(track) {
+    if (track.kind === 'audio') {
+      attachRemoteAudio(track);
+    } else if (track.kind === 'video' && callType === 'video') {
+      // Defensive: a video call only. An audio call must never show a
+      // live video feed even if a track were somehow subscribed.
+      showRemoteVideo(track);
+    }
+  }
+
+  function handleRemoteTrackUnsubscribed(track) {
+    if (track.kind === 'video' && callType === 'video') {
+      hideRemoteVideo();
+    }
+  }
+
+  // ---- Speaker / audio output switching (best-effort; hidden entirely when the platform can't do it) ----
+  let currentSinkId = null;
+  async function applyCurrentSink(el) {
+    if (currentSinkId && typeof el.setSinkId === 'function') {
+      try { await el.setSinkId(currentSinkId); } catch { /* ignore -- element just keeps the default output */ }
+    }
+  }
+
+  async function setupSpeakerControl() {
+    const probe = document.createElement('audio');
+    if (typeof probe.setSinkId !== 'function' || !navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return null; // not supported on this browser -- no control shown, per spec
+    }
+    let outputs;
+    try {
+      outputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+    } catch {
+      return null;
+    }
+    if (outputs.length < 2) return null; // nothing meaningful to switch between
+
+    let index = 0;
+    return {
+      label: () => outputs[index].label || `Audio output ${index + 1}`,
+      cycle: async () => {
+        index = (index + 1) % outputs.length;
+        currentSinkId = outputs[index].deviceId;
+        await Promise.all(playableElements.map((el) => applyCurrentSink(el)));
+        return outputs[index].label || `Audio output ${index + 1}`;
+      },
+    };
+  }
+
+  // ---- Controls bar (built dynamically so an audio call never gets a camera button) ----
+  async function renderControls() {
+    const bar = document.getElementById('call-controls');
+    const speaker = await setupSpeakerControl();
+
+    bar.innerHTML = `
+      <button class="call-control-btn" id="toggle-mic" aria-label="Mute microphone" aria-pressed="false" title="Mute microphone">
+        ${svgIcon(ICONS.micOn)}
+      </button>
+      ${callType === 'video' ? `
+      <button class="call-control-btn" id="toggle-camera" aria-label="Turn camera off" aria-pressed="false" title="Turn camera off">
+        ${svgIcon(ICONS.cameraOn)}
+      </button>` : ''}
+      ${speaker ? `
+      <button class="call-control-btn" id="toggle-speaker" aria-label="Switch audio output" title="Switch audio output: ${esc(speaker.label())}">
+        ${svgIcon(ICONS.speaker)}
+      </button>` : ''}
+      <button class="call-control-btn call-control-leave" id="leave-call" aria-label="End call" title="End call">
+        ${svgIcon(ICONS.endCall, true)}
+      </button>
+    `;
+
+    document.getElementById('toggle-mic').addEventListener('click', async () => {
+      if (!room) return;
+      const next = !micEnabled;
+      try {
+        await room.localParticipant.setMicrophoneEnabled(next);
+        micEnabled = next;
+      } catch (mediaErr) {
+        Toast.error(describeMediaError(mediaErr));
+        return; // toggle didn't actually take effect -- leave the button reflecting reality
+      }
+      syncControlButton('toggle-mic', micEnabled, ICONS.micOn, ICONS.micOff, 'Mute microphone', 'Unmute microphone');
+    });
+
+    const cameraBtn = document.getElementById('toggle-camera');
+    if (cameraBtn) {
+      cameraBtn.addEventListener('click', async () => {
+        if (!room) return;
+        const next = !cameraEnabled;
+        try {
+          await room.localParticipant.setCameraEnabled(next);
+          cameraEnabled = next;
+          if (cameraEnabled) {
+            const pub = [...room.localParticipant.videoTrackPublications.values()][0];
+            if (pub && pub.track) showLocalVideo(pub.track);
+          } else {
+            hideLocalVideo();
+          }
+        } catch (mediaErr) {
+          Toast.error(describeMediaError(mediaErr));
+          return;
+        }
+        syncControlButton('toggle-camera', cameraEnabled, ICONS.cameraOn, ICONS.cameraOff, 'Turn camera off', 'Turn camera on');
+      });
+    }
+
+    const speakerBtn = document.getElementById('toggle-speaker');
+    if (speakerBtn && speaker) {
+      speakerBtn.addEventListener('click', async (e) => {
+        const label = await speaker.cycle();
+        e.currentTarget.setAttribute('title', `Switch audio output: ${label}`);
+        Toast.success(`Audio output: ${label}`);
+      });
+    }
+
+    document.getElementById('leave-call').addEventListener('click', async () => {
+      if (room) await room.disconnect();
+      await endCall(callTypeParam, callId, hasConnected);
+      window.location.href = callTypeParam === 'interview' ? 'interviews.html' : 'messages.html';
+    });
   }
 
   async function getToken(type, id) {
@@ -112,7 +366,7 @@
    */
   function describeConnectionError(err) {
     if (!err) return 'Could not connect to the call.';
-    if (err.code === 'LIVEKIT_NOT_CONFIGURED') return 'Video calling is not configured on the server yet. Please contact support.';
+    if (err.code === 'LIVEKIT_NOT_CONFIGURED') return 'Audio/video calling is not configured on the server yet. Please contact support.';
     if (err.status === 401 || err.status === 403) return err.message || 'You are not authorized to join this call.';
     if (err.status === 404) return 'This call could not be found. It may have already ended.';
     if (err.status >= 500) return 'The call service is temporarily unavailable. Please try again shortly.';
@@ -148,7 +402,7 @@
     }
   }
 
-  async function endCall(type, id, hasConnected) {
+  async function endCall(type, id, connected) {
     try {
       if (type === 'interview') {
         await API.post(`/interviews/${id}/leave`);
@@ -156,11 +410,89 @@
         // A call that never got past ringing/connecting was backed out
         // of by this side, not "completed" — 'cancelled' says that
         // accurately in Call History instead of a generic 'ended'.
-        await updateCallStatus(id, hasConnected ? 'ended' : 'cancelled');
+        await updateCallStatus(id, connected ? 'ended' : 'cancelled');
       }
     } catch {
       // Best-effort — the call is ending either way.
     }
+  }
+
+  let callTypeParam, callId, hasConnected = false;
+
+  async function connectCall() {
+    setCallState('idle');
+
+    if (!callId) {
+      setCallState('failed', 'No call specified');
+      return;
+    }
+
+    if (typeof LivekitClient === 'undefined') {
+      setCallState('failed', 'Video library failed to load');
+      if (callTypeParam === 'call') await updateCallStatus(callId, 'failed', 'Video library failed to load');
+      return;
+    }
+
+    try {
+      const token = await getToken(callTypeParam, callId);
+      callType = token.callType === 'audio' ? 'audio' : 'video';
+      otherParticipant = token.otherParticipant;
+
+      if (callType === 'audio') renderAudioStage();
+      else renderVideoStage();
+      await renderControls();
+
+      room = new LivekitClient.Room();
+
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => handleRemoteTrackSubscribed(track));
+      room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => handleRemoteTrackUnsubscribed(track));
+      room.on(LivekitClient.RoomEvent.Reconnecting, () => setCallState('reconnecting'));
+      room.on(LivekitClient.RoomEvent.Reconnected, () => setCallState('connected'));
+      room.on(LivekitClient.RoomEvent.Disconnected, () => setCallState('ended'));
+
+      if (callTypeParam === 'call') await updateCallStatus(callId, 'connecting');
+      setCallState('connecting');
+      await room.connect(token.livekitUrl, token.accessToken);
+      hasConnected = true;
+      setCallState('connected');
+      if (callTypeParam === 'call') await updateCallStatus(callId, 'connected');
+    } catch (err) {
+      const reason = describeConnectionError(err);
+      setCallState('failed', reason);
+      Toast.error(reason);
+      if (callTypeParam === 'call') await updateCallStatus(callId, 'failed', reason);
+      return;
+    }
+
+    // Mic and camera are enabled independently (not one try/catch) so
+    // one failing doesn't hide whether the other actually succeeded --
+    // and so the control buttons' initial on/off state always reflects
+    // what the device actually did, not what was merely requested.
+    try {
+      await room.localParticipant.setMicrophoneEnabled(true);
+      micEnabled = true;
+    } catch (micErr) {
+      micEnabled = false;
+      Toast.error(describeMediaError(micErr));
+    }
+    syncControlButton('toggle-mic', micEnabled, ICONS.micOn, ICONS.micOff, 'Mute microphone', 'Unmute microphone');
+
+    if (callType === 'video') {
+      try {
+        await room.localParticipant.setCameraEnabled(true);
+        cameraEnabled = true;
+        const pub = [...room.localParticipant.videoTrackPublications.values()][0];
+        if (pub && pub.track) showLocalVideo(pub.track);
+      } catch (camErr) {
+        cameraEnabled = false;
+        Toast.error(describeMediaError(camErr));
+      }
+      syncControlButton('toggle-camera', cameraEnabled, ICONS.cameraOn, ICONS.cameraOff, 'Turn camera off', 'Turn camera on');
+    }
+
+    window.addEventListener('beforeunload', () => {
+      if (room) room.disconnect();
+    });
   }
 
   (async function init() {
@@ -168,91 +500,12 @@
     if (!user) return;
 
     const params = new URLSearchParams(window.location.search);
-    const type = params.get('type') === 'call' ? 'call' : 'interview';
-    const id = params.get('id');
-    const statusBadge = document.getElementById('call-status');
-    let hasConnected = false;
+    callTypeParam = params.get('type') === 'call' ? 'call' : 'interview';
+    callId = params.get('id');
 
-    if (!id) {
-      statusBadge.textContent = 'No call specified';
-      return;
-    }
+    document.getElementById('call-retry-btn').addEventListener('click', () => window.location.reload());
 
-    if (typeof LivekitClient === 'undefined') {
-      statusBadge.textContent = 'Video library failed to load';
-      document.getElementById('fallback-note').hidden = false;
-      if (type === 'call') await updateCallStatus(id, 'failed', 'Video library failed to load');
-      return;
-    }
-
-    try {
-      const token = await getToken(type, id);
-      room = new LivekitClient.Room();
-
-      room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
-        attachTrack(track, participant.identity, participant.name || participant.identity);
-      });
-      room.on(LivekitClient.RoomEvent.ParticipantDisconnected, (participant) => {
-        detachParticipant(participant.identity);
-      });
-      room.on(LivekitClient.RoomEvent.Disconnected, () => {
-        statusBadge.textContent = 'Call ended';
-      });
-
-      if (type === 'call') await updateCallStatus(id, 'connecting');
-      await room.connect(token.livekitUrl, token.accessToken);
-      hasConnected = true;
-      statusBadge.textContent = 'Connected';
-      statusBadge.className = 'badge badge-verified';
-      if (type === 'call') await updateCallStatus(id, 'connected');
-    } catch (err) {
-      const reason = describeConnectionError(err);
-      statusBadge.textContent = 'Could not connect';
-      document.getElementById('fallback-note').hidden = false;
-      Toast.error(reason);
-      if (type === 'call') await updateCallStatus(id, 'failed', reason);
-    }
-
-    if (hasConnected) {
-      try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        await room.localParticipant.setCameraEnabled(true);
-        room.localParticipant.videoTrackPublications.forEach((pub) => {
-          if (pub.track) attachTrack(pub.track, room.localParticipant.identity, 'You');
-        });
-      } catch (mediaErr) {
-        // The room connection itself succeeded -- this is a separate,
-        // recoverable problem (permission denied, device in use,
-        // etc.), so it must not look like the call failed to connect.
-        Toast.error(describeMediaError(mediaErr));
-      }
-    }
-
-    document.getElementById('toggle-mic').addEventListener('click', async (e) => {
-      if (!room) return;
-      micEnabled = !micEnabled;
-      await room.localParticipant.setMicrophoneEnabled(micEnabled);
-      e.currentTarget.classList.toggle('is-off', !micEnabled);
-      e.currentTarget.setAttribute('aria-pressed', String(!micEnabled));
-    });
-
-    document.getElementById('toggle-camera').addEventListener('click', async (e) => {
-      if (!room) return;
-      cameraEnabled = !cameraEnabled;
-      await room.localParticipant.setCameraEnabled(cameraEnabled);
-      e.currentTarget.classList.toggle('is-off', !cameraEnabled);
-      e.currentTarget.setAttribute('aria-pressed', String(!cameraEnabled));
-    });
-
-    document.getElementById('leave-call').addEventListener('click', async () => {
-      if (room) await room.disconnect();
-      await endCall(type, id, hasConnected);
-      window.location.href = type === 'interview' ? 'interviews.html' : 'messages.html';
-    });
-
-    window.addEventListener('beforeunload', () => {
-      if (room) room.disconnect();
-    });
+    await connectCall();
   })();
 </script>
 </body>

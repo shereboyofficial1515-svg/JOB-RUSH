@@ -3,6 +3,7 @@ const AppError = require('../utils/AppError');
 const conversationService = require('./conversationService');
 const blockService = require('./blockService');
 const livekitService = require('./livekitService');
+const userSummaryService = require('./userSummaryService');
 
 // 'cancelled' (the caller backs out before the other side ever picks
 // up) and 'failed' (a real connection error, e.g. LiveKit couldn't
@@ -93,7 +94,14 @@ async function getCallToken(callId, userId, displayName) {
   if (!['calling', 'ringing', 'connecting', 'connected'].includes(call.status)) {
     throw new AppError(`Cannot join a call with status "${call.status}".`, 400, 'NOT_JOINABLE');
   }
-  return livekitService.createCallAccessToken({ callId, userId, displayName });
+  const token = await livekitService.createCallAccessToken({ callId, userId, displayName });
+  const otherUserId = call.caller_user_id === userId ? call.callee_user_id : call.caller_user_id;
+  const otherParticipant = await userSummaryService.getCallDisplaySummary(otherUserId);
+  // callType tells the frontend whether to request camera media at
+  // all -- an audio call must never publish video, so this has to be
+  // authoritative from the row the call was actually created with,
+  // not re-derived or trusted from the client.
+  return { ...token, callType: call.call_type, otherParticipant };
 }
 
 /**
