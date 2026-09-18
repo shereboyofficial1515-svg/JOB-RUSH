@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 
 const env = require('./config/env');
 const authRoutes = require('./routes/authRoutes');
+const authController = require('./controllers/authController');
 const profileRoutes = require('./routes/profileRoutes');
 const portfolioRoutes = require('./routes/portfolioRoutes');
 const locationRoutes = require('./routes/locationRoutes');
@@ -94,6 +95,17 @@ app.use(
     },
   })
 );
+
+// Sign in with Apple uses response_mode=form_post: Apple's own page
+// submits an actual cross-origin POST form to this route, which
+// browsers tag with an Origin: https://appleid.apple.com header (a
+// plain top-level GET redirect, like Google/Facebook's callbacks,
+// normally doesn't send one). That Origin would never match this
+// app's own allowlist below, so this route -- like the Paystack
+// webhook -- must be mounted with its own body parser and BEFORE the
+// CORS middleware, or every Apple login would be rejected as a CORS
+// violation before ever reaching the handler.
+app.post('/api/auth/apple/callback', express.urlencoded({ extended: false }), authController.appleCallback);
 
 // APP_BASE_URL is normally one origin, but accepts a comma-separated
 // list so the same deployment can be pointed at more than one

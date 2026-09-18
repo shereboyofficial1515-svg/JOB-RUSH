@@ -5,6 +5,9 @@ const otpService = require('../services/otpService');
 const sessionService = require('../services/sessionService');
 const twoFactorService = require('../services/twoFactorService');
 const googleOAuthService = require('../services/googleOAuthService');
+const facebookOAuthService = require('../services/facebookOAuthService');
+const appleOAuthService = require('../services/appleOAuthService');
+const oauthStateService = require('../services/oauthStateService');
 const deviceService = require('../services/deviceService');
 const notificationService = require('../services/notificationService');
 const emailService = require('../services/emailService');
@@ -16,6 +19,18 @@ const { parseUserAgent } = require('../utils/uaParser');
 
 function getClientIp(req) {
   return req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress;
+}
+
+/**
+ * APP_BASE_URL accepts a comma-separated list of allowed frontend
+ * origins (see server.js's CORS setup) so a deployment can serve more
+ * than one frontend at once -- but an OAuth callback can only ever
+ * redirect to ONE of them, so it takes the first. Using the raw
+ * multi-value string directly here would build a malformed redirect
+ * like "http://a.com,http://b.com/pages/login.html".
+ */
+function getOAuthRedirectBase() {
+  return env.APP_BASE_URL.split(',')[0].trim();
 }
 
 /**
@@ -256,6 +271,26 @@ const resetPassword = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Shared final leg of every OAuth provider's callback, once a real
+ * Job Rush user has been resolved: still respects 2FA exactly like
+ * password login (an OAuth sign-in is not a way to skip the second
+ * factor), then establishes the same session/cookie every login path
+ * uses and redirects into the app.
+ */
+async function completeOAuthLogin(req, res, user, frontendBase) {
+  const has2FA = await twoFactorService.isEnabled(user.id);
+  if (has2FA) {
+    const challengeToken = await twoFactorService.createLoginChallenge(user.id);
+    return res.redirect(`${frontendBase}/pages/login.html?twoFactorChallenge=${encodeURIComponent(challengeToken)}`);
+  }
+
+  const { rawToken, expiresAt } = await establishSession(req, user);
+  res.cookie(env.SESSION_COOKIE_NAME, rawToken, { ...sessionService.COOKIE_OPTIONS, expires: expiresAt });
+
+  return res.redirect(`${frontendBase}/pages/dashboard.html`);
+}
+
+/**
  * GET /api/auth/google
  * Redirects the browser to Google's consent screen. Not an API call
  * the frontend fetches — a real navigation, since Google's OAuth flow
@@ -276,12 +311,12 @@ const googleRedirect = asyncHandler(async (req, res) => {
  */
 const googleCallback = asyncHandler(async (req, res) => {
   const { code, state, error: googleError } = req.query;
-  const frontendBase = env.APP_BASE_URL;
+  const frontendBase = getOAuthRedirectBase();
 
   if (googleError) {
     return res.redirect(`${frontendBase}/pages/login.html?error=google_denied`);
   }
-  if (!code || !state || !googleOAuthService.verifyState(state)) {
+  if (!code || !state || !oauthStateService.verifyState(state)) {
     logger.warn('Rejected Google OAuth callback with invalid/missing state');
     return res.redirect(`${frontendBase}/pages/login.html?error=invalid_state`);
   }
@@ -300,21 +335,123 @@ const googleCallback = asyncHandler(async (req, res) => {
       fullName: profile.name,
     });
 
-    const has2FA = await twoFactorService.isEnabled(user.id);
-    if (has2FA) {
-      // Google sign-in still respects 2FA — redirect to the frontend's
-      // challenge step rather than silently skipping the second factor.
-      const challengeToken = await twoFactorService.createLoginChallenge(user.id);
-      return res.redirect(`${frontendBase}/pages/login.html?twoFactorChallenge=${encodeURIComponent(challengeToken)}`);
-    }
-
-    const { rawToken, expiresAt } = await establishSession(req, user);
-    res.cookie(env.SESSION_COOKIE_NAME, rawToken, { ...sessionService.COOKIE_OPTIONS, expires: expiresAt });
-
-    return res.redirect(`${frontendBase}/pages/dashboard.html`);
+    return await completeOAuthLogin(req, res, user, frontendBase);
   } catch (err) {
     logger.error('Google OAuth callback failed', { error: err.message });
     return res.redirect(`${frontendBase}/pages/login.html?error=google_signin_failed`);
+  }
+});
+
+/**
+ * GET /api/auth/facebook
+ * Same shape as the Google flow above -- a real browser navigation to
+ * Facebook's own consent screen.
+ */
+const facebookRedirect = asyncHandler(async (req, res) => {
+  const url = facebookOAuthService.buildAuthorizationUrl();
+  res.redirect(url);
+});
+
+/**
+ * GET /api/auth/facebook/callback
+ * Facebook's email permission can be declined, or the account may
+ * simply have no verified email on file -- in either case the field
+ * is just absent from the profile response (there's no separate
+ * "verified" flag to check the way Google has one), so Job Rush
+ * cannot create/link an account without it and says so plainly rather
+ * than guessing an email or accepting an unverified one.
+ */
+const facebookCallback = asyncHandler(async (req, res) => {
+  const { code, state, error: facebookError } = req.query;
+  const frontendBase = getOAuthRedirectBase();
+
+  if (facebookError) {
+    return res.redirect(`${frontendBase}/pages/login.html?error=facebook_denied`);
+  }
+  if (!code || !state || !oauthStateService.verifyState(state)) {
+    logger.warn('Rejected Facebook OAuth callback with invalid/missing state');
+    return res.redirect(`${frontendBase}/pages/login.html?error=invalid_state`);
+  }
+
+  try {
+    const tokens = await facebookOAuthService.exchangeCodeForTokens(code);
+    const profile = await facebookOAuthService.getUserInfo(tokens.access_token);
+
+    if (!profile.email) {
+      return res.redirect(`${frontendBase}/pages/login.html?error=facebook_email_required`);
+    }
+
+    const user = await authService.findOrCreateFacebookUser({
+      facebookId: profile.id,
+      email: profile.email,
+      fullName: profile.name,
+    });
+
+    return await completeOAuthLogin(req, res, user, frontendBase);
+  } catch (err) {
+    logger.error('Facebook OAuth callback failed', { error: err.message });
+    return res.redirect(`${frontendBase}/pages/login.html?error=facebook_signin_failed`);
+  }
+});
+
+/**
+ * GET /api/auth/apple
+ * Same shape again, to Apple's consent screen. response_mode=form_post
+ * is baked into the URL this builds, so Apple POSTs the result back
+ * instead of redirecting with query params -- see appleCallback below.
+ */
+const appleRedirect = asyncHandler(async (req, res) => {
+  const url = appleOAuthService.buildAuthorizationUrl();
+  res.redirect(url);
+});
+
+/**
+ * POST /api/auth/apple/callback
+ * Apple posts here (form-urlencoded, parsed by the scoped middleware
+ * in server.js) with code/state and, on the very first authorization
+ * only, a `user` field carrying the person's name as JSON -- see
+ * appleOAuthService.parseFirstLoginName. Identity (sub/email) comes
+ * from the id_token itself, cryptographically verified against
+ * Apple's own published keys, never trusted from the request body.
+ */
+const appleCallback = asyncHandler(async (req, res) => {
+  const { code, state, error: appleError, user: userField } = req.body;
+  const frontendBase = getOAuthRedirectBase();
+
+  if (appleError) {
+    return res.redirect(`${frontendBase}/pages/login.html?error=apple_denied`);
+  }
+  if (!code || !state || !oauthStateService.verifyState(state)) {
+    logger.warn('Rejected Apple OAuth callback with invalid/missing state');
+    return res.redirect(`${frontendBase}/pages/login.html?error=invalid_state`);
+  }
+
+  try {
+    const tokens = await appleOAuthService.exchangeCodeForTokens(code);
+    const claims = await appleOAuthService.verifyIdToken(tokens.id_token);
+
+    if (!claims.email) {
+      return res.redirect(`${frontendBase}/pages/login.html?error=apple_email_required`);
+    }
+
+    // Apple's email_verified/is_private_email claims are strings
+    // ("true"/"false"), not booleans, in the id_token.
+    if (claims.email_verified !== true && claims.email_verified !== 'true') {
+      return res.redirect(`${frontendBase}/pages/login.html?error=email_not_verified`);
+    }
+
+    const fullName = appleOAuthService.parseFirstLoginName(userField);
+
+    const user = await authService.findOrCreateAppleUser({
+      appleId: claims.sub,
+      email: claims.email,
+      fullName,
+    });
+
+    return await completeOAuthLogin(req, res, user, frontendBase);
+  } catch (err) {
+    logger.error('Apple OAuth callback failed', { error: err.message });
+    return res.redirect(`${frontendBase}/pages/login.html?error=apple_signin_failed`);
   }
 });
 
@@ -379,6 +516,10 @@ module.exports = {
   verifyLoginTwoFactor,
   googleRedirect,
   googleCallback,
+  facebookRedirect,
+  facebookCallback,
+  appleRedirect,
+  appleCallback,
   logout,
   logoutAllDevices,
   listSessions,

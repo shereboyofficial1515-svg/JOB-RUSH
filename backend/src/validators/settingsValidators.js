@@ -11,6 +11,7 @@ const updateSettingsSchema = z.object({
   chatFontSize: z.enum(['small', 'default', 'large', 'extra_large']).optional(),
   chatMessagePreviews: z.boolean().optional(),
   mediaAutoDownload: z.enum(['never', 'wifi_only', 'always']).optional(),
+  callRingtoneEnabled: z.boolean().optional(),
 
   textSize: z.enum(['small', 'default', 'large', 'extra_large']).optional(),
   highContrast: z.boolean().optional(),
@@ -29,6 +30,7 @@ function toSnakeCaseSettingsInput(body) {
     chatFontSize: 'chat_font_size',
     chatMessagePreviews: 'chat_message_previews',
     mediaAutoDownload: 'media_auto_download',
+    callRingtoneEnabled: 'call_ringtone_enabled',
     textSize: 'text_size',
     highContrast: 'high_contrast',
     reducedMotion: 'reduced_motion',

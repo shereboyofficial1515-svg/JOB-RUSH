@@ -48,6 +48,7 @@
 <script src="../js/utils/toast.js"></script>
 <script src="../js/utils/animate.js"></script>
 <script src="../js/modules/auth.js"></script>
+<script src="../js/modules/ringtoneManager.js"></script>
 <script>
   /**
    * This page is written against the documented LiveKit JS client v2
@@ -95,6 +96,7 @@
   let room = null;
   let callType = 'video'; // overwritten from the token response before anything connects
   let otherParticipant = null;
+  let isCaller = false;
   let micEnabled = true;
   let cameraEnabled = true;
   const playableElements = []; // every <audio>/<video> element holding a remote track, for speaker switching
@@ -140,7 +142,7 @@
         badge.className = 'badge badge-danger';
         break;
       case 'ended':
-        badge.textContent = 'Call ended';
+        badge.textContent = message || 'Call ended';
         badge.className = 'badge badge-neutral';
         break;
     }
@@ -347,6 +349,7 @@
     }
 
     document.getElementById('leave-call').addEventListener('click', async () => {
+      stopRingback();
       if (room) await room.disconnect();
       await endCall(callTypeParam, callId, hasConnected);
       window.location.href = callTypeParam === 'interview' ? 'interviews.html' : 'messages.html';
@@ -418,6 +421,63 @@
   }
 
   let callTypeParam, callId, hasConnected = false;
+  let ringbackPollTimer = null;
+  let ringbackTimeoutTimer = null;
+
+  const RINGBACK_POLL_MS = 2500;
+  const RINGBACK_TIMEOUT_MS = 45000;
+  const CALL_OUTCOME_MESSAGES = {
+    declined: 'Call declined.',
+    missed: 'No answer.',
+    busy: 'The other person is on another call.',
+    cancelled: 'Call cancelled.',
+  };
+
+  function stopRingback() {
+    if (ringbackPollTimer) clearInterval(ringbackPollTimer);
+    if (ringbackTimeoutTimer) clearTimeout(ringbackTimeoutTimer);
+    ringbackPollTimer = null;
+    ringbackTimeoutTimer = null;
+    RingtoneManager.stop('outgoing');
+  }
+
+  /**
+   * Only the side that placed a chat-originated call (not a scheduled
+   * interview) ever rings back -- and only until a REAL signal says
+   * otherwise: the other participant actually joining the LiveKit room
+   * (RoomEvent.ParticipantConnected, wired in connectCall), the call's
+   * own status flipping to something terminal (declined/missed/busy/
+   * cancelled -- polled here, since there's no push transport in this
+   * app), or this side giving up after RINGBACK_TIMEOUT_MS because
+   * nothing ever happened (e.g. the callee's client was never even
+   * open to answer).
+   */
+  function startRingback() {
+    if (callTypeParam !== 'call' || !isCaller) return;
+    if (room.remoteParticipants && room.remoteParticipants.size > 0) return; // already joined -- nothing to ring back for
+
+    RingtoneManager.play('outgoing');
+
+    ringbackPollTimer = setInterval(async () => {
+      try {
+        const { call } = await API.get(`/messaging/calls/${callId}`);
+        if (call && CALL_OUTCOME_MESSAGES[call.status]) {
+          stopRingback();
+          setCallState('ended', CALL_OUTCOME_MESSAGES[call.status]);
+          if (room) await room.disconnect();
+        }
+      } catch {
+        // Best-effort -- a failed poll just tries again next tick.
+      }
+    }, RINGBACK_POLL_MS);
+
+    ringbackTimeoutTimer = setTimeout(async () => {
+      stopRingback();
+      setCallState('ended', 'No answer.');
+      await updateCallStatus(callId, 'cancelled');
+      if (room) await room.disconnect();
+    }, RINGBACK_TIMEOUT_MS);
+  }
 
   async function connectCall() {
     setCallState('idle');
@@ -437,6 +497,7 @@
       const token = await getToken(callTypeParam, callId);
       callType = token.callType === 'audio' ? 'audio' : 'video';
       otherParticipant = token.otherParticipant;
+      isCaller = !!token.isCaller;
 
       if (callType === 'audio') renderAudioStage();
       else renderVideoStage();
@@ -444,18 +505,42 @@
 
       room = new LivekitClient.Room();
 
+      // A call is only genuinely "connected" once BOTH sides are in
+      // the room -- neither side declares it just because its OWN
+      // room.connect() succeeded. Without this, the caller's own join
+      // (into what's still an empty room) used to immediately flip
+      // the call's status to 'connected' in the database, before the
+      // callee had done anything -- which made the callee's incoming-
+      // call poll (which only looks for 'calling'/'ringing') stop
+      // finding the call and silently drop it before it ever rang.
+      let markedConnected = false;
+      function handlePeerPresence() {
+        if (markedConnected || room.remoteParticipants.size === 0) return;
+        markedConnected = true;
+        stopRingback();
+        setCallState('connected');
+        if (callTypeParam === 'call') updateCallStatus(callId, 'connected');
+      }
+
       room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => handleRemoteTrackSubscribed(track));
       room.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => handleRemoteTrackUnsubscribed(track));
+      room.on(LivekitClient.RoomEvent.ParticipantConnected, () => handlePeerPresence());
       room.on(LivekitClient.RoomEvent.Reconnecting, () => setCallState('reconnecting'));
       room.on(LivekitClient.RoomEvent.Reconnected, () => setCallState('connected'));
-      room.on(LivekitClient.RoomEvent.Disconnected, () => setCallState('ended'));
+      room.on(LivekitClient.RoomEvent.Disconnected, () => {
+        stopRingback();
+        setCallState('ended');
+      });
 
-      if (callTypeParam === 'call') await updateCallStatus(callId, 'connecting');
+      if (callTypeParam === 'call' && !isCaller) await updateCallStatus(callId, 'connecting');
       setCallState('connecting');
       await room.connect(token.livekitUrl, token.accessToken);
       hasConnected = true;
-      setCallState('connected');
-      if (callTypeParam === 'call') await updateCallStatus(callId, 'connected');
+      handlePeerPresence(); // the other side may already be in the room (e.g. the callee joining after the caller)
+      if (!markedConnected) {
+        if (isCaller) startRingback();
+        else setCallState('connecting', 'Waiting to connect…');
+      }
     } catch (err) {
       const reason = describeConnectionError(err);
       setCallState('failed', reason);

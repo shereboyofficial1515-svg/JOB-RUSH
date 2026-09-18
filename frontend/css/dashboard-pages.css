@@ -80,7 +80,7 @@
 .message-meta .retry-send-btn { color: inherit; text-decoration: underline; font-size: var(--text-xs); background:none; border:none; padding:0; cursor:pointer; opacity: 1; }
 
 .thread-composer { display: flex; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-subtle); }
-.thread-composer input { flex: 1; background: var(--color-primary-navy); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--text-primary); }
+.thread-composer input { flex: 1; background: var(--bg-page); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); color: var(--text-primary); }
 
 /* Base (desktop) rule must come before the mobile override below —
    same specificity either way, so whichever is LAST in source order
@@ -101,4 +101,72 @@
   .thread-panel.is-open-on-mobile { display: flex; }
   .conversation-list.is-hidden-on-mobile { display: none; }
   .back-to-list-btn { display: inline-flex; }
+}
+
+/* ---------- Chat theme (Chat Settings > Chat theme) ----------
+   Scoped to .messages-layout rather than :root -- this is a chat-only
+   theme, not a site-wide light mode. Every rule above already reads
+   color through the shared --bg-surface/--bg-elevated/--bg-page/
+   --text-primary/--text-secondary/--border-subtle variables, so
+   redefining them here re-themes the whole conversation list, thread
+   header, bubbles, composer, and icon buttons without duplicating any
+   of those rules. Set via ChatAppearance (js/modules/accessibility.js)
+   as html[data-chat-theme], read from user_settings.chat_theme. */
+html[data-chat-theme="light"] .messages-layout {
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #EEF1F5;
+  --bg-page: #F7F8FA;
+  --text-primary: #101B2C;
+  --text-secondary: #5B6472;
+  --border-subtle: rgba(16, 27, 44, 0.12);
+  /* color/background aren't just "read the variable" here -- they
+     force a fresh property declaration on .messages-layout itself.
+     Without this, text elements that only ever inherit `color` from
+     <body> (e.g. the bare <strong> conversation names, which never
+     re-reference var(--text-primary) themselves) keep body's already
+     -resolved dark-mode color, because CSS inherits the computed
+     value of a property, not a live reference to the variable that
+     produced it -- redefining --text-primary deeper in the tree
+     doesn't retroactively change what an ancestor already resolved. */
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+/* These two rules use a hand-picked rgba tint (not a variable) tuned
+   for the dark palette -- a light tint on a white background is
+   invisible, so they need their own light-mode values rather than
+   inheriting through a variable that doesn't exist for them. */
+html[data-chat-theme="light"] .conversation-item:hover { background: rgba(16, 27, 44, 0.05); }
+html[data-chat-theme="light"] .badge-neutral { background: rgba(16, 27, 44, 0.08); }
+
+/* "system" defers to the OS/browser color-scheme instead of forcing
+   one -- only takes effect when the OS actually reports light, so a
+   dark-OS user sees no change (the base palette is already dark). */
+@media (prefers-color-scheme: light) {
+  html[data-chat-theme="system"] .messages-layout {
+    --bg-surface: #FFFFFF;
+    --bg-elevated: #EEF1F5;
+    --bg-page: #F7F8FA;
+    --text-primary: #101B2C;
+    --text-secondary: #5B6472;
+    --border-subtle: rgba(16, 27, 44, 0.12);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+  html[data-chat-theme="system"] .conversation-item:hover { background: rgba(16, 27, 44, 0.05); }
+  html[data-chat-theme="system"] .badge-neutral { background: rgba(16, 27, 44, 0.08); }
+}
+
+/* ---------- Chat wallpaper (Chat Settings > Chat wallpaper) ----------
+   Applied to .thread-messages only -- the scrollable message area --
+   never the header/composer/call-history panel, and always sits
+   behind message bubbles (which have their own opaque background),
+   so it can never obscure them. Pure CSS gradients driven by the
+   existing design tokens: no image request, no external asset, and it
+   automatically follows the chat theme above since it reads the same
+   variables. Set via ChatAppearance as html[data-chat-wallpaper]. */
+html[data-chat-wallpaper="solid"] .thread-messages {
+  background-image: linear-gradient(180deg, rgba(240, 176, 0, 0.05), rgba(240, 176, 0, 0) 240px);
+}
+html[data-chat-wallpaper="geometric"] .thread-messages {
+  background-image: repeating-linear-gradient(135deg, var(--border-subtle) 0, var(--border-subtle) 1px, transparent 1px, transparent 26px);
 }

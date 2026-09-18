@@ -302,10 +302,18 @@ async function resetPasswordWithToken({ rawToken, newPassword }) {
  * intent signup with no way to post a job. Revisit once a role-change
  * endpoint exists.
  */
-async function findOrCreateGoogleUser({ googleId, email, fullName }) {
-  const { rows: byGoogleId } = await query('SELECT * FROM users WHERE google_id = $1', [googleId]);
-  if (byGoogleId.length > 0) {
-    return toPublicUser(byGoogleId[0]);
+/**
+ * Shared by every OAuth provider (Google/Facebook/Apple): same
+ * find-by-provider-id -> find-by-email-and-link -> create flow either
+ * way, differing only in which column holds the provider's identifier
+ * and what the audit log calls it. `providerColumn` is always one of
+ * three hardcoded literals from the wrapper functions below, never
+ * caller/user-supplied, so interpolating it into the query is safe.
+ */
+async function findOrCreateOAuthUser({ providerColumn, providerId, email, fullName, provider }) {
+  const { rows: byProviderId } = await query(`SELECT * FROM users WHERE ${providerColumn} = $1`, [providerId]);
+  if (byProviderId.length > 0) {
+    return toPublicUser(byProviderId[0]);
   }
 
   const { rows: byEmail } = await query('SELECT * FROM users WHERE email = $1', [email]);
@@ -314,10 +322,10 @@ async function findOrCreateGoogleUser({ googleId, email, fullName }) {
     if (existing.account_status === 'suspended' || existing.account_status === 'disabled') {
       throw new AppError('This account is not available for sign-in.', 403, 'ACCOUNT_UNAVAILABLE');
     }
-    await query('UPDATE users SET google_id = $2 WHERE id = $1', [existing.id, googleId]);
+    await query(`UPDATE users SET ${providerColumn} = $2 WHERE id = $1`, [existing.id, providerId]);
     await recordAuditEvent({
       actorUserId: existing.id,
-      action: 'GOOGLE_ACCOUNT_LINKED',
+      action: `${provider.toUpperCase()}_ACCOUNT_LINKED`,
       resourceType: 'user',
       resourceId: existing.id,
       result: 'success',
@@ -331,21 +339,39 @@ async function findOrCreateGoogleUser({ googleId, email, fullName }) {
   const passwordHash = await hashPassword(unusablePassword);
 
   const { rows } = await query(
-    `INSERT INTO users (email, password_hash, full_name, role, account_status, email_verified_at, google_id)
+    `INSERT INTO users (email, password_hash, full_name, role, account_status, email_verified_at, ${providerColumn})
      VALUES ($1, $2, $3, 'both', 'active', now(), $4)
      RETURNING ${PUBLIC_USER_FIELDS}`,
-    [email, passwordHash, fullName || email.split('@')[0], googleId]
+    [email, passwordHash, fullName || email.split('@')[0], providerId]
   );
 
   await recordAuditEvent({
     actorUserId: rows[0].id,
-    action: 'USER_REGISTERED_VIA_GOOGLE',
+    action: `USER_REGISTERED_VIA_${provider.toUpperCase()}`,
     resourceType: 'user',
     resourceId: rows[0].id,
     result: 'success',
   });
 
   return toPublicUser(rows[0]);
+}
+
+async function findOrCreateGoogleUser({ googleId, email, fullName }) {
+  return findOrCreateOAuthUser({ providerColumn: 'google_id', providerId: googleId, email, fullName, provider: 'google' });
+}
+
+async function findOrCreateFacebookUser({ facebookId, email, fullName }) {
+  return findOrCreateOAuthUser({ providerColumn: 'facebook_id', providerId: facebookId, email, fullName, provider: 'facebook' });
+}
+
+/**
+ * Apple's own identifier (the id_token's `sub`) is the only thing
+ * guaranteed stable across logins -- name/email may not be resent
+ * after the first authorization (see appleOAuthService.js), so this
+ * must never depend on fullName being present.
+ */
+async function findOrCreateAppleUser({ appleId, email, fullName }) {
+  return findOrCreateOAuthUser({ providerColumn: 'apple_id', providerId: appleId, email, fullName, provider: 'apple' });
 }
 
 /**
@@ -539,6 +565,8 @@ module.exports = {
   requestPasswordReset,
   resetPasswordWithToken,
   findOrCreateGoogleUser,
+  findOrCreateFacebookUser,
+  findOrCreateAppleUser,
   reactivateIfNeeded,
   changePassword,
   requestEmailChange,

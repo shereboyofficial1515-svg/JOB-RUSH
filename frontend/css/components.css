@@ -515,6 +515,41 @@
 .btn-google:hover { filter: brightness(0.96); }
 .btn-google svg { flex-shrink: 0; }
 
+/* Facebook brand blue (#1877F2) per their own brand guidelines. */
+.btn-facebook {
+  background: #1877F2;
+  color: #fff;
+  border: 1px solid #1877F2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.btn-facebook:hover { filter: brightness(0.94); }
+.btn-facebook svg { flex-shrink: 0; }
+
+/* Apple's "black" Sign in with Apple button style (one of Apple's own
+   approved variants), with "Continue with Apple" wording -- also an
+   Apple-approved string for this button. */
+.btn-apple {
+  background: #000;
+  color: #fff;
+  border: 1px solid #000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+.btn-apple:hover { filter: brightness(1.2); }
+.btn-apple svg { flex-shrink: 0; }
+
+.btn-google.is-loading,
+.btn-facebook.is-loading,
+.btn-apple.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
 .progress-steps { display: flex; gap: var(--space-2); margin-bottom: var(--space-7); }
 .progress-steps .step {
   flex: 1;
