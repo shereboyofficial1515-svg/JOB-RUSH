@@ -51,6 +51,26 @@ const app = express();
 // for req.secure / x-forwarded-for to be trusted correctly.
 app.set('trust proxy', 1);
 
+// The LiveKit connect-src entries below used to hardcode
+// *.livekit.cloud, which silently breaks the WebSocket connection
+// (the browser blocks it before it ever reaches the network) for any
+// LiveKit deployment that isn't on LiveKit Cloud under that exact
+// domain pattern -- a self-hosted server, a different cloud project
+// host, anything. Deriving it from the actual configured LIVEKIT_URL
+// means this is correct for whatever LiveKit deployment is actually
+// in use, instead of assuming one provider. The *.livekit.cloud
+// wildcard is kept alongside it for the common case where LIVEKIT_URL
+// itself points at a LiveKit Cloud project.
+const livekitConnectSrc = ['https://*.livekit.cloud', 'wss://*.livekit.cloud'];
+if (env.LIVEKIT_URL) {
+  try {
+    const livekitHost = new URL(env.LIVEKIT_URL.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:')).host;
+    livekitConnectSrc.push(`https://${livekitHost}`, `wss://${livekitHost}`);
+  } catch {
+    logger.warn('LIVEKIT_URL is set but is not a valid URL -- CSP connect-src will not include it', { livekitUrl: env.LIVEKIT_URL });
+  }
+}
+
 // This server now also serves the frontend's static HTML/CSS/JS
 // (see the express.static block below) — Helmet's default Content-
 // Security-Policy would silently block every page's own inline
@@ -69,7 +89,7 @@ app.use(
         'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
         'img-src': ["'self'", 'data:', 'https://*.supabase.co'],
         'media-src': ["'self'", 'https://*.supabase.co'],
-        'connect-src': ["'self'", 'https://*.livekit.cloud', 'wss://*.livekit.cloud'],
+        'connect-src': ["'self'", ...livekitConnectSrc],
       },
     },
   })

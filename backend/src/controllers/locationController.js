@@ -2,7 +2,7 @@ const locationService = require('../services/locationService');
 const asyncHandler = require('../utils/asyncHandler');
 
 const listStates = asyncHandler(async (req, res) => {
-  const states = await locationService.listActiveStates();
+  const states = await locationService.listStates();
   res.status(200).json({ states });
 });
 
