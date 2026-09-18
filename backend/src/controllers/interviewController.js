@@ -3,6 +3,7 @@ const questionService = require('../services/interviewQuestionService');
 const noteService = require('../services/interviewNoteService');
 const evaluationService = require('../services/interviewEvaluationService');
 const livekitService = require('../services/livekitService');
+const userSummaryService = require('../services/userSummaryService');
 const asyncHandler = require('../utils/asyncHandler');
 const AppError = require('../utils/AppError');
 
@@ -104,7 +105,10 @@ const getCallToken = asyncHandler(async (req, res) => {
 
   await interviewService.recordJoin(interview.id, req.user.id);
 
-  res.status(200).json(token);
+  const otherUserId = req.user.id === interview.worker_user_id ? interview.hirer_user_id : interview.worker_user_id;
+  const otherParticipant = await userSummaryService.getCallDisplaySummary(otherUserId);
+
+  res.status(200).json({ ...token, callType: interview.interview_type, otherParticipant });
 });
 
 const leaveCall = asyncHandler(async (req, res) => {
