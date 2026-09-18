@@ -50,6 +50,8 @@
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/upload.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/ringtoneManager.js"></script>
+  <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
@@ -125,6 +127,11 @@
       try {
         const { settings } = await API.patch('/settings', partial);
         currentSettings = settings;
+        // Re-applies immediately (and refreshes the localStorage cache
+        // accessibility.js reads on next page load) so a change made
+        // here -- e.g. chat theme/wallpaper -- doesn't wait for the
+        // next page's own GET /settings round trip to take effect.
+        if (typeof Accessibility !== 'undefined') Accessibility.applyFromSettings(settings);
         if (successMessage) Toast.success(successMessage);
         return settings;
       } catch (err) {
@@ -1147,6 +1154,7 @@
             <option value="wifi_only" ${settings.media_auto_download === 'wifi_only' ? 'selected' : ''}>Wi-Fi only</option>
             <option value="always" ${settings.media_auto_download === 'always' ? 'selected' : ''}>Always</option>
           </select>`)}
+        ${settingsRowHtml('Call ringtone', 'Play a ringtone for incoming calls. Turning this off only silences call audio -- other notifications are unaffected.', toggleHtml('call-ringtone-toggle', settings.call_ringtone_enabled))}
       </div>
 
       <div class="card" style="margin-bottom: var(--space-5);">
@@ -1171,6 +1179,7 @@
       document.getElementById('chat-font-size-select').addEventListener('change', (e) => patchSettings({ chatFontSize: e.target.value }, 'Message text size updated.'));
       document.getElementById('chat-previews-toggle').addEventListener('change', (e) => patchSettings({ chatMessagePreviews: e.target.checked }, 'Preference updated.'));
       document.getElementById('media-auto-download-select').addEventListener('change', (e) => patchSettings({ mediaAutoDownload: e.target.value }, 'Preference updated.'));
+      document.getElementById('call-ringtone-toggle').addEventListener('change', (e) => patchSettings({ callRingtoneEnabled: e.target.checked }, 'Preference updated.'));
 
       loadBlockedUsers();
       loadArchivedChats();
@@ -1626,6 +1635,7 @@
       currentUser = user;
 
       NotificationBell.render(document.getElementById('notif-bell-mount'));
+      IncomingCallWatcher.start();
       SidebarNav.render(user, 'settings');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 

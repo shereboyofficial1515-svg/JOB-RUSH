@@ -47,6 +47,10 @@ router.post(
   callController.initiateCall
 );
 router.get('/conversations/:conversationId/calls', callController.listForConversation);
+// /calls/incoming must be registered before /calls/:id, or Express's
+// :id param would match the literal path segment "incoming" first.
+router.get('/calls/incoming', callController.getIncomingCall);
+router.get('/calls/:id', callController.getCallStatus);
 router.post('/calls/:id/status', validateBody(updateCallStatusSchema), callController.updateStatus);
 router.get('/calls/:id/token', callController.getCallToken);
 

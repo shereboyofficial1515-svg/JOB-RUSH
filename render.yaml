@@ -87,6 +87,22 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         sync: false # must exactly match this service's deployed URL + /api/auth/google/callback
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: FACEBOOK_REDIRECT_URI
+        sync: false # must exactly match this service's deployed URL + /api/auth/facebook/callback
+      - key: APPLE_CLIENT_ID
+        sync: false # the Services ID, not the App ID
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false # the .p8 key's contents, with real newlines as literal \n
+      - key: APPLE_REDIRECT_URI
+        sync: false # must exactly match this service's deployed URL + /api/auth/apple/callback
       - key: GEMINI_API_KEY
         sync: false
       # See backend/.env.example for the full variable list (email

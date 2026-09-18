@@ -40,6 +40,15 @@ router.post('/otp/verify', otpVerifyLimiter, validateBody(verifyOtpSchema), cont
 router.post('/login', loginLimiter, validateBody(loginSchema), controller.login);
 router.get('/google', controller.googleRedirect);
 router.get('/google/callback', controller.googleCallback);
+router.get('/facebook', controller.facebookRedirect);
+router.get('/facebook/callback', controller.facebookCallback);
+router.get('/apple', controller.appleRedirect);
+// POST /apple/callback is intentionally NOT mounted here -- see
+// server.js, where it's registered before the global CORS middleware.
+// Apple's response_mode=form_post means the browser submits it as a
+// real cross-origin POST from appleid.apple.com, which (unlike a
+// simple GET redirect) carries an Origin header the CORS origin
+// check would otherwise reject outright, blocking every Apple login.
 router.post('/2fa/verify-login', loginLimiter, validateTwoFactorBody(verifyLoginSchema), controller.verifyLoginTwoFactor);
 router.post('/2fa/setup', authenticate, twoFactorController.setup);
 router.post('/2fa/confirm-setup', authenticate, validateTwoFactorBody(codeSchema), twoFactorController.confirmSetup);

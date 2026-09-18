@@ -21,4 +21,14 @@ const listForConversation = asyncHandler(async (req, res) => {
   res.status(200).json({ calls });
 });
 
-module.exports = { initiateCall, updateStatus, getCallToken, listForConversation };
+const getIncomingCall = asyncHandler(async (req, res) => {
+  const call = await callService.getIncomingCall(req.user.id);
+  res.status(200).json({ call });
+});
+
+const getCallStatus = asyncHandler(async (req, res) => {
+  const call = await callService.getCallStatus(req.params.id, req.user.id);
+  res.status(200).json({ call });
+});
+
+module.exports = { initiateCall, updateStatus, getCallToken, listForConversation, getIncomingCall, getCallStatus };

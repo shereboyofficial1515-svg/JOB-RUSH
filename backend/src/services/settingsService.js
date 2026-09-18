@@ -13,6 +13,7 @@ const EDITABLE_FIELDS = [
   'chat_font_size',
   'chat_message_previews',
   'media_auto_download',
+  'call_ringtone_enabled',
   'text_size',
   'high_contrast',
   'reduced_motion',

@@ -100,8 +100,39 @@ async function getCallToken(callId, userId, displayName) {
   // callType tells the frontend whether to request camera media at
   // all -- an audio call must never publish video, so this has to be
   // authoritative from the row the call was actually created with,
-  // not re-derived or trusted from the client.
-  return { ...token, callType: call.call_type, otherParticipant };
+  // not re-derived or trusted from the client. isCaller tells it
+  // whether to run outgoing-ringback logic (only the side that placed
+  // the call waits/rings back for the other to join).
+  return { ...token, callType: call.call_type, otherParticipant, isCaller: call.caller_user_id === userId };
+}
+
+/**
+ * Polled by the callee's browser (there is no push/WebSocket in this
+ * app -- see incomingCallWatcher.js) to discover a call ringing for
+ * them right now. Scoped to the last 45s so an abandoned 'calling'
+ * row (the caller's tab crashed, network dropped, etc.) doesn't ring
+ * forever on the callee's side; the caller's own side independently
+ * gives up and marks the call failed/cancelled well before that.
+ */
+async function getIncomingCall(userId) {
+  const { rows } = await query(
+    `SELECT * FROM calls
+      WHERE callee_user_id = $1 AND status IN ('calling', 'ringing')
+        AND started_at > now() - interval '45 seconds'
+      ORDER BY started_at DESC
+      LIMIT 1`,
+    [userId]
+  );
+  if (rows.length === 0) return null;
+  const call = rows[0];
+  const caller = await userSummaryService.getCallDisplaySummary(call.caller_user_id);
+  return { id: call.id, status: call.status, callType: call.call_type, caller };
+}
+
+/** Lightweight status poll for the caller's side, waiting to learn if/when the callee answers, declines, or the call times out -- see call-room.html's ringback logic. */
+async function getCallStatus(callId, userId) {
+  const call = await assertCallParticipant(callId, userId);
+  return { id: call.id, status: call.status };
 }
 
 /**
@@ -124,4 +155,4 @@ async function listCallsForConversation(conversationId, userId) {
   return rows;
 }
 
-module.exports = { initiateCall, updateCallStatus, getCallToken, listCallsForConversation };
+module.exports = { initiateCall, updateCallStatus, getCallToken, listCallsForConversation, getIncomingCall, getCallStatus };

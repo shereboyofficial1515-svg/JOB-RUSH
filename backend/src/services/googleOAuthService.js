@@ -1,13 +1,11 @@
-const crypto = require('crypto');
 const env = require('../config/env');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
+const oauthStateService = require('./oauthStateService');
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const USERINFO_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/userinfo';
-
-const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 function assertConfigured() {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URI) {
@@ -15,40 +13,9 @@ function assertConfigured() {
   }
 }
 
-/**
- * Stateless CSRF state token: timestamp + HMAC(timestamp, SESSION_SECRET),
- * base64url-encoded. Avoids a server-side state table — the signature
- * can't be forged without SESSION_SECRET, and the embedded timestamp
- * lets verification reject anything older than STATE_TTL_MS without a
- * database round trip.
- */
-function createState() {
-  const timestamp = Date.now().toString();
-  const signature = crypto.createHmac('sha256', env.SESSION_SECRET).update(timestamp).digest('hex');
-  return Buffer.from(`${timestamp}.${signature}`).toString('base64url');
-}
-
-function verifyState(state) {
-  try {
-    const decoded = Buffer.from(state, 'base64url').toString('utf8');
-    const [timestamp, signature] = decoded.split('.');
-    const expectedSignature = crypto.createHmac('sha256', env.SESSION_SECRET).update(timestamp).digest('hex');
-
-    const sigBuf = Buffer.from(signature, 'utf8');
-    const expectedBuf = Buffer.from(expectedSignature, 'utf8');
-    if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-      return false;
-    }
-
-    return Date.now() - Number(timestamp) < STATE_TTL_MS;
-  } catch {
-    return false;
-  }
-}
-
 function buildAuthorizationUrl() {
   assertConfigured();
-  const state = createState();
+  const state = oauthStateService.createState();
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
     redirect_uri: env.GOOGLE_REDIRECT_URI,
@@ -101,4 +68,4 @@ async function getUserInfo(accessToken) {
   return response.json();
 }
 
-module.exports = { buildAuthorizationUrl, verifyState, exchangeCodeForTokens, getUserInfo };
+module.exports = { buildAuthorizationUrl, exchangeCodeForTokens, getUserInfo };
