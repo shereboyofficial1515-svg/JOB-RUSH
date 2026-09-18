@@ -52,6 +52,7 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/modules/locationSelect.js"></script>
   <script>
     // ============================================================
     // Shared helpers
@@ -263,18 +264,19 @@
         </div>
 
         <h3 style="margin-top: var(--space-6);">Location</h3>
+        <div class="field-note" id="location-message" hidden style="color: var(--color-warning, #92400e); background: var(--color-warning-bg, #fef3c7); padding: var(--space-3); border-radius: var(--radius-md, 6px); margin-bottom: var(--space-3);"></div>
         <div class="settings-field-grid cols-3">
           <div class="field">
             <label for="stateId">State</label>
-            <select id="stateId" name="stateId" data-current="${profile.state_id || ''}"><option value="">Loading…</option></select>
+            <select id="stateId" name="stateId"><option value="">Loading…</option></select>
           </div>
           <div class="field">
             <label for="lgaId">LGA</label>
-            <select id="lgaId" name="lgaId" data-current="${profile.lga_id || ''}"><option value="">Select a state first</option></select>
+            <select id="lgaId" name="lgaId" disabled><option value="">Select a state first</option></select>
           </div>
           <div class="field">
             <label for="areaId">Area</label>
-            <select id="areaId" name="areaId" data-current="${profile.area_id || ''}"><option value="">Select an LGA first</option></select>
+            <select id="areaId" name="areaId" disabled><option value="">Select an LGA first</option></select>
           </div>
         </div>
 
@@ -288,43 +290,14 @@
     `;
     }
 
-    async function populateLocationSelects(form) {
-      const stateSelect = form.stateId;
-      const lgaSelect = form.lgaId;
-      const areaSelect = form.areaId;
-
-      async function loadLgas(stateId, preselectLgaId) {
-        if (!stateId) {
-          lgaSelect.innerHTML = '<option value="">Select a state first</option>';
-          areaSelect.innerHTML = '<option value="">Select an LGA first</option>';
-          return;
-        }
-        const { lgas } = await API.get(`/locations/states/${stateId}/lgas`);
-        lgaSelect.innerHTML = '<option value="">Select an LGA</option>' + lgas.map((l) => `<option value="${l.id}" ${l.id === preselectLgaId ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
-      }
-
-      async function loadAreas(lgaId, preselectAreaId) {
-        if (!lgaId) {
-          areaSelect.innerHTML = '<option value="">Select an LGA first</option>';
-          return;
-        }
-        const { areas } = await API.get(`/locations/lgas/${lgaId}/areas`);
-        areaSelect.innerHTML = '<option value="">Select an area (optional)</option>' + areas.map((a) => `<option value="${a.id}" ${a.id === preselectAreaId ? 'selected' : ''}>${esc(a.name)}</option>`).join('');
-      }
-
-      try {
-        const { states } = await API.get('/locations/states');
-        const currentStateId = stateSelect.dataset.current;
-        stateSelect.innerHTML = '<option value="">Select a state</option>' + states.map((s) => `<option value="${s.id}" ${s.id === currentStateId ? 'selected' : ''}>${esc(s.name)}</option>`).join('');
-
-        if (currentStateId) await loadLgas(currentStateId, lgaSelect.dataset.current);
-        if (lgaSelect.dataset.current) await loadAreas(lgaSelect.dataset.current, areaSelect.dataset.current);
-      } catch (err) {
-        stateSelect.innerHTML = '<option value="">Could not load states</option>';
-      }
-
-      stateSelect.addEventListener('change', () => loadLgas(stateSelect.value));
-      lgaSelect.addEventListener('change', () => loadAreas(lgaSelect.value));
+    function populateLocationSelects(form, profile) {
+      return LocationSelect.init({
+        stateSelect: form.stateId,
+        lgaSelect: form.lgaId,
+        areaSelect: form.areaId,
+        messageEl: form.querySelector('#location-message'),
+        initial: { stateId: profile.state_id, lgaId: profile.lga_id, areaId: profile.area_id },
+      });
     }
 
     async function populateSkillsPicker(profile) {
@@ -490,15 +463,33 @@
             This is a company account
           </label>
         </div>
+
+        <h3 style="margin-top: var(--space-6);">Location</h3>
+        <div class="field-note" id="location-message" hidden style="color: var(--color-warning, #92400e); background: var(--color-warning-bg, #fef3c7); padding: var(--space-3); border-radius: var(--radius-md, 6px); margin-bottom: var(--space-3);"></div>
+        <div class="settings-field-grid cols-3">
+          <div class="field">
+            <label for="stateId">State</label>
+            <select id="stateId" name="stateId"><option value="">Loading…</option></select>
+          </div>
+          <div class="field">
+            <label for="lgaId">LGA</label>
+            <select id="lgaId" name="lgaId" disabled><option value="">Select a state first</option></select>
+          </div>
+          <div class="field">
+            <label for="areaId">Area</label>
+            <select id="areaId" name="areaId" disabled><option value="">Select an LGA first</option></select>
+          </div>
+        </div>
+
         <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
       </form>
     `;
     }
 
-    function wireWorkerForm() {
+    function wireWorkerForm(profile) {
       const form = document.getElementById('profile-form');
       wireProfilePictureUpload();
-      populateLocationSelects(form);
+      populateLocationSelects(form, profile);
 
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -531,8 +522,10 @@
       });
     }
 
-    function wireHirerForm() {
+    function wireHirerForm(profile) {
       const form = document.getElementById('profile-form');
+      populateLocationSelects(form, profile);
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         FormHelpers.clearErrors(form);
@@ -543,6 +536,9 @@
             displayName: form.displayName.value.trim() || undefined,
             bio: form.bio.value.trim() || undefined,
             isCompany: form.isCompany.checked,
+            stateId: form.stateId.value || undefined,
+            lgaId: form.lgaId.value || undefined,
+            areaId: form.areaId.value || undefined,
           });
           Toast.success('Profile updated.');
         } catch (err) {
@@ -557,13 +553,14 @@
     TAB_LOADERS.profile = async function loadProfileTab(content) {
       if (currentUser.role === 'hirer') {
         const { profile } = await API.get('/profiles/hirer/me');
-        content.innerHTML = hirerFormHtml(profile || {});
-        wireHirerForm();
+        const safeHirerProfile = profile || {};
+        content.innerHTML = hirerFormHtml(safeHirerProfile);
+        wireHirerForm(safeHirerProfile);
       } else {
         const { profile } = await API.get('/profiles/worker/me');
         const safeProfile = profile || { verification_status: 'not_submitted' };
         content.innerHTML = workerFormHtml(safeProfile);
-        wireWorkerForm();
+        wireWorkerForm(safeProfile);
         populateSkillsPicker(safeProfile);
         pendingDocuments = [];
         wireVerificationUpload();

@@ -53,6 +53,7 @@
 <script src="../js/utils/formHelpers.js"></script>
 <script src="../js/utils/modal.js"></script>
 <script src="../js/modules/auth.js"></script>
+<script src="../js/modules/locationSelect.js"></script>
 <script>
   function sectionShell(id, title, actionHtml, bodyHtml) {
     return `
@@ -193,13 +194,95 @@
           <td><span class="badge ${s.is_active ? 'badge-verified' : 'badge-neutral'}">${s.is_active ? 'enabled' : 'disabled'}</span></td>
           <td><button class="btn btn-sm btn-secondary" data-toggle-state="${s.id}" data-active="${s.is_active}">${s.is_active ? 'Disable' : 'Enable'}</button></td>
         </tr>`).join('');
+      const stateOptions = states.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
       return sectionShell('locations', 'Nigerian states', '', `
         <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Enabling a state makes it selectable across registration, profiles, and job search platform-wide \u2014 the entire nationwide expansion mechanism is this toggle.</p>
         <div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>State</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+
+        <h4 style="margin-top: var(--space-6);">LGAs</h4>
+        <div class="field" style="max-width: 320px;">
+          <label for="lga-manage-state">State</label>
+          <select id="lga-manage-state"><option value="">Select a state</option>${stateOptions}</select>
+        </div>
+        <div id="lga-manage-body" style="margin-top: var(--space-3);"></div>
+
+        <h4 style="margin-top: var(--space-6);">Areas</h4>
+        <div class="field" style="max-width: 320px;">
+          <label for="area-manage-lga">LGA</label>
+          <select id="area-manage-lga" disabled><option value="">Select a state above first</option></select>
+        </div>
+        <div id="area-manage-body" style="margin-top: var(--space-3);"></div>
       `);
     } catch (err) {
       return '';
     }
+  }
+
+  async function renderLgaManageBody(stateId) {
+    const body = document.getElementById('lga-manage-body');
+    const areaLgaSelect = document.getElementById('area-manage-lga');
+    if (!stateId) {
+      body.innerHTML = '';
+      areaLgaSelect.disabled = true;
+      areaLgaSelect.innerHTML = '<option value="">Select a state above first</option>';
+      return;
+    }
+    body.innerHTML = '<p class="text-secondary text-sm">Loading\u2026</p>';
+    const lgas = await LocationSelect.fetchLgas(stateId);
+    body.innerHTML = `
+      <div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>LGA</th></tr></thead><tbody>${
+        lgas.length ? lgas.map((l) => `<tr><td>${esc(l.name)}</td></tr>`).join('') : emptyRow(1, 'No LGAs yet for this state.')
+      }</tbody></table></div>
+      <div style="display:flex; gap: var(--space-2); margin-top: var(--space-3); max-width: 400px;">
+        <input type="text" id="new-lga-name" placeholder="New LGA name" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="add-lga-btn" data-state-id="${stateId}">Add LGA</button>
+      </div>
+    `;
+    areaLgaSelect.disabled = false;
+    areaLgaSelect.innerHTML = '<option value="">Select an LGA</option>' + lgas.map((l) => `<option value="${l.id}">${esc(l.name)}</option>`).join('');
+    document.getElementById('add-lga-btn').addEventListener('click', async () => {
+      const nameInput = document.getElementById('new-lga-name');
+      const name = nameInput.value.trim();
+      if (name.length < 2) return Toast.error('Enter an LGA name.');
+      try {
+        await API.post(`/admin/locations/states/${stateId}/lgas`, { name });
+        Toast.success('LGA added.');
+        renderLgaManageBody(stateId);
+      } catch (err) {
+        Toast.error(err.message);
+      }
+    });
+  }
+
+  async function renderAreaManageBody(lgaId) {
+    const body = document.getElementById('area-manage-body');
+    if (!lgaId) {
+      body.innerHTML = '';
+      return;
+    }
+    body.innerHTML = '<p class="text-secondary text-sm">Loading\u2026</p>';
+    const areas = await LocationSelect.fetchAreas(lgaId);
+    body.innerHTML = `
+      <div class="admin-table-scroll"><table class="admin-table"><thead><tr><th>Area</th></tr></thead><tbody>${
+        areas.length ? areas.map((a) => `<tr><td>${esc(a.name)}</td></tr>`).join('') : emptyRow(1, 'No areas yet for this LGA.')
+      }</tbody></table></div>
+      <div style="display:flex; gap: var(--space-2); margin-top: var(--space-3); max-width: 400px;">
+        <input type="text" id="new-area-name" placeholder="New area name" style="flex:1;" />
+        <button class="btn btn-sm btn-primary" id="add-area-btn" data-lga-id="${lgaId}">Add area</button>
+      </div>
+    `;
+    document.getElementById('add-area-btn').addEventListener('click', async () => {
+      const nameInput = document.getElementById('new-area-name');
+      const name = nameInput.value.trim();
+      if (name.length < 2) return Toast.error('Enter an area name.');
+      try {
+        await API.post(`/admin/locations/lgas/${lgaId}/areas`, { name });
+        Toast.success('Area added.');
+        renderAreaManageBody(lgaId);
+      } catch (err) {
+        Toast.error(err.message);
+      }
+    });
   }
 
   async function loadPromotionsSection() {
@@ -303,6 +386,15 @@
         } catch (err) { Toast.error(err.message); }
       });
     });
+
+    const lgaManageState = document.getElementById('lga-manage-state');
+    if (lgaManageState) {
+      lgaManageState.addEventListener('change', () => renderLgaManageBody(lgaManageState.value));
+    }
+    const areaManageLga = document.getElementById('area-manage-lga');
+    if (areaManageLga) {
+      areaManageLga.addEventListener('change', () => renderAreaManageBody(areaManageLga.value));
+    }
 
     document.querySelectorAll('[data-remove-placement]').forEach((btn) => {
       btn.addEventListener('click', async () => {

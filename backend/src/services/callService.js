@@ -77,15 +77,20 @@ async function updateCallStatus(callId, userId, newStatus, failureReason) {
 }
 
 /**
- * Security gate for issuing a LiveKit token, mirroring
- * interviewController.getCallToken exactly: participant check, then
- * status check — only 'ringing', 'connecting', or 'connected' allow
- * joining. No timing window here (calls are real-time, not
- * scheduled), but the same "verify first, sign second" order applies.
+ * Security gate for issuing a LiveKit token: participant check, then
+ * status check. 'calling' must be included here -- every call row is
+ * created with that status (see 025_create_calls.sql's DEFAULT), and
+ * call-room.html doesn't track a separate "ringing" UI phase: it goes
+ * straight from creating the call row to fetching a token and
+ * attempting the LiveKit connection, only moving the status to
+ * 'connecting' after the token comes back (see TRANSITIONS above,
+ * which already allows 'calling' -> 'connecting' directly). Excluding
+ * 'calling' here meant every call's very first token request was
+ * rejected as NOT_JOINABLE before either side could ever connect.
  */
 async function getCallToken(callId, userId, displayName) {
   const call = await assertCallParticipant(callId, userId);
-  if (!['ringing', 'connecting', 'connected'].includes(call.status)) {
+  if (!['calling', 'ringing', 'connecting', 'connected'].includes(call.status)) {
     throw new AppError(`Cannot join a call with status "${call.status}".`, 400, 'NOT_JOINABLE');
   }
   return livekitService.createCallAccessToken({ callId, userId, displayName });

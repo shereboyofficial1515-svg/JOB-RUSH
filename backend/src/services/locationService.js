@@ -1,8 +1,15 @@
 const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 
-async function listActiveStates() {
-  const { rows } = await query('SELECT id, name FROM states WHERE is_active = true ORDER BY name');
+/**
+ * Returns every Nigerian state (not just the ones open for business),
+ * each tagged with is_active, so the frontend can let a user select
+ * any state and show a "not available here yet" message for whichever
+ * ones Admin hasn't turned on -- rather than hiding them entirely,
+ * which looked like the dropdown only had one option.
+ */
+async function listStates() {
+  const { rows } = await query('SELECT id, name, is_active FROM states ORDER BY name');
   return rows;
 }
 
@@ -53,4 +60,4 @@ async function assertLocationAllowed({ stateId, lgaId, areaId }) {
   }
 }
 
-module.exports = { listActiveStates, listLgasForState, listAreasForLga, assertLocationAllowed };
+module.exports = { listStates, listLgasForState, listAreasForLga, assertLocationAllowed };

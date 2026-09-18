@@ -29,6 +29,8 @@
           <option value="contract">Contract</option>
           <option value="one_time">One-time</option>
         </select>
+        <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
+        <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
         <select name="sort" aria-label="Sort by">
           <option value="newest">Newest</option>
           <option value="budget_high">Highest budget</option>
@@ -56,6 +58,7 @@
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/locationSelect.js"></script>
   <script>
     function timeAgo(dateStr) {
       const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
@@ -123,6 +126,14 @@
       const form = document.getElementById('jobs-search-form');
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('keyword')) form.keyword.value = urlParams.get('keyword');
+
+      LocationSelect.init({
+        stateSelect: form.stateId,
+        lgaSelect: form.lgaId,
+        restrictToActive: false,
+        statePlaceholder: 'Any state',
+        initial: { stateId: urlParams.get('stateId') || undefined, lgaId: urlParams.get('lgaId') || undefined },
+      });
 
       loadJobs(urlParams.toString());
 

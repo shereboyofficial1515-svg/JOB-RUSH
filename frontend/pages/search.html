@@ -34,6 +34,8 @@
           <option value="3">3+ stars</option>
         </select>
         <input type="number" name="maxPrice" placeholder="Max starting price (₦)" aria-label="Maximum price" min="0" style="width:180px;" />
+        <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
+        <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
         <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
           <input type="checkbox" name="verifiedOnly" style="width:auto;" /> Verified only
         </label>
@@ -60,6 +62,7 @@
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/locationSelect.js"></script>
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
@@ -119,9 +122,17 @@
       Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
+      const searchForm = document.getElementById('search-form');
+      LocationSelect.init({
+        stateSelect: searchForm.stateId,
+        lgaSelect: searchForm.lgaId,
+        restrictToActive: false,
+        statePlaceholder: 'Any state',
+      });
+
       loadWorkers('');
 
-      document.getElementById('search-form').addEventListener('submit', (e) => {
+      searchForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const params = new URLSearchParams();
         const keyword = e.target.keyword.value.trim();
@@ -129,6 +140,8 @@
         if (e.target.availabilityStatus.value) params.set('availabilityStatus', e.target.availabilityStatus.value);
         if (e.target.minRating.value) params.set('minRating', e.target.minRating.value);
         if (e.target.maxPrice.value) params.set('maxPrice', e.target.maxPrice.value);
+        if (e.target.stateId.value) params.set('stateId', e.target.stateId.value);
+        if (e.target.lgaId.value) params.set('lgaId', e.target.lgaId.value);
         if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');
         if (e.target.hasVideo.checked) params.set('hasVideo', 'true');
         loadWorkers(params.toString());

@@ -105,6 +105,36 @@
   }
 
   /**
+   * Turns a token-fetch or room.connect failure into a message that
+   * actually says what went wrong, instead of one generic "could not
+   * connect" for every possible cause (auth, missing LiveKit config,
+   * CORS/CSP block, network outage, expired/missing call).
+   */
+  function describeConnectionError(err) {
+    if (!err) return 'Could not connect to the call.';
+    if (err.code === 'LIVEKIT_NOT_CONFIGURED') return 'Video calling is not configured on the server yet. Please contact support.';
+    if (err.status === 401 || err.status === 403) return err.message || 'You are not authorized to join this call.';
+    if (err.status === 404) return 'This call could not be found. It may have already ended.';
+    if (err.status >= 500) return 'The call service is temporarily unavailable. Please try again shortly.';
+    if (err.status === 0) return 'Could not reach the server. Check your connection and try again.';
+    return err.message || 'Could not connect to the call.';
+  }
+
+  /**
+   * Camera/mic failures happen AFTER the room connection already
+   * succeeded, so they must never be reported as a connection
+   * failure — the call is live, just without local media.
+   */
+  function describeMediaError(err) {
+    const name = err && err.name;
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Camera/microphone access was denied. Allow access in your browser settings and rejoin.';
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No camera or microphone was found on this device.';
+    if (name === 'NotReadableError' || name === 'TrackStartError') return 'Your camera or microphone is already in use by another application.';
+    if (name === 'OverconstrainedError') return 'Your camera/microphone does not support the requested settings.';
+    return (err && err.message) || 'Could not access your camera or microphone.';
+  }
+
+  /**
    * Direct calls (not interviews) go through the `calls` table's own
    * status lifecycle so Call History can show what actually happened
    * — this is the one place in the app that pushes those transitions,
@@ -175,18 +205,27 @@
       statusBadge.textContent = 'Connected';
       statusBadge.className = 'badge badge-verified';
       if (type === 'call') await updateCallStatus(id, 'connected');
-
-      await room.localParticipant.setMicrophoneEnabled(true);
-      await room.localParticipant.setCameraEnabled(true);
-
-      room.localParticipant.videoTrackPublications.forEach((pub) => {
-        if (pub.track) attachTrack(pub.track, room.localParticipant.identity, 'You');
-      });
     } catch (err) {
+      const reason = describeConnectionError(err);
       statusBadge.textContent = 'Could not connect';
       document.getElementById('fallback-note').hidden = false;
-      Toast.error(err.message || 'Could not start the call.');
-      if (type === 'call' && !hasConnected) await updateCallStatus(id, 'failed', err.message || 'Connection failed');
+      Toast.error(reason);
+      if (type === 'call') await updateCallStatus(id, 'failed', reason);
+    }
+
+    if (hasConnected) {
+      try {
+        await room.localParticipant.setMicrophoneEnabled(true);
+        await room.localParticipant.setCameraEnabled(true);
+        room.localParticipant.videoTrackPublications.forEach((pub) => {
+          if (pub.track) attachTrack(pub.track, room.localParticipant.identity, 'You');
+        });
+      } catch (mediaErr) {
+        // The room connection itself succeeded -- this is a separate,
+        // recoverable problem (permission denied, device in use,
+        // etc.), so it must not look like the call failed to connect.
+        Toast.error(describeMediaError(mediaErr));
+      }
     }
 
     document.getElementById('toggle-mic').addEventListener('click', async (e) => {
