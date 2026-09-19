@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Messages — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="manifest" href="../manifest.json" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
@@ -24,7 +25,7 @@
       <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
     </aside>
 
-    <div class="dashboard-main" style="padding: var(--space-6) var(--space-7);">
+    <div class="dashboard-main">
       <div class="dashboard-topbar" style="margin-bottom: var(--space-4);">
         <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Messages</h1>
         <div id="notif-bell-mount"></div>
@@ -59,6 +60,7 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
+  <script src="../js/modules/pushNotifications.js"></script>
   <script>
     let currentUser = null;
     let activeConversationId = null;
@@ -445,6 +447,7 @@
       currentUser = user;
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
+      PushNotifications.registerIfAlreadySubscribed();
 
       SidebarNav.render(user, 'messages');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));

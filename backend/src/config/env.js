@@ -73,6 +73,15 @@ const env = {
   SOCIAL_INSTAGRAM_URL: optional('SOCIAL_INSTAGRAM_URL', ''),
   UNSUBSCRIBE_SECRET: optional('UNSUBSCRIBE_SECRET', ''),
 
+  // Web Push (browser notifications for new messages / incoming
+  // calls). VAPID is a self-generated key pair, not a third-party
+  // account — `npx web-push generate-vapid-keys` produces both. When
+  // unset, pushService no-ops (subscriptions simply aren't sent to)
+  // rather than throwing, so the app runs fine without this configured.
+  VAPID_PUBLIC_KEY: optional('VAPID_PUBLIC_KEY', ''),
+  VAPID_PRIVATE_KEY: optional('VAPID_PRIVATE_KEY', ''),
+  VAPID_SUBJECT: optional('VAPID_SUBJECT', 'mailto:support@jobrush.ng'),
+
   TERMII_API_KEY: optional('TERMII_API_KEY', ''),
   TERMII_SENDER_ID: optional('TERMII_SENDER_ID', 'JobRush'),
   TERMII_BASE_URL: optional('TERMII_BASE_URL', 'https://api.ng.termii.com'),

@@ -1,4 +1,5 @@
 const notificationService = require('../services/notificationService');
+const pushService = require('../services/pushService');
 const asyncHandler = require('../utils/asyncHandler');
 
 const list = asyncHandler(async (req, res) => {
@@ -35,4 +36,28 @@ const updatePreferences = asyncHandler(async (req, res) => {
   res.status(200).json({ preferences });
 });
 
-module.exports = { list, unreadCount, markRead, markAllRead, getPreferences, updatePreferences };
+const getPushPublicKey = asyncHandler(async (req, res) => {
+  res.status(200).json({ publicKey: pushService.getPublicKey(), configured: pushService.isConfigured });
+});
+
+const pushSubscribe = asyncHandler(async (req, res) => {
+  await pushService.subscribe(req.user.id, req.body.subscription, req.headers['user-agent']);
+  res.status(200).json({ message: 'Subscribed to push notifications.' });
+});
+
+const pushUnsubscribe = asyncHandler(async (req, res) => {
+  await pushService.unsubscribe(req.user.id, req.body.endpoint);
+  res.status(200).json({ message: 'Unsubscribed from push notifications.' });
+});
+
+module.exports = {
+  list,
+  unreadCount,
+  markRead,
+  markAllRead,
+  getPreferences,
+  updatePreferences,
+  getPushPublicKey,
+  pushSubscribe,
+  pushUnsubscribe,
+};

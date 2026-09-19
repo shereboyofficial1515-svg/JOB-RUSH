@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Settings — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="manifest" href="../manifest.json" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
@@ -52,6 +53,7 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
+  <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
@@ -292,9 +294,30 @@
           <div id="skills-picker" class="text-secondary text-sm">Loading skills…</div>
         </div>
 
+        <div class="field">
+          <label for="languages">Languages</label>
+          <input type="text" id="languages" name="languages" value="${esc((profile.languages || []).join(', '))}" placeholder="e.g. English, Pidgin, Urhobo" />
+          <div class="field-hint">Separate multiple languages with commas. Up to 10.</div>
+        </div>
+
         <button type="submit" class="btn btn-primary" id="profile-submit">Save changes</button>
       </form>
     `;
+    }
+
+    function profileCompletionHtml(profile) {
+      const pct = profile.profile_completion_percent ?? 0;
+      return `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: var(--space-2);">
+          <h3 style="margin:0;">Profile completion</h3>
+          <strong style="font-family: var(--font-display); color: var(--accent);">${pct}%</strong>
+        </div>
+        <div style="height:8px; background: var(--bg-elevated); border-radius: 999px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background: var(--accent); border-radius: 999px; transition: width var(--transition-normal) var(--ease-standard);"></div>
+        </div>
+        <p class="text-secondary text-sm" style="margin-top: var(--space-3); margin-bottom:0;">Based on your title, bio, experience, location, photo, and skills — the fields hirers see first.</p>
+      </div>`;
     }
 
     function populateLocationSelects(form, profile) {
@@ -518,6 +541,9 @@
             lgaId: form.lgaId.value || undefined,
             areaId: form.areaId.value || undefined,
             skillIds,
+            languages: form.languages.value.trim()
+              ? form.languages.value.split(',').map((l) => l.trim()).filter(Boolean).slice(0, 10)
+              : [],
           });
           Toast.success('Profile updated.');
         } catch (err) {
@@ -566,7 +592,7 @@
       } else {
         const { profile } = await API.get('/profiles/worker/me');
         const safeProfile = profile || { verification_status: 'not_submitted' };
-        content.innerHTML = workerFormHtml(safeProfile);
+        content.innerHTML = profileCompletionHtml(safeProfile) + workerFormHtml(safeProfile);
         wireWorkerForm(safeProfile);
         populateSkillsPicker(safeProfile);
         pendingDocuments = [];
@@ -1119,6 +1145,59 @@
       </div>`;
     }
 
+    /**
+     * The button's own label/state is the source of truth, not a DB
+     * flag — it reflects the browser's actual Notification permission
+     * and whether an active PushManager subscription exists, since
+     * those can change outside the app (e.g. the user blocks
+     * notifications in their browser's own site settings).
+     */
+    async function refreshPushButton(btn) {
+      if (!PushNotifications.isSupported()) {
+        btn.textContent = 'Not supported in this browser';
+        btn.disabled = true;
+        return;
+      }
+      const permission = PushNotifications.getPermissionState();
+      if (permission === 'denied') {
+        btn.textContent = 'Blocked — enable in browser site settings';
+        btn.disabled = true;
+        return;
+      }
+      btn.disabled = false;
+      let subscribed = false;
+      try {
+        const registration = await navigator.serviceWorker.getRegistration('/service-worker.js');
+        subscribed = !!(await registration?.pushManager.getSubscription());
+      } catch {
+        subscribed = false;
+      }
+      btn.textContent = subscribed ? 'Disable push notifications' : 'Enable push notifications';
+      btn.dataset.subscribed = subscribed ? 'true' : 'false';
+    }
+
+    function wirePushNotificationsButton() {
+      const btn = document.getElementById('push-notifications-btn');
+      refreshPushButton(btn);
+      btn.addEventListener('click', async () => {
+        FormHelpers.setLoading(btn, true);
+        try {
+          if (btn.dataset.subscribed === 'true') {
+            await PushNotifications.unsubscribe();
+            Toast.success('Push notifications disabled.');
+          } else {
+            await PushNotifications.subscribe();
+            Toast.success('Push notifications enabled.');
+          }
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
+          refreshPushButton(btn);
+        }
+      });
+    }
+
     TAB_LOADERS.chat = async function loadChatTab(content) {
       const settings = await ensureSettingsLoaded();
       content.innerHTML = `
@@ -1147,6 +1226,7 @@
 
       <div class="card" style="margin-bottom: var(--space-5);">
         <h3>Notifications & media</h3>
+        ${settingsRowHtml('Push notifications', 'Get a phone/desktop notification for new messages and incoming calls, even when Job Rush isn\'t the tab you\'re looking at.', `<button type="button" class="btn btn-sm btn-secondary" id="push-notifications-btn">Checking...</button>`)}
         ${settingsRowHtml('Message previews', "Show the message text in notifications, not just “New message.”", toggleHtml('chat-previews-toggle', settings.chat_message_previews))}
         ${settingsRowHtml('Media auto-download', 'When to automatically download photos/videos sent to you.', `
           <select id="media-auto-download-select">
@@ -1174,6 +1254,7 @@
       </div>
     `;
 
+      wirePushNotificationsButton();
       document.getElementById('chat-theme-select').addEventListener('change', (e) => patchSettings({ chatTheme: e.target.value }, 'Chat theme updated.'));
       document.getElementById('chat-wallpaper-select').addEventListener('change', (e) => patchSettings({ chatWallpaper: e.target.value }, 'Wallpaper updated.'));
       document.getElementById('chat-font-size-select').addEventListener('change', (e) => patchSettings({ chatFontSize: e.target.value }, 'Message text size updated.'));
@@ -1636,6 +1717,7 @@
 
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
+      PushNotifications.registerIfAlreadySubscribed();
       SidebarNav.render(user, 'settings');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 

@@ -34,6 +34,8 @@
           <option value="3">3+ stars</option>
         </select>
         <input type="number" name="maxPrice" placeholder="Max starting price (₦)" aria-label="Maximum price" min="0" style="width:180px;" />
+        <select name="categoryId" id="categoryId" aria-label="Category"><option value="">Any category</option></select>
+        <select name="skillId" id="skillId" aria-label="Skill"><option value="">Any skill</option></select>
         <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
         <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
         <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
@@ -123,6 +125,21 @@
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const searchForm = document.getElementById('search-form');
+
+      try {
+        const [{ categories }, { skills }] = await Promise.all([
+          API.get('/catalog/categories'),
+          API.get('/catalog/skills'),
+        ]);
+        searchForm.categoryId.innerHTML =
+          '<option value="">Any category</option>' + categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        searchForm.skillId.innerHTML =
+          '<option value="">Any skill</option>' + skills.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+      } catch {
+        // Category/skill filters are a progressive enhancement — if
+        // the catalog can't load, search still works without them.
+      }
+
       LocationSelect.init({
         stateSelect: searchForm.stateId,
         lgaSelect: searchForm.lgaId,
@@ -140,6 +157,8 @@
         if (e.target.availabilityStatus.value) params.set('availabilityStatus', e.target.availabilityStatus.value);
         if (e.target.minRating.value) params.set('minRating', e.target.minRating.value);
         if (e.target.maxPrice.value) params.set('maxPrice', e.target.maxPrice.value);
+        if (e.target.categoryId.value) params.set('categoryId', e.target.categoryId.value);
+        if (e.target.skillId.value) params.set('skillId', e.target.skillId.value);
         if (e.target.stateId.value) params.set('stateId', e.target.stateId.value);
         if (e.target.lgaId.value) params.set('lgaId', e.target.lgaId.value);
         if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');

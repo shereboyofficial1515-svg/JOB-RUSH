@@ -51,7 +51,7 @@ function baseEmailTemplate({
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <!-- Static accent bar (see function doc — deliberately not animated) -->
-          <td width="6" bgcolor="${colors.brandBlue}" style="width:6px; font-size:0; line-height:0;">&nbsp;</td>
+          <td width="6" bgcolor="${colors.accentGold}" style="width:6px; font-size:0; line-height:0;">&nbsp;</td>
           <td class="jr-px" style="padding:32px;">
             ${statusHtml}
             <h1 style="margin:0 0 16px; font-family:Arial,Helvetica,sans-serif; font-size:24px; line-height:32px; font-weight:700; color:${colors.primaryNavy};">${escapeHtml(heading)}</h1>
