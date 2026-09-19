@@ -143,6 +143,7 @@ const Chrome = (function () {
               <h4>Company</h4>
               <ul>
                 <li><a href="${homeHref()}#how-it-works">How it works</a></li>
+                <li><a href="${pageHref('documentation')}">Help Center</a></li>
                 <li><a href="${pageHref('support')}">Support</a></li>
               </ul>
             </div>

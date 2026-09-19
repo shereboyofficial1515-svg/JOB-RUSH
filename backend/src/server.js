@@ -34,6 +34,7 @@ const adminLocationRoutes = require('./routes/adminLocationRoutes');
 const adminRoleRoutes = require('./routes/adminRoleRoutes');
 const adminAuditRoutes = require('./routes/adminAuditRoutes');
 const adminPortfolioRoutes = require('./routes/adminPortfolioRoutes');
+const adminProfileReportRoutes = require('./routes/adminProfileReportRoutes');
 const adminOperationsRoutes = require('./routes/adminOperationsRoutes');
 const adminMessagingRoutes = require('./routes/adminMessagingRoutes');
 const { userRouter: jobReportUserRoutes, adminRouter: jobReportAdminRoutes } = require('./routes/jobReportRoutes');
@@ -165,16 +166,30 @@ app.use('/api/support/tickets', supportTicketRoutes);
 app.use('/api/promotions', promotionRoutes);
 app.use('/api/admin/users', adminUserRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
-app.use('/api/admin', adminCategoryRoutes);
 app.use('/api/admin/locations', adminLocationRoutes);
 app.use('/api/admin/admins', adminRoleRoutes);
 app.use('/api/admin/audit-logs', adminAuditRoutes);
 app.use('/api/admin/portfolio', adminPortfolioRoutes);
+app.use('/api/admin/profile-reports', adminProfileReportRoutes);
 app.use('/api/admin/operations', adminOperationsRoutes);
 app.use('/api/admin/messaging', adminMessagingRoutes);
 app.use('/api/admin/jobs', jobReportAdminRoutes);
 app.use('/api/admin/support/tickets', supportTicketAdminRoutes);
 app.use('/api/admin/promotions', promotionAdminRoutes);
+// MUST be the LAST /api/admin/* mount: this router is bound to the bare
+// /api/admin prefix (its own routes are /categories and /skills) with a
+// router-wide requireAdmin('content_admin') check. Since Express tries
+// mounted routers in registration order and that check runs
+// unconditionally for anything matching /api/admin/*, mounting this
+// before any more specific /api/admin/<x> route silently forces every
+// admin — regardless of their actual role — through a content_admin
+// check before ever reaching the route they meant to call. That bug
+// was invisible in practice because the only admin role ever tested
+// here (super_admin) bypasses every requireAdmin(...) check by design
+// — a moderation_admin/support_admin/finance_admin/verification_admin
+// hitting ANY other /api/admin/* route got wrongly rejected as
+// FORBIDDEN. Discovered while adding /api/admin/profile-reports above.
+app.use('/api/admin', adminCategoryRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/email-preview', emailPreviewRoutes);

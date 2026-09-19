@@ -75,6 +75,7 @@ async function ensureHirerProfileRow(userId) {
 async function getWorkerProfile(userId) {
   const { rows } = await query(
     `SELECT wp.*, u.full_name, u.email, u.phone, u.account_status, u.deactivated_at,
+            u.email_verified_at, u.phone_verified_at,
             COALESCE(us.profile_visibility, 'public') AS profile_visibility,
             st.name AS state_name, l.name AS lga_name, a.name AS area_name
        FROM worker_profiles wp

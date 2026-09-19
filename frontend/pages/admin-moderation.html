@@ -322,13 +322,115 @@
     });
   }
 
+  // ---------------- Reported profiles ----------------
+
+  function reportedProfileRowHtml(p) {
+    return `
+      <tr data-profile-row="${p.reported_user_id}">
+        <td>${esc(p.full_name)}</td>
+        <td><span class="badge badge-neutral" style="text-transform:capitalize;">${esc(p.role)}</span></td>
+        <td>${p.report_count}</td>
+        <td>${new Date(p.last_reported_at).toLocaleDateString()}</td>
+        <td>${p.account_status === 'suspended' ? '<span class="badge badge-neutral">Suspended</span>' : esc(p.account_status)}</td>
+        <td style="display:flex; gap: var(--space-2);">
+          <button class="btn btn-sm btn-secondary" data-view-profile-reports="${p.reported_user_id}">View reports</button>
+          ${p.account_status !== 'suspended' ? `<button class="btn btn-sm btn-danger" data-suspend-profile="${p.reported_user_id}">Suspend</button>` : ''}
+        </td>
+      </tr>`;
+  }
+
+  async function loadReportedProfilesSection() {
+    try {
+      await API.get('/admin/profile-reports/reported');
+    } catch (err) {
+      return '';
+    }
+    return sectionShell('profile-reports', 'Reported profiles', `
+      <div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Name</th><th>Role</th><th>Reports</th><th>Last reported</th><th>Status</th><th></th></tr></thead>
+        <tbody id="profile-reports-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>
+    `);
+  }
+
+  async function runReportedProfilesLoad() {
+    const tbody = document.getElementById('profile-reports-body');
+    try {
+      const { profiles } = await API.get('/admin/profile-reports/reported');
+      tbody.innerHTML = profiles.length ? profiles.map(reportedProfileRowHtml).join('') : emptyRow(6, 'No reported profiles.');
+      wireReportedProfilesActions();
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  function wireReportedProfilesActions() {
+    document.querySelectorAll('[data-view-profile-reports]').forEach((btn) => {
+      btn.addEventListener('click', () => openProfileReportsModal(btn.dataset.viewProfileReports));
+    });
+    document.querySelectorAll('[data-suspend-profile]').forEach((btn) => {
+      btn.addEventListener('click', () => openSuspendProfileModal(btn.dataset.suspendProfile));
+    });
+  }
+
+  async function openProfileReportsModal(userId) {
+    let reports;
+    try {
+      ({ reports } = await API.get(`/admin/profile-reports/${userId}/reports`));
+    } catch (err) {
+      Toast.error(err.message);
+      return;
+    }
+    Modal.open({
+      title: 'Reports on this profile',
+      bodyHtml: `
+        ${reports.map((r) => `
+          <div style="padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="display:flex; justify-content:space-between;">
+              <strong style="text-transform:capitalize;">${esc(r.category.replace(/_/g, ' '))}</strong>
+              <span class="text-secondary text-xs">${new Date(r.created_at).toLocaleDateString()}</span>
+            </div>
+            <p class="text-sm" style="margin: var(--space-1) 0 0;">${esc(r.reason)}</p>
+            <div class="text-secondary text-xs" style="margin-top: var(--space-1);">Reported by ${esc(r.reporter_name)}</div>
+          </div>`).join('') || '<p class="text-secondary text-sm">No reports found.</p>'}
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+        </div>`,
+    });
+  }
+
+  function openSuspendProfileModal(userId) {
+    Modal.open({
+      title: 'Suspend this user?',
+      bodyHtml: `
+        <p class="text-secondary">They will be unable to log in or use the platform until reactivated.</p>
+        <div class="field"><label for="suspend-profile-reason">Reason (optional)</label><input type="text" id="suspend-profile-reason" /></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-suspend-profile">Suspend</button>
+        </div>`,
+      onMount: () => {
+        document.getElementById('confirm-suspend-profile').addEventListener('click', async () => {
+          try {
+            await API.post(`/admin/users/${userId}/suspend`, {
+              reason: document.getElementById('suspend-profile-reason').value.trim() || undefined,
+            });
+            Toast.success('User suspended.');
+            Modal.close();
+            runReportedProfilesLoad();
+          } catch (err) { Toast.error(err.message); }
+        });
+      },
+    });
+  }
+
   (async function init() {
     const user = await Auth.requireSession('admin-login.html');
     if (!user) return;
 
     document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('admin-login.html'));
 
-    const sections = await Promise.all([loadJobsSection(), loadPortfolioSection()]);
+    const sections = await Promise.all([loadJobsSection(), loadPortfolioSection(), loadReportedProfilesSection()]);
     const rendered = sections.filter(Boolean);
     const content = document.getElementById('moderation-content');
 
@@ -336,7 +438,7 @@
       content.innerHTML = `
         <div class="admin-no-access">
           <h3>No access</h3>
-          <p>Job and portfolio moderation require the moderation_admin role.</p>
+          <p>Moderation tools require the moderation_admin role.</p>
         </div>`;
       return;
     }
@@ -348,6 +450,8 @@
 
     const portfolioForm = document.getElementById('portfolio-search-form');
     if (portfolioForm) portfolioForm.addEventListener('submit', (e) => { e.preventDefault(); runPortfolioSearch(new URLSearchParams(new FormData(portfolioForm))); });
+
+    if (document.getElementById('profile-reports')) runReportedProfilesLoad();
   })();
 </script>
 </body>
