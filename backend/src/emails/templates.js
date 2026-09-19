@@ -72,7 +72,7 @@ function verificationEmail(data) {
   const bodyHtml = `
     <p style="margin:0 0 16px;">Please verify your email address to complete your JOB RUSH account setup.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 16px;">
-      <tr><td style="background:${branding.colors.lightBlue}; border-radius:8px; padding:16px 24px; font-family:'Courier New',monospace; font-size:28px; font-weight:700; letter-spacing:6px; color:${branding.colors.primaryNavy};">${escapeHtml(data.code || '')}</td></tr>
+      <tr><td style="background:${branding.colors.lightGold}; border-radius:8px; padding:16px 24px; font-family:'Courier New',monospace; font-size:28px; font-weight:700; letter-spacing:6px; color:${branding.colors.primaryNavy};">${escapeHtml(data.code || '')}</td></tr>
     </table>
     <p style="margin:0;">This verification code will expire after ${escapeHtml(expirationTime)}.</p>`;
   return {

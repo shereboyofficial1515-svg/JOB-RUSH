@@ -4,6 +4,8 @@ const conversationService = require('./conversationService');
 const blockService = require('./blockService');
 const livekitService = require('./livekitService');
 const userSummaryService = require('./userSummaryService');
+const pushService = require('./pushService');
+const logger = require('../utils/logger');
 
 // 'cancelled' (the caller backs out before the other side ever picks
 // up) and 'failed' (a real connection error, e.g. LiveKit couldn't
@@ -47,7 +49,29 @@ async function initiateCall(callerUserId, conversationId, callType) {
      VALUES ($1, $2, $3, $4) RETURNING *`,
     [conversationId, callerUserId, calleeUserId, callType]
   );
-  return rows[0];
+  const call = rows[0];
+
+  // Best-effort only: the callee's device(s) still discover the call
+  // for certain via the existing 3s incoming-call poll
+  // (incomingCallWatcher.js) even if this push never arrives (no
+  // subscription, permission denied, delivery failure). This just
+  // shortens that discovery time and can reach a backgrounded tab.
+  // Tagged by call id so a device that already surfaced this ring
+  // doesn't show a second, duplicate OS notification for it.
+  userSummaryService
+    .getCallDisplaySummary(callerUserId)
+    .then((caller) =>
+      pushService.sendPushToUser(calleeUserId, {
+        title: `Incoming ${callType === 'video' ? 'video' : 'audio'} call`,
+        body: caller?.fullName ? `${caller.fullName} is calling you` : 'Someone is calling you',
+        data: { type: 'incoming_call', callId: call.id, callType },
+        tag: `call-${call.id}`,
+        requireInteraction: true,
+      })
+    )
+    .catch((err) => logger.error('Call push notification failed', { callId: call.id, error: err.message }));
+
+  return call;
 }
 
 async function updateCallStatus(callId, userId, newStatus, failureReason) {

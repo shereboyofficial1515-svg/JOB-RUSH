@@ -13,10 +13,16 @@ const env = require('../config/env');
  * template components hide a section entirely when its value is
  * empty rather than print "undefined" or a made-up default.
  */
+// Matches the live app's actual brand identity (frontend/css/tokens.css:
+// --color-primary-navy / --color-primary-gold) rather than an unrelated
+// blue palette invented for email only. textOnAccent mirrors the app's
+// own --text-on-gold convention: gold is a light color, so text drawn on
+// it must be the dark navy, never white.
 const COLORS = {
-  primaryNavy: '#0F2747',
-  brandBlue: '#147BEF',
-  lightBlue: '#EAF4FF',
+  primaryNavy: '#001020',
+  accentGold: '#F0B000',
+  textOnAccent: '#001020',
+  lightGold: '#FDF6E3',
   text: '#1F2937',
   mutedText: '#667085',
   border: '#E5E7EB',

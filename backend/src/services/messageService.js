@@ -6,6 +6,18 @@ const notificationService = require('./notificationService');
 
 const EDIT_WINDOW_MINUTES = 20;
 
+/** Looks up the sender's first name so the alert reads "New message from John" rather than a generic title. */
+async function notifyNewMessage(recipientUserId, senderId, conversationId, content) {
+  const { rows } = await query('SELECT full_name FROM users WHERE id = $1', [senderId]);
+  const senderFirstName = rows[0]?.full_name?.split(' ')[0];
+  const preview = content ? content.slice(0, 100) : 'Sent an attachment';
+  return notificationService.notifyUser(recipientUserId, 'new_message', {
+    title: senderFirstName ? `New message from ${senderFirstName}` : 'New message',
+    body: preview,
+    data: { conversationId },
+  });
+}
+
 /**
  * Sends a message. Re-checks blocking on every send (not just at
  * conversation creation) — if either party blocks the other after
@@ -43,12 +55,7 @@ async function sendMessage(conversationId, senderId, { content, messageType = 't
     await client.query('UPDATE conversations SET last_message_at = now() WHERE id = $1', [conversationId]);
 
     if (otherUserId) {
-      const preview = content ? content.slice(0, 100) : 'Sent an attachment';
-      notificationService.notifyUser(otherUserId, 'new_message', {
-        title: 'New message',
-        body: preview,
-        data: { conversationId },
-      }).catch(() => {});
+      notifyNewMessage(otherUserId, senderId, conversationId, content).catch(() => {});
     }
 
     return message;

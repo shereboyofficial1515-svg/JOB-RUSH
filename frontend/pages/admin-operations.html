@@ -28,6 +28,7 @@
     </nav>
 
     <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+    <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
   </aside>
 
   <div class="admin-main">
@@ -297,6 +298,8 @@
   (async function init() {
     const user = await Auth.requireSession('admin-login.html');
     if (!user) return;
+
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('admin-login.html'));
 
     const sections = await Promise.all([
       loadApplicationsSection(),

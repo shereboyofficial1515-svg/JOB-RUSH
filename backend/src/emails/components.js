@@ -21,7 +21,7 @@ function renderLogo() {
   }
   // Text placeholder, styled to read as a wordmark — swap in LOGO_URL
   // once a real asset is hosted, no template changes required.
-  return `<div style="width:40px; height:40px; border-radius:8px; background:${colors.brandBlue}; color:${colors.white}; font-family:Arial,Helvetica,sans-serif; font-weight:700; font-size:18px; line-height:40px; text-align:center;">${escapeHtml(branding.brandName.charAt(0))}</div>`;
+  return `<div style="width:40px; height:40px; border-radius:8px; background:${colors.accentGold}; color:${colors.textOnAccent}; font-family:Arial,Helvetica,sans-serif; font-weight:700; font-size:18px; line-height:40px; text-align:center;">${escapeHtml(branding.brandName.charAt(0))}</div>`;
 }
 
 function renderHeader() {
@@ -51,9 +51,9 @@ function renderHeader() {
 function renderButton({ label, url, variant = 'primary' }) {
   if (!label || !url) return '';
   const isPrimary = variant === 'primary';
-  const bg = isPrimary ? colors.brandBlue : colors.white;
-  const border = isPrimary ? colors.brandBlue : colors.border;
-  const textColor = isPrimary ? colors.white : colors.brandBlue;
+  const bg = isPrimary ? colors.accentGold : colors.white;
+  const border = isPrimary ? colors.accentGold : colors.border;
+  const textColor = isPrimary ? colors.textOnAccent : colors.primaryNavy;
   return `
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0;">
     <tr>
@@ -69,7 +69,7 @@ function renderInfoCard({ title, rows }) {
   const validRows = (rows || []).filter((r) => r.value !== undefined && r.value !== null && r.value !== '');
   if (validRows.length === 0) return '';
   return `
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${colors.lightBlue}; border-radius:8px; margin:20px 0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${colors.lightGold}; border-radius:8px; margin:20px 0;">
     <tr>
       <td style="padding:20px 24px;">
         ${title ? `<div style="font-family:Arial,Helvetica,sans-serif; font-size:13px; font-weight:700; color:${colors.primaryNavy}; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:12px;">${escapeHtml(title)}</div>` : ''}
@@ -120,17 +120,17 @@ function renderSecurityNotice(text) {
 function renderFooter({ showUnsubscribe = true, unsubscribeUrl } = {}) {
   const year = new Date().getFullYear();
   const links = [];
-  if (branding.contactUrl) links.push(`<a href="${escapeHtml(branding.contactUrl)}" style="color:${colors.white}; text-decoration:underline;">Contact Us</a>`);
-  if (branding.privacyUrl) links.push(`<a href="${escapeHtml(branding.privacyUrl)}" style="color:${colors.white}; text-decoration:underline;">Privacy Policy</a>`);
-  if (branding.termsUrl) links.push(`<a href="${escapeHtml(branding.termsUrl)}" style="color:${colors.white}; text-decoration:underline;">Terms of Service</a>`);
-  if (showUnsubscribe && unsubscribeUrl) links.push(`<a href="${escapeHtml(unsubscribeUrl)}" style="color:${colors.white}; text-decoration:underline;">Unsubscribe</a>`);
+  if (branding.contactUrl) links.push(`<a href="${escapeHtml(branding.contactUrl)}" style="color:${colors.accentGold}; text-decoration:underline;">Contact Us</a>`);
+  if (branding.privacyUrl) links.push(`<a href="${escapeHtml(branding.privacyUrl)}" style="color:${colors.accentGold}; text-decoration:underline;">Privacy Policy</a>`);
+  if (branding.termsUrl) links.push(`<a href="${escapeHtml(branding.termsUrl)}" style="color:${colors.accentGold}; text-decoration:underline;">Terms of Service</a>`);
+  if (showUnsubscribe && unsubscribeUrl) links.push(`<a href="${escapeHtml(unsubscribeUrl)}" style="color:${colors.accentGold}; text-decoration:underline;">Unsubscribe</a>`);
 
   const socialHtml = branding.socialLinks.length
     ? `<tr><td align="center" style="padding-top:14px;">
         ${branding.socialLinks
           .map(
             (s) =>
-              `<a href="${escapeHtml(s.url)}" style="color:${colors.white}; text-decoration:none; font-family:Arial,Helvetica,sans-serif; font-size:12px; margin:0 8px;">${escapeHtml(s.label)}</a>`
+              `<a href="${escapeHtml(s.url)}" style="color:${colors.accentGold}; text-decoration:none; font-family:Arial,Helvetica,sans-serif; font-size:12px; margin:0 8px;">${escapeHtml(s.label)}</a>`
           )
           .join('')}
       </td></tr>`

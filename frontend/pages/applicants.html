@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Applicants — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="manifest" href="../manifest.json" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
@@ -52,6 +53,7 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
+  <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script>
@@ -185,6 +187,7 @@
       if (!user) return;
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
+      PushNotifications.registerIfAlreadySubscribed();
       if (user.role !== 'hirer') { window.location.href = 'dashboard.html'; return; }
 
       SidebarNav.render(user, 'applicants');

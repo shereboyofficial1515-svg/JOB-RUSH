@@ -1,6 +1,7 @@
 const { query } = require('../config/db');
 const emailService = require('./emailService');
 const smsService = require('./smsService');
+const pushService = require('./pushService');
 const logger = require('../utils/logger');
 const { buildUnsubscribeUrl } = require('../utils/unsubscribeToken');
 
@@ -13,7 +14,7 @@ const { buildUnsubscribeUrl } = require('../utils/unsubscribeToken');
  * revisit rather than scattered across every call site.
  */
 const CHANNEL_POLICY = {
-  new_message: ['in_app'],
+  new_message: ['in_app', 'web_push'],
   application_submitted: ['in_app', 'email'],
   application_received: ['in_app', 'email'],
   application_status_changed: ['in_app', 'email'],
@@ -48,7 +49,7 @@ const CHANNEL_POLICY = {
 async function getPreferences(userId) {
   const { rows } = await query('SELECT * FROM notification_preferences WHERE user_id = $1', [userId]);
   if (rows.length > 0) return rows[0];
-  return { email_enabled: true, sms_enabled: true, in_app_enabled: true };
+  return { email_enabled: true, sms_enabled: true, in_app_enabled: true, push_enabled: true };
 }
 
 async function recordDelivery(notificationId, channel, status, errorMessage) {
@@ -75,6 +76,21 @@ async function notify(userId, type, { title, body, data, email, phone, firstName
     const preferences = await getPreferences(userId);
     const allowedChannels = CHANNEL_POLICY[type] || ['in_app'];
 
+    // Shared by both the email and web-push branches below — a
+    // new-message alert on either channel respects the recipient's own
+    // chat_message_previews setting (Settings → Chat): with previews
+    // off, neither channel quotes the message content, since a push
+    // banner can be visible on a lock screen to someone other than the
+    // recipient.
+    let previewsEnabled = true;
+    if (type === 'new_message') {
+      const { rows: settingsRows } = await query(
+        'SELECT chat_message_previews FROM user_settings WHERE user_id = $1',
+        [userId]
+      );
+      previewsEnabled = settingsRows[0]?.chat_message_previews ?? true;
+    }
+
     if (allowedChannels.includes('in_app')) {
       await recordDelivery(notification.id, 'in_app', preferences.in_app_enabled ? 'sent' : 'skipped');
     }
@@ -84,19 +100,7 @@ async function notify(userId, type, { title, body, data, email, phone, firstName
         await recordDelivery(notification.id, 'email', 'skipped');
       } else {
         try {
-          // A new-message email respects the recipient's own
-          // chat_message_previews setting (Settings → Chat) — when
-          // they've turned previews off, the email says a message
-          // arrived without quoting its content.
-          let emailData = { ...data, unsubscribeUrl: buildUnsubscribeUrl(userId) };
-          if (type === 'new_message') {
-            const { rows: settingsRows } = await query(
-              'SELECT chat_message_previews FROM user_settings WHERE user_id = $1',
-              [userId]
-            );
-            const previewsEnabled = settingsRows[0]?.chat_message_previews ?? true;
-            emailData = { ...emailData, showPreview: previewsEnabled };
-          }
+          const emailData = { ...data, unsubscribeUrl: buildUnsubscribeUrl(userId), showPreview: previewsEnabled };
 
           await emailService.sendNotificationEmail({
             to: email,
@@ -128,6 +132,29 @@ async function notify(userId, type, { title, body, data, email, phone, firstName
           await recordDelivery(notification.id, 'sms', 'sent');
         } catch (err) {
           await recordDelivery(notification.id, 'sms', 'failed', err.message);
+        }
+      }
+    }
+
+    if (allowedChannels.includes('web_push')) {
+      if (preferences.push_enabled === false) {
+        await recordDelivery(notification.id, 'web_push', 'skipped');
+      } else {
+        try {
+          // Tagged by notification id so a device that already showed
+          // this alert never shows a second, duplicate one for it —
+          // the Notification API replaces same-tag notifications
+          // instead of stacking them.
+          const pushBody = type === 'new_message' && !previewsEnabled ? 'Sent you a message' : body;
+          const result = await pushService.sendPushToUser(userId, {
+            title,
+            body: pushBody,
+            data: { ...data, notificationId: notification.id, type },
+            tag: `notification-${notification.id}`,
+          });
+          await recordDelivery(notification.id, 'web_push', result.sent > 0 ? 'sent' : 'skipped');
+        } catch (err) {
+          await recordDelivery(notification.id, 'web_push', 'failed', err.message);
         }
       }
     }
@@ -184,16 +211,24 @@ async function markAllRead(userId) {
   await query('UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL', [userId]);
 }
 
-async function updatePreferences(userId, { emailEnabled, smsEnabled, inAppEnabled }) {
+async function updatePreferences(userId, { emailEnabled, smsEnabled, inAppEnabled, pushEnabled }) {
+  const current = await getPreferences(userId);
   const { rows } = await query(
-    `INSERT INTO notification_preferences (user_id, email_enabled, sms_enabled, in_app_enabled)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO notification_preferences (user_id, email_enabled, sms_enabled, in_app_enabled, push_enabled)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled = EXCLUDED.email_enabled,
        sms_enabled = EXCLUDED.sms_enabled,
-       in_app_enabled = EXCLUDED.in_app_enabled
+       in_app_enabled = EXCLUDED.in_app_enabled,
+       push_enabled = EXCLUDED.push_enabled
      RETURNING *`,
-    [userId, emailEnabled, smsEnabled, inAppEnabled]
+    [
+      userId,
+      emailEnabled,
+      smsEnabled,
+      inAppEnabled,
+      pushEnabled === undefined ? (current.push_enabled ?? true) : pushEnabled,
+    ]
   );
   return rows[0];
 }
