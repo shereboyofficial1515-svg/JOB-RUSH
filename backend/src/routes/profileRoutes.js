@@ -1,11 +1,20 @@
 const express = require('express');
 const controller = require('../controllers/profileController');
+const extras = require('../controllers/profileExtrasController');
 const { authenticate, attachUserIfPresent } = require('../middleware/authenticate');
 const { requireRole } = require('../middleware/authorize');
 const {
   validateBody,
   updateWorkerProfileSchema,
   updateHirerProfileSchema,
+  createWorkExperienceSchema,
+  updateWorkExperienceSchema,
+  reorderWorkExperienceSchema,
+  upsertBusinessProfileSchema,
+  addBusinessMediaSchema,
+  createProfessionalServiceSchema,
+  updateProfessionalServiceSchema,
+  reportProfileSchema,
 } = require('../validators/profileValidators');
 
 const router = express.Router();
@@ -33,6 +42,70 @@ router.patch(
   validateBody(updateHirerProfileSchema),
   controller.updateOwnHirerProfile
 );
+
+// ---------- Work experience (own, worker-only) ----------
+router.get('/worker/me/experience', authenticate, requireRole('worker'), extras.listOwnExperience);
+router.post(
+  '/worker/me/experience',
+  authenticate,
+  requireRole('worker'),
+  validateBody(createWorkExperienceSchema),
+  extras.createExperience
+);
+router.post('/worker/me/experience/reorder', authenticate, requireRole('worker'), validateBody(reorderWorkExperienceSchema), extras.reorderExperience);
+router.patch(
+  '/worker/me/experience/:id',
+  authenticate,
+  requireRole('worker'),
+  validateBody(updateWorkExperienceSchema),
+  extras.updateExperience
+);
+router.delete('/worker/me/experience/:id', authenticate, requireRole('worker'), extras.deleteExperience);
+
+// ---------- Business profile (own, worker-only) ----------
+router.get('/worker/me/business', authenticate, requireRole('worker'), extras.getOwnBusinessProfile);
+router.put(
+  '/worker/me/business',
+  authenticate,
+  requireRole('worker'),
+  validateBody(upsertBusinessProfileSchema),
+  extras.upsertBusinessProfile
+);
+router.delete('/worker/me/business', authenticate, requireRole('worker'), extras.deleteBusinessProfile);
+router.post(
+  '/worker/me/business/media',
+  authenticate,
+  requireRole('worker'),
+  validateBody(addBusinessMediaSchema),
+  extras.addBusinessMedia
+);
+router.delete('/worker/me/business/media/:id', authenticate, requireRole('worker'), extras.removeBusinessMedia);
+
+// ---------- Professional services (own, worker-only) ----------
+router.get('/worker/me/services', authenticate, requireRole('worker'), extras.listOwnServices);
+router.post(
+  '/worker/me/services',
+  authenticate,
+  requireRole('worker'),
+  validateBody(createProfessionalServiceSchema),
+  extras.createService
+);
+router.patch(
+  '/worker/me/services/:id',
+  authenticate,
+  requireRole('worker'),
+  validateBody(updateProfessionalServiceSchema),
+  extras.updateService
+);
+router.delete('/worker/me/services/:id', authenticate, requireRole('worker'), extras.deleteService);
+
+// ---------- Public reads for another worker's experience/business/services ----------
+router.get('/worker/:userId/experience', extras.listExperienceForWorker);
+router.get('/worker/:userId/business', extras.getBusinessProfileForWorker);
+router.get('/worker/:userId/services', extras.listServicesForWorker);
+
+// ---------- Report a profile (any authenticated user) ----------
+router.post('/:userId/report', authenticate, validateBody(reportProfileSchema), extras.reportProfile);
 
 router.get('/worker/:userId', attachUserIfPresent, controller.getWorkerProfile);
 router.get('/hirer/:userId', controller.getHirerProfile);

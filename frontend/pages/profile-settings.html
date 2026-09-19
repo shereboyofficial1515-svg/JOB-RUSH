@@ -147,6 +147,9 @@
     // ============================================================
     const TABS = [
       { key: 'profile', label: 'Profile' },
+      { key: 'experience', label: 'Experience', workerOnly: true },
+      { key: 'services', label: 'Services & Pricing', workerOnly: true },
+      { key: 'business', label: 'Business Profile', workerOnly: true },
       { key: 'account', label: 'Account & Security' },
       { key: 'sessions', label: 'Sessions & Devices' },
       { key: 'chat', label: 'Chat' },
@@ -156,9 +159,14 @@
       { key: 'accessibility', label: 'Accessibility' },
     ];
 
+    function visibleTabs() {
+      const isWorker = currentUser && (currentUser.role === 'worker' || currentUser.role === 'both');
+      return TABS.filter((t) => !t.workerOnly || isWorker);
+    }
+
     function renderTabsNav(activeKey) {
       const nav = document.getElementById('settings-tabs');
-      nav.innerHTML = TABS.map(
+      nav.innerHTML = visibleTabs().map(
         (t) => `<button type="button" class="settings-tab ${t.key === activeKey ? 'is-active' : ''}" data-tab-key="${t.key}">${t.label}</button>`
       ).join('');
       nav.querySelectorAll('[data-tab-key]').forEach((btn) => {
@@ -316,7 +324,8 @@
         <div style="height:8px; background: var(--bg-elevated); border-radius: 999px; overflow:hidden;">
           <div style="height:100%; width:${pct}%; background: var(--accent); border-radius: 999px; transition: width var(--transition-normal) var(--ease-standard);"></div>
         </div>
-        <p class="text-secondary text-sm" style="margin-top: var(--space-3); margin-bottom:0;">Based on your title, bio, experience, location, photo, and skills — the fields hirers see first.</p>
+        <p class="text-secondary text-sm" style="margin: var(--space-3) 0 var(--space-4);">Based on your title, bio, experience, location, photo, and skills — the fields hirers see first.</p>
+        <a class="btn btn-sm btn-secondary" href="worker-profile.html?id=${profile.user_id || currentUser.id}" target="_blank" rel="noopener">Preview profile as clients see it</a>
       </div>`;
     }
 
@@ -597,6 +606,370 @@
         populateSkillsPicker(safeProfile);
         pendingDocuments = [];
         wireVerificationUpload();
+      }
+    };
+
+    // ============================================================
+    // TAB: Experience (work history)
+    // ============================================================
+    function experienceEntryHtml(e) {
+      const dateRange = [
+        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
+        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
+      ].filter(Boolean).join(' — ');
+      return `
+      <div class="card" style="margin-bottom: var(--space-4);" data-experience-id="${e.id}">
+        <div style="display:flex; justify-content:space-between; gap: var(--space-3);">
+          <div>
+            <strong>${esc(e.job_title)}</strong>
+            ${e.company_name ? `<div class="text-secondary text-sm">${esc(e.company_name)}</div>` : ''}
+            ${dateRange ? `<div class="text-secondary text-xs" style="margin-top:2px;">${esc(dateRange)}</div>` : ''}
+          </div>
+          <button type="button" class="btn btn-sm btn-ghost" data-delete-experience="${e.id}" aria-label="Remove">Remove</button>
+        </div>
+        ${e.description ? `<p class="text-sm" style="margin-top: var(--space-3);">${esc(e.description)}</p>` : ''}
+      </div>`;
+    }
+
+    function experienceFormHtml() {
+      return `
+      <form id="experience-form" class="card" style="margin-bottom: var(--space-5);">
+        <h3>Add work experience</h3>
+        <div class="field">
+          <label for="exp-job-title">Job title</label>
+          <input type="text" id="exp-job-title" name="jobTitle" required placeholder="e.g. Site Electrician" />
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="exp-company">Company / client</label>
+            <input type="text" id="exp-company" name="companyName" placeholder="e.g. ABC Electricals" />
+          </div>
+          <div class="field">
+            <label for="exp-location">Location</label>
+            <input type="text" id="exp-location" name="location" placeholder="e.g. Warri, Delta State" />
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="exp-start">Start date</label>
+            <input type="date" id="exp-start" name="startDate" />
+          </div>
+          <div class="field">
+            <label for="exp-end">End date</label>
+            <input type="date" id="exp-end" name="endDate" />
+          </div>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="exp-current" name="isCurrent" style="width:auto;" />
+            I currently work here
+          </label>
+        </div>
+        <div class="field">
+          <label for="exp-description">Description</label>
+          <textarea id="exp-description" name="description" rows="3" placeholder="What you did, results, skills used"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" id="experience-submit">Add experience</button>
+      </form>`;
+    }
+
+    async function loadExperienceList(listEl) {
+      const { entries } = await API.get('/profiles/worker/me/experience');
+      listEl.innerHTML = entries.length
+        ? entries.map(experienceEntryHtml).join('')
+        : `<p class="text-secondary text-sm">No work experience added yet.</p>`;
+      listEl.querySelectorAll('[data-delete-experience]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await API.delete(`/profiles/worker/me/experience/${btn.dataset.deleteExperience}`);
+          Toast.success('Removed.');
+          loadExperienceList(listEl);
+        });
+      });
+    }
+
+    TAB_LOADERS.experience = async function loadExperienceTab(content) {
+      content.innerHTML = experienceFormHtml() + `<div id="experience-list"></div>`;
+      const listEl = document.getElementById('experience-list');
+      loadExperienceList(listEl);
+
+      const form = document.getElementById('experience-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('experience-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.post('/profiles/worker/me/experience', {
+            jobTitle: form.jobTitle.value.trim(),
+            companyName: form.companyName.value.trim() || undefined,
+            location: form.location.value.trim() || undefined,
+            startDate: form.startDate.value || undefined,
+            endDate: form.isCurrent.checked ? undefined : (form.endDate.value || undefined),
+            isCurrent: form.isCurrent.checked,
+            description: form.description.value.trim() || undefined,
+          });
+          Toast.success('Experience added.');
+          form.reset();
+          loadExperienceList(listEl);
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    };
+
+    // ============================================================
+    // TAB: Services & Pricing (per-service catalog)
+    // ============================================================
+    const PRICING_TYPE_LABELS = {
+      hourly: 'Per hour',
+      daily: 'Per day',
+      project: 'Per project',
+      fixed: 'Fixed price',
+      negotiable: 'Negotiable',
+      contact_for_quote: 'Contact for quote',
+    };
+
+    function serviceEntryHtml(s) {
+      const priceLabel = s.price !== null
+        ? `${s.price_currency === 'USD' ? '$' : '₦'}${Number(s.price).toLocaleString()} · ${PRICING_TYPE_LABELS[s.pricing_type] || s.pricing_type}`
+        : PRICING_TYPE_LABELS[s.pricing_type] || s.pricing_type;
+      return `
+      <div class="card" style="margin-bottom: var(--space-4);" data-service-id="${s.id}">
+        <div style="display:flex; justify-content:space-between; gap: var(--space-3);">
+          <div>
+            <strong>${esc(s.name)}</strong>
+            <div class="text-secondary text-sm">${esc(priceLabel)}${s.duration_estimate ? ` · ${esc(s.duration_estimate)}` : ''}</div>
+          </div>
+          <div style="display:flex; gap: var(--space-2); flex-shrink:0;">
+            <label class="text-xs" style="display:flex; align-items:center; gap: var(--space-1);">
+              <input type="checkbox" data-toggle-service="${s.id}" style="width:auto;" ${s.is_active ? 'checked' : ''} /> Active
+            </label>
+            <button type="button" class="btn btn-sm btn-ghost" data-delete-service="${s.id}">Remove</button>
+          </div>
+        </div>
+        ${s.description ? `<p class="text-sm" style="margin-top: var(--space-3);">${esc(s.description)}</p>` : ''}
+      </div>`;
+    }
+
+    function serviceFormHtml() {
+      return `
+      <form id="service-form" class="card" style="margin-bottom: var(--space-5);">
+        <h3>Add a service</h3>
+        <div class="field">
+          <label for="svc-name">Service name</label>
+          <input type="text" id="svc-name" name="name" required placeholder="e.g. Home wiring installation" />
+        </div>
+        <div class="settings-field-grid cols-3">
+          <div class="field">
+            <label for="svc-pricing-type">Pricing</label>
+            <select id="svc-pricing-type" name="pricingType">
+              <option value="fixed">Fixed price</option>
+              <option value="hourly">Per hour</option>
+              <option value="daily">Per day</option>
+              <option value="project">Per project</option>
+              <option value="negotiable">Negotiable</option>
+              <option value="contact_for_quote">Contact for quote</option>
+            </select>
+          </div>
+          <div class="field" id="svc-price-field">
+            <label for="svc-price">Price</label>
+            <input type="number" id="svc-price" name="price" min="0" placeholder="e.g. 25000" />
+          </div>
+          <div class="field">
+            <label for="svc-duration">Estimated duration</label>
+            <input type="text" id="svc-duration" name="durationEstimate" placeholder="e.g. 1-2 days" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="svc-description">Description</label>
+          <textarea id="svc-description" name="description" rows="3"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" id="service-submit">Add service</button>
+      </form>`;
+    }
+
+    async function loadServicesList(listEl) {
+      const { services } = await API.get('/profiles/worker/me/services');
+      listEl.innerHTML = services.length
+        ? services.map(serviceEntryHtml).join('')
+        : `<p class="text-secondary text-sm">No services added yet. Clients will only see your general starting price on the Profile tab until you add specific services here.</p>`;
+      listEl.querySelectorAll('[data-delete-service]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await API.delete(`/profiles/worker/me/services/${btn.dataset.deleteService}`);
+          Toast.success('Removed.');
+          loadServicesList(listEl);
+        });
+      });
+      listEl.querySelectorAll('[data-toggle-service]').forEach((cb) => {
+        cb.addEventListener('change', async () => {
+          await API.patch(`/profiles/worker/me/services/${cb.dataset.toggleService}`, { isActive: cb.checked });
+          Toast.success(cb.checked ? 'Service activated.' : 'Service deactivated.');
+        });
+      });
+    }
+
+    TAB_LOADERS.services = async function loadServicesTab(content) {
+      content.innerHTML = serviceFormHtml() + `<div id="services-list"></div>`;
+      const listEl = document.getElementById('services-list');
+      loadServicesList(listEl);
+
+      const form = document.getElementById('service-form');
+      const pricingSelect = document.getElementById('svc-pricing-type');
+      const priceField = document.getElementById('svc-price-field');
+      const syncPriceField = () => {
+        const isQuoteOnly = ['negotiable', 'contact_for_quote'].includes(pricingSelect.value);
+        priceField.style.display = isQuoteOnly ? 'none' : '';
+      };
+      pricingSelect.addEventListener('change', syncPriceField);
+      syncPriceField();
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('service-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.post('/profiles/worker/me/services', {
+            name: form.name.value.trim(),
+            pricingType: form.pricingType.value,
+            price: form.price.value ? Number(form.price.value) : undefined,
+            durationEstimate: form.durationEstimate.value.trim() || undefined,
+            description: form.description.value.trim() || undefined,
+          });
+          Toast.success('Service added.');
+          form.reset();
+          syncPriceField();
+          loadServicesList(listEl);
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    };
+
+    // ============================================================
+    // TAB: Business Profile (physical store/business, separate from personal location)
+    // ============================================================
+    function businessFormHtml(profile) {
+      return `
+      <form id="business-form">
+        <div class="card" style="margin-bottom: var(--space-5);">
+          <p class="text-secondary text-sm">If you operate from a physical store or business location, add it here. This is completely separate from your personal location — your home address is never shown publicly, but a business address you fill in here can be, once you enable it below.</p>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="biz-enabled" name="isEnabled" style="width:auto;" ${profile?.is_enabled ? 'checked' : ''} />
+            Show my business profile publicly
+          </label>
+        </div>
+        <div class="field">
+          <label for="biz-name">Business name</label>
+          <input type="text" id="biz-name" name="businessName" value="${esc(profile?.business_name || '')}" placeholder="e.g. ABC Electricals" />
+        </div>
+        <div class="field">
+          <label for="biz-description">Business description</label>
+          <textarea id="biz-description" name="description" rows="3">${esc(profile?.description || '')}</textarea>
+        </div>
+        <div class="settings-field-grid cols-3">
+          <div class="field">
+            <label for="biz-state">State</label>
+            <select id="biz-state" name="stateId"><option value="">Loading…</option></select>
+          </div>
+          <div class="field">
+            <label for="biz-lga">LGA</label>
+            <select id="biz-lga" name="lgaId" disabled><option value="">Select a state first</option></select>
+          </div>
+          <div class="field">
+            <label for="biz-area">Area</label>
+            <select id="biz-area" name="areaId" disabled><option value="">Select an LGA first</option></select>
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="biz-address">Business address</label>
+            <input type="text" id="biz-address" name="address" value="${esc(profile?.address || '')}" placeholder="Public — shown to clients" />
+          </div>
+          <div class="field">
+            <label for="biz-landmark">Landmark</label>
+            <input type="text" id="biz-landmark" name="landmark" value="${esc(profile?.landmark || '')}" />
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="biz-hours">Opening hours</label>
+            <input type="text" id="biz-hours" name="openingHours" value="${esc(profile?.opening_hours || '')}" placeholder="e.g. Mon-Sat, 8am-6pm" />
+          </div>
+          <div class="field">
+            <label for="biz-phone">Business contact phone</label>
+            <input type="text" id="biz-phone" name="contactPhone" value="${esc(profile?.contact_phone || '')}" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="business-submit">Save business profile</button>
+        ${profile ? `<button type="button" class="btn btn-ghost" id="business-delete" style="margin-left: var(--space-2);">Remove business profile</button>` : ''}
+      </form>`;
+    }
+
+    TAB_LOADERS.business = async function loadBusinessTab(content) {
+      const { profile } = await API.get('/profiles/worker/me/business');
+      content.innerHTML = businessFormHtml(profile);
+      const form = document.getElementById('business-form');
+
+      LocationSelect.init({
+        stateSelect: form.stateId,
+        lgaSelect: form.lgaId,
+        areaSelect: form.areaId,
+        initial: { stateId: profile?.state_id, lgaId: profile?.lga_id, areaId: profile?.area_id },
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('business-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          if (!form.businessName.value.trim()) throw new Error('Business name is required.');
+          await API.put('/profiles/worker/me/business', {
+            businessName: form.businessName.value.trim(),
+            description: form.description.value.trim() || undefined,
+            stateId: form.stateId.value || undefined,
+            lgaId: form.lgaId.value || undefined,
+            areaId: form.areaId.value || undefined,
+            address: form.address.value.trim() || undefined,
+            landmark: form.landmark.value.trim() || undefined,
+            openingHours: form.openingHours.value.trim() || undefined,
+            contactPhone: form.contactPhone.value.trim() || undefined,
+            isEnabled: form.isEnabled.checked,
+          });
+          Toast.success('Business profile saved.');
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+
+      const deleteBtn = document.getElementById('business-delete');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          Modal.open({
+            title: 'Remove business profile?',
+            bodyHtml: `
+              <p class="text-secondary">This removes your business name, address, hours, and photos. This cannot be undone.</p>
+              <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-business-delete-btn">Remove</button>
+              </div>
+            `,
+            onMount: () => {
+              document.getElementById('confirm-business-delete-btn').addEventListener('click', async () => {
+                await API.delete('/profiles/worker/me/business');
+                Modal.close();
+                Toast.success('Business profile removed.');
+                loadTab('business');
+              });
+            },
+          });
+        });
       }
     };
 
@@ -1722,7 +2095,7 @@
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
       const params = new URLSearchParams(window.location.search);
-      const initialTab = TABS.some((t) => t.key === params.get('tab')) ? params.get('tab') : 'profile';
+      const initialTab = visibleTabs().some((t) => t.key === params.get('tab')) ? params.get('tab') : 'profile';
       renderTabsNav(initialTab);
       loadTab(initialTab);
     })();

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Help Center — JOB RUSH</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
+<style>
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: var(--space-7);
+    align-items: start;
+  }
+  .docs-sidebar {
+    position: sticky;
+    top: var(--space-6);
+    max-height: calc(100vh - var(--space-8));
+    overflow-y: auto;
+    padding-right: var(--space-3);
+  }
+  .docs-search {
+    width: 100%;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    color: var(--text-primary);
+    margin-bottom: var(--space-5);
+  }
+  .docs-nav-group { margin-bottom: var(--space-5); }
+  .docs-nav-group h4 {
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+    margin-bottom: var(--space-2);
+  }
+  .docs-nav-group a {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+  }
+  .docs-nav-group a:hover,
+  .docs-nav-group a.is-active {
+    background: rgba(240, 176, 0, 0.08);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+  .docs-section {
+    scroll-margin-top: var(--space-6);
+    padding-bottom: var(--space-7);
+    margin-bottom: var(--space-7);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .docs-section:last-child { border-bottom: none; }
+  .docs-section h2 {
+    font-size: var(--text-xl);
+    margin-bottom: var(--space-3);
+    scroll-margin-top: var(--space-6);
+  }
+  .docs-section p, .docs-section li { color: var(--text-secondary); max-width: 68ch; }
+  .docs-section ul { padding-left: var(--space-5); margin: var(--space-3) 0; }
+  .docs-section li { margin-bottom: var(--space-2); }
+  .docs-callout {
+    background: var(--bg-elevated);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin: var(--space-4) 0;
+    max-width: 68ch;
+  }
+  .docs-callout.is-limit { border-left-color: var(--status-warning); }
+  .docs-callout p { color: var(--text-primary); margin: 0; }
+  .docs-hidden { display: none !important; }
+  .docs-back-to-top {
+    position: fixed;
+    bottom: var(--space-6);
+    right: var(--space-6);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--color-primary-gold);
+    color: var(--text-on-gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    cursor: pointer;
+    box-shadow: var(--shadow-elevated);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-fast) var(--ease-standard);
+    z-index: 200;
+  }
+  .docs-back-to-top.is-visible { opacity: 1; pointer-events: auto; }
+  .docs-mobile-toggle { display: none; }
+  @media (max-width: 900px) {
+    .docs-shell { grid-template-columns: 1fr; }
+    .docs-sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      width: 280px; max-width: 85vw;
+      height: 100vh;
+      background: var(--bg-page);
+      z-index: 300;
+      padding: var(--space-6) var(--space-5);
+      transform: translateX(-100%);
+      transition: transform var(--transition-normal) var(--ease-smooth);
+      box-shadow: var(--shadow-elevated);
+    }
+    .docs-sidebar.is-open { transform: translateX(0); }
+    .docs-mobile-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin-bottom: var(--space-5);
+    }
+  }
+</style>
+</head>
+
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<div id="header-mount"></div>
+
+<main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
+  <h1 style="margin-bottom: var(--space-2);">Help Center</h1>
+  <p class="text-secondary" style="margin-bottom: var(--space-6);">Everything about how JOB RUSH actually works today — what you can do, what's still coming, and how to get help.</p>
+
+  <button type="button" class="btn btn-secondary docs-mobile-toggle" id="docs-nav-toggle">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    Browse sections
+  </button>
+
+  <div class="docs-shell">
+    <aside class="docs-sidebar" id="docs-sidebar">
+      <input type="search" class="docs-search" id="docs-search" placeholder="Search the help center…" aria-label="Search documentation" />
+      <nav id="docs-nav" aria-label="Documentation sections"></nav>
+    </aside>
+
+    <div id="docs-content"></div>
+  </div>
+</main>
+
+<button type="button" class="docs-back-to-top" id="docs-back-to-top" aria-label="Back to top">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+</button>
+
+<div id="footer-mount"></div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/env.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/modules/accessibility.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/modules/notificationBell.js"></script>
+<script src="../js/modules/chrome.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  // Each entry: id (anchor + search target), title, group (sidebar heading), html (body).
+  // Every link inside `html` points to a real, existing JOB RUSH page/route —
+  // no placeholder or invented links.
+  const DOCS = [
+    // ---------------- Getting Started ----------------
+    { id: 'welcome', group: 'Getting Started', title: 'Welcome to Job Rush', html: `
+      <p>JOB RUSH is a marketplace that connects skilled workers with people who need to hire them, currently operating in Delta State, Nigeria. This Help Center explains exactly what the app can do today, honestly — including a few things that are still on the way.</p>` },
+    { id: 'what-is', group: 'Getting Started', title: 'What is Job Rush?', html: `
+      <p>It's a two-sided platform: workers build a professional profile and get discovered or apply to jobs; hirers post jobs or search for talent directly. Once connected, both sides can message, call, schedule interviews, and — where a job is agreed — pay through the app's escrow system.</p>` },
+    { id: 'who-can-use', group: 'Getting Started', title: 'Who can use Job Rush?', html: `
+      <p>Anyone based in Delta State who wants to find skilled work, or hire someone, can sign up. A single account can act as both a worker and a hirer — registering signs you up as both, and you can focus your profile toward whichever role you use most.</p>` },
+    { id: 'creating-account', group: 'Getting Started', title: 'Creating an account', html: `
+      <p>From the <a href="register.html">registration page</a>, sign up with an email or phone number and a password, or continue with Google, Facebook, or Apple. Email/phone sign-ups verify with a one-time code; signing in with a provider skips that step since the provider has already verified you.</p>` },
+    { id: 'logging-in', group: 'Getting Started', title: 'Logging in', html: `
+      <p>Use the <a href="login.html">login page</a> with your email/phone and password, or the same provider you registered with. If you've enabled two-factor authentication, you'll also be asked for a 6-digit code from your authenticator app (or a backup code) after your password.</p>` },
+    { id: 'managing-profile', group: 'Getting Started', title: 'Managing your profile', html: `
+      <p>All profile editing happens on the <a href="profile-settings.html">Settings</a> page. Workers have dedicated tabs for their main Profile, Experience, Services &amp; Pricing, and Business Profile; hirers edit their display name, company details, and location from the same Profile tab.</p>` },
+
+    // ---------------- Your Profile ----------------
+    { id: 'creating-professional-profile', group: 'Your Profile', title: 'Creating a professional profile', html: `
+      <p>On the Profile tab of <a href="profile-settings.html">Settings</a>, add a professional title, a bio, your years of experience, availability, working days/hours, languages, and a profile photo. The more of this you fill in, the higher your profile-completion score — shown right on that tab.</p>` },
+    { id: 'adding-skills', group: 'Your Profile', title: 'Adding skills', html: `
+      <p>Skills are picked from JOB RUSH's own managed list on the Profile tab — check every skill that applies. Hirers can filter workers by skill on the <a href="search.html">Find Talent</a> page.</p>` },
+    { id: 'adding-services', group: 'Your Profile', title: 'Adding services', html: `
+      <p>The <strong>Services &amp; Pricing</strong> tab in Settings lets you list individual services you offer — each with its own name, description, pricing type, and estimated duration — separate from your overall profile. This is more specific than a single starting price: a plumber, for example, can list "Pipe repair" and "Bathroom installation" as two distinct services with their own prices.</p>` },
+    { id: 'setting-prices', group: 'Your Profile', title: 'Setting prices', html: `
+      <p>Your profile has one overall <strong>starting price</strong> (Profile tab) that gives hirers a quick sense of your rates. For real pricing detail, add services with their own price and pricing type — <em>hourly, daily, per project, fixed, negotiable,</em> or <em>contact for quote</em>. Negotiable and contact-for-quote services intentionally show no number, since the whole point is to discuss it directly.</p>` },
+    { id: 'setting-availability', group: 'Your Profile', title: 'Setting availability', html: `
+      <p>Set your status to <em>Available</em>, <em>Busy</em>, or <em>Unavailable</em> on the Profile tab, plus free-text working days and hours (e.g. "Mon–Fri", "8am–6pm"). Hirers can filter search results by availability.</p>` },
+    { id: 'work-experience', group: 'Your Profile', title: 'Adding work experience', html: `
+      <p>The <strong>Experience</strong> tab in Settings lets you add repeatable work-history entries — job title, company or client, location, start/end dates, and a description — separate from your portfolio (which showcases actual project media, not employment history). These appear on your public profile in chronological order.</p>` },
+    { id: 'portfolio-projects', group: 'Your Profile', title: 'Adding portfolio projects', html: `
+      <p>On the <a href="portfolio.html">Portfolio</a> page, create a project with a title, description, category, and photos or videos of the actual work. Each project gets its own detail page that clients can open from your profile.</p>` },
+    { id: 'uploading-photos', group: 'Your Profile', title: 'Uploading photos', html: `
+      <p>Photos can be added to your profile picture, portfolio projects, and business storefront. All uploads are validated by their actual file content, not just the filename, so a mislabeled file will be rejected.</p>` },
+    { id: 'uploading-videos', group: 'Your Profile', title: 'Uploading videos', html: `
+      <p>Portfolio videos help clients see your actual work in motion. Upload them from the <a href="portfolio.html">Portfolio</a> page — see the exact limits below.</p>` },
+    { id: 'video-limits', group: 'Your Profile', title: 'Video limits', html: `
+      <div class="docs-callout is-limit"><p><strong>Per worker:</strong> up to 3 videos, each up to 2 minutes long. <strong>Per portfolio:</strong> up to 20 media items total (photos and videos combined). These limits are enforced by the server, not just the browser, so they can't be bypassed by editing a request.</p></div>` },
+
+    // ---------------- Finding Work & Hiring ----------------
+    { id: 'finding-professionals', group: 'Finding Work & Hiring', title: 'Finding professionals', html: `
+      <p>Use <a href="search.html">Find Talent</a> to search by keyword, category, skill, state/LGA, availability, minimum rating, maximum price, verification status, and whether they have a work video. Results can be sorted, and PRO/verified professionals are given a modest, honest ranking boost among results that already match your filters.</p>` },
+    { id: 'finding-jobs', group: 'Finding Work & Hiring', title: 'Finding jobs', html: `
+      <p><a href="jobs.html">Browse Jobs</a> lists open postings with filters for keyword, employment type, and location. Open any listing to see the full description and apply.</p>` },
+    { id: 'posting-jobs', group: 'Finding Work & Hiring', title: 'Posting jobs', html: `
+      <p>Hirers post jobs from <a href="my-jobs.html">My Jobs</a> — title, description, budget, employment type, and location are required; category, specific skills, and a deadline can also be added. Once posted, you'll receive applications and can invite specific workers directly.</p>` },
+    { id: 'applying-jobs', group: 'Finding Work & Hiring', title: 'Applying for jobs', html: `
+      <p>Open a job listing and submit your application. Track every application you've sent from <a href="applications.html">My Applications</a>, including its current status (submitted, shortlisted, hired, rejected, or withdrawn).</p>` },
+
+    // ---------------- Messaging & Calls ----------------
+    { id: 'messaging', group: 'Messaging & Calls', title: 'Messaging', html: `
+      <p><a href="messages.html">Messages</a> is one-to-one chat between a worker and a hirer. You can send text and media, edit a message within 20 minutes of sending it, delete a message, block someone, archive a conversation, and search your own message history.</p>
+      <div class="docs-callout"><p>Messaging works by checking for new messages every few seconds rather than a constant live connection, so there can be a very short delay before a new message appears. Typing indicators and "online now" presence aren't available yet, for the same reason.</p></div>` },
+    { id: 'unread-messages', group: 'Messaging & Calls', title: 'Unread messages', html: `
+      <p>Conversations with unread messages show a numbered badge in your conversation list. Opening a conversation marks it read immediately and clears the badge.</p>` },
+    { id: 'chat-notifications', group: 'Messaging & Calls', title: 'Chat notifications', html: `
+      <p>New messages always appear in-app. If you've enabled <strong>push notifications</strong> (see below), you'll also get a browser/device notification even when Job Rush isn't the tab you're looking at — tapping it opens the right conversation directly.</p>` },
+    { id: 'chat-wallpaper', group: 'Messaging & Calls', title: 'Chat wallpaper', html: `
+      <p>Choose a wallpaper for the message background from Settings → Chat → <em>Chat wallpaper</em>. It appears only behind the message list itself — never over the header, composer, or the message bubbles.</p>` },
+    { id: 'chat-theme', group: 'Messaging & Calls', title: 'Light/dark chat mode', html: `
+      <p>Settings → Chat → <em>Chat theme</em> lets you choose Dark, Light, or Match system for the chat screen specifically — independent of the rest of the app, which is dark by design.</p>` },
+    { id: 'audio-calls', group: 'Messaging & Calls', title: 'Audio calls', html: `
+      <p>From an open conversation, tap the phone icon to start a real-time audio call with the other participant.</p>` },
+    { id: 'video-calls', group: 'Messaging & Calls', title: 'Video calls', html: `
+      <p>Tap the camera icon in a conversation to start a video call. You can mute your microphone or turn your camera off mid-call, and the layout adapts to phone, tablet, and desktop screens.</p>` },
+    { id: 'incoming-calls', group: 'Messaging & Calls', title: 'Incoming calls', html: `
+      <p>An incoming call shows an on-screen prompt to answer or decline, with a ringtone. Your device checks for a ringing call every few seconds, so there's a brief window between someone calling and your screen updating — typically well under 3 seconds.</p>` },
+    { id: 'call-notifications', group: 'Messaging & Calls', title: 'Call notifications', html: `
+      <p>If you've enabled push notifications, an incoming call can also raise a device-level notification even if Job Rush isn't your active tab, so you don't have to be staring at the app to know you're being called. Tapping it opens Job Rush to answer.</p>
+      <div class="docs-callout"><p><strong>Honest limitation:</strong> a regular mobile website — even with push notifications enabled — cannot fully replicate a native phone app's full-screen incoming-call experience while completely closed. What's described above is the strongest behavior the web platform genuinely supports; it works reliably while your browser is running, even in the background.</p></div>` },
+    { id: 'ringtone-behavior', group: 'Messaging & Calls', title: 'Ringtone behavior', html: `
+      <p>The ringtone plays only for a genuine incoming call and stops the moment it's answered, declined, the caller cancels, it times out unanswered, or the call otherwise ends — never longer. You can turn call ringtones off entirely in Settings → Chat.</p>` },
+
+    // ---------------- Trust, Reviews & Payments ----------------
+    { id: 'reviews-ratings', group: 'Trust, Reviews & Payments', title: 'Reviews and ratings', html: `
+      <p>After a contract is marked completed, the hirer can leave a star rating and written review for the worker. Reviews are tied to a real completed contract — you can't review someone you never actually worked with, and each contract can only be reviewed once.</p>` },
+    { id: 'verification', group: 'Trust, Reviews & Payments', title: 'Verification', html: `
+      <p>Submit a government ID or similar document from Settings → Profile to request the free <strong>Verified</strong> badge. An admin reviews it manually — this isn't automatic — and will approve, reject, or ask you to resubmit.</p>` },
+    { id: 'verified-badge', group: 'Trust, Reviews & Payments', title: 'FREE/Verified badge', html: `
+      <p>Verified is completely free and doesn't expire once approved. It signals that a real admin has checked your identity documents — it is separate from PRO, which is about visibility, not trust.</p>` },
+    { id: 'pro-badge', group: 'Trust, Reviews & Payments', title: 'PRO badge', html: `
+      <p>PRO is a paid subscription that gives your profile a visibility boost in search results and displays a PRO badge. It's billed monthly through Paystack and can be cancelled any time from <a href="pro.html">the PRO page</a> — you keep PRO status until the period you already paid for ends.</p>` },
+    { id: 'pro-price', group: 'Trust, Reviews & Payments', title: '₦4,000 monthly PRO subscription', html: `
+      <p>PRO currently costs ₦4,000/month, billed automatically until you cancel. See <a href="pro.html">the PRO page</a> for full details and to subscribe.</p>` },
+    { id: 'payments', group: 'Trust, Reviews & Payments', title: 'Payments', html: `
+      <p>All payments run through Paystack. A hirer funds escrow for a hired worker; once the work is done, the hirer releases the funds (or a dispute can be opened if something's wrong). Workers withdraw their available balance from <a href="wallet.html">Wallet</a>. Splitting one job into several separate milestone payments isn't available yet — escrow currently covers the full job amount at once.</p>` },
+
+    // ---------------- Business Profiles ----------------
+    { id: 'business-profiles', group: 'Business Profiles', title: 'Store/business profiles', html: `
+      <p>If you operate from a physical shop or business address, add it under Settings → <strong>Business Profile</strong> — business name, description, address, opening hours, and contact details. This is entirely separate from your personal location, which is never shown publicly. A business profile only appears on your public page once you explicitly turn on "Show my business profile publicly."</p>` },
+    { id: 'storefront-images', group: 'Business Profiles', title: 'Storefront images', html: `
+      <p>Add a storefront photo to your business profile so clients recognize your shop before they arrive.</p>` },
+
+    // ---------------- Location ----------------
+    { id: 'location', group: 'Location', title: 'Location', html: `
+      <p>Your location is set as State → LGA (Local Government Area) → Area, and shown publicly at that general level — never your exact street address, unless you separately choose to publish one as part of a business profile.</p>` },
+    { id: 'delta-availability', group: 'Location', title: 'Delta State availability', html: `
+      <p>JOB RUSH currently operates only in Delta State. Every Nigerian state appears in the location picker so the app is ready to expand, but choosing anywhere outside Delta State will show a message explaining that it isn't available there yet.</p>` },
+
+    // ---------------- Privacy & Security ----------------
+    { id: 'privacy', group: 'Privacy & Security', title: 'Privacy', html: `
+      <p>Your password, private email/phone, identity documents, and payment details are never shown to other users — only to you and, where legally/operationally necessary, platform admins. What's public is limited to your name, photo, professional details, general location, portfolio, services, reviews, and badges.</p>` },
+    { id: 'account-security', group: 'Privacy & Security', title: 'Account security', html: `
+      <p>Change your password and enable two-factor authentication (TOTP, with backup codes) from Settings → Account &amp; Security. You can also review and revoke your active login sessions from Settings → Sessions &amp; Devices.</p>` },
+    { id: 'blocking-reporting', group: 'Privacy & Security', title: 'Blocking/reporting users', html: `
+      <p>Block a user from within a conversation to stop them from messaging or calling you. To flag a profile itself — for being fake, fraudulent, inappropriate, or for harassment/spam — use the <strong>Report</strong> button on their public profile page; our moderation team reviews every report.</p>` },
+
+    // ---------------- Settings & Support ----------------
+    { id: 'support', group: 'Settings & Support', title: 'Support', html: `
+      <p>Open a support ticket any time from the <a href="support.html">Support</a> page. Describe the issue and category, and our team will respond there.</p>` },
+    { id: 'account-settings', group: 'Settings & Support', title: 'Account settings', html: `
+      <p><a href="profile-settings.html">Settings</a> covers your profile, account security, sessions/devices, chat preferences, data export, support, and accessibility — all in one place, organized by tab.</p>` },
+    { id: 'notifications', group: 'Settings & Support', title: 'Notifications', html: `
+      <p>See the full breakdown in <a href="#email-sms-push">Email, SMS &amp; Push Notifications</a> below.</p>` },
+    { id: 'accessibility', group: 'Settings & Support', title: 'Accessibility', html: `
+      <p>Settings → Accessibility lets you increase text size, turn on a high-contrast mode, and reduce motion/animation across the app.</p>` },
+
+    // ---------------- Notification details ----------------
+    { id: 'email-sms-push', group: 'Notifications In Detail', title: 'Email, SMS & push notifications', html: `
+      <p>Job Rush uses four notification channels, and not every event uses every channel:</p>
+      <ul>
+        <li><strong>In-app</strong> — every notification always appears in your notification bell, regardless of your other settings.</li>
+        <li><strong>Email</strong> — sent for account, application, interview, payment, and verification events, if you haven't turned email notifications off.</li>
+        <li><strong>SMS</strong> — reserved for a smaller set of higher-urgency events, like interview scheduling and withdrawal approvals.</li>
+        <li><strong>Push (browser/device notifications)</strong> — for new messages and incoming calls, once you enable it in Settings → Chat → <em>Push notifications</em>. Your browser will ask you to allow notifications; if you say no, you can only re-enable it through your browser's own site settings, not from inside Job Rush.</li>
+      </ul>
+      <div class="docs-callout"><p>Push notifications need your permission, an open browser (it can be in the background), and — for the strongest reliability — the site kept installed/pinned rather than fully closed. This is a genuine web-platform limitation, not a bug.</p></div>` },
+
+    // ---------------- Rules & Help ----------------
+    { id: 'what-can-do', group: 'Rules & Help', title: 'What users CAN do', html: `
+      <ul>
+        <li>Create a profile, add professional details, services, pricing, and portfolio work</li>
+        <li>Upload photos and videos within the stated limits</li>
+        <li>Search for professionals or jobs, and apply or post</li>
+        <li>Message and call another user you're connected with through a job, application, or profile</li>
+        <li>Hire, and pay/receive payment through the built-in escrow and wallet system</li>
+        <li>Receive genuine reviews tied to real completed work</li>
+        <li>Subscribe to PRO, and add a business/store profile if applicable</li>
+        <li>Request the free Verified badge with real documents</li>
+      </ul>` },
+    { id: 'what-cannot-do', group: 'Rules & Help', title: 'What users CANNOT do', html: `
+      <ul>
+        <li>Impersonate another person or business</li>
+        <li>Upload prohibited, illegal, or malicious content or files</li>
+        <li>Upload files exceeding the stated size, duration, or count limits</li>
+        <li>Fake or bypass identity verification</li>
+        <li>Post reviews for work that never actually happened through the platform</li>
+        <li>Message or call someone who has blocked you</li>
+        <li>Access another user's private information, payment details, or documents</li>
+        <li>Post or hire outside Delta State (until the platform expands)</li>
+        <li>Access admin tools without an authorized admin account</li>
+        <li>Share or use another person's account</li>
+      </ul>` },
+    { id: 'community-rules', group: 'Rules & Help', title: 'Community/safety rules', html: `
+      <p>Treat other users professionally and honestly. Misrepresenting your identity, work, or pricing; harassing another user; or attempting to defraud someone through the platform can result in account suspension. Report anything that concerns you — see <a href="#blocking-reporting">Blocking/reporting users</a> above.</p>` },
+    { id: 'troubleshooting', group: 'Rules & Help', title: 'Troubleshooting', html: `
+      <ul>
+        <li><strong>Can't log in?</strong> Double-check your email/phone and password, or use "Forgot password" on the <a href="login.html">login page</a>.</li>
+        <li><strong>Not receiving the verification code?</strong> Check spam/junk for email, and confirm your phone number is entered correctly.</li>
+        <li><strong>Upload rejected?</strong> Confirm the file is a genuinely supported photo/video format and within the size/duration limits above — the server checks the actual file content, not just its name.</li>
+        <li><strong>Messages or calls feel delayed?</strong> Expected — the app checks for updates every few seconds rather than staying constantly connected.</li>
+        <li><strong>Push notifications not arriving?</strong> Confirm you allowed notifications when prompted, and that your browser's own site settings for Job Rush haven't since blocked them.</li>
+        <li><strong>Still stuck?</strong> Open a ticket from <a href="support.html">Support</a>.</li>
+      </ul>` },
+    { id: 'faq', group: 'Rules & Help', title: 'Frequently asked questions', html: `
+      <p><strong>Is Job Rush available outside Delta State?</strong> Not yet — every state can be selected, but only Delta State is currently active.</p>
+      <p><strong>Do I have to pay to use Job Rush?</strong> No — creating a profile, applying, messaging, and calling are all free. PRO and payment-processing fees are the only paid parts.</p>
+      <p><strong>Can I be both a worker and a hirer?</strong> Yes, one account covers both roles.</p>
+      <p><strong>Why can't I see typing indicators or "online" status?</strong> That needs a real-time connection the app doesn't have yet — see <a href="#messaging">Messaging</a>.</p>` },
+    { id: 'contact-support', group: 'Rules & Help', title: 'Contact/support', html: `
+      <p>The fastest way to reach us is a ticket on the <a href="support.html">Support</a> page — it goes straight to our team and keeps a record you can refer back to.</p>` },
+  ];
+
+  function renderNav() {
+    const groups = [...new Set(DOCS.map((d) => d.group))];
+    return groups.map((g) => `
+      <div class="docs-nav-group">
+        <h4>${g}</h4>
+        ${DOCS.filter((d) => d.group === g).map((d) => `<a href="#${d.id}" data-doc-link="${d.id}">${d.title}</a>`).join('')}
+      </div>`).join('');
+  }
+
+  function renderContent() {
+    return DOCS.map((d) => `
+      <section class="docs-section" id="${d.id}" data-doc-section="${d.title.toLowerCase()}">
+        <h2>${d.title}</h2>
+        ${d.html}
+      </section>`).join('');
+  }
+
+  function wireSearch() {
+    const input = document.getElementById('docs-search');
+    input.addEventListener('input', () => {
+      const q = input.value.trim().toLowerCase();
+      document.querySelectorAll('.docs-section').forEach((section) => {
+        const matches = !q || section.textContent.toLowerCase().includes(q);
+        section.classList.toggle('docs-hidden', !matches);
+      });
+      document.querySelectorAll('[data-doc-link]').forEach((link) => {
+        const target = document.getElementById(link.dataset.docLink);
+        link.classList.toggle('docs-hidden', target.classList.contains('docs-hidden'));
+      });
+      document.querySelectorAll('.docs-nav-group').forEach((group) => {
+        const hasVisibleLink = !!group.querySelector('a:not(.docs-hidden)');
+        group.classList.toggle('docs-hidden', !hasVisibleLink);
+      });
+    });
+  }
+
+  function wireBackToTop() {
+    const btn = document.getElementById('docs-back-to-top');
+    window.addEventListener('scroll', () => {
+      btn.classList.toggle('is-visible', window.scrollY > 400);
+    });
+    btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  }
+
+  function wireMobileNav() {
+    const toggle = document.getElementById('docs-nav-toggle');
+    const sidebar = document.getElementById('docs-sidebar');
+    toggle.addEventListener('click', () => sidebar.classList.toggle('is-open'));
+    sidebar.querySelectorAll('[data-doc-link]').forEach((link) => {
+      link.addEventListener('click', () => sidebar.classList.remove('is-open'));
+    });
+  }
+
+  function wireActiveHighlight() {
+    const links = document.querySelectorAll('[data-doc-link]');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        links.forEach((l) => l.classList.toggle('is-active', l.dataset.docLink === entry.target.id));
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    document.querySelectorAll('.docs-section').forEach((s) => observer.observe(s));
+  }
+
+  (async function init() {
+    const user = await Auth.getCurrentUser();
+    Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+    Chrome.renderFooter(document.getElementById('footer-mount'));
+
+    document.getElementById('docs-nav').innerHTML = renderNav();
+    document.getElementById('docs-content').innerHTML = renderContent();
+
+    wireSearch();
+    wireBackToTop();
+    wireMobileNav();
+    wireActiveHighlight();
+  })();
+</script>
+</body>
+
+</html>

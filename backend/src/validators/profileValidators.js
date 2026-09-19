@@ -85,6 +85,51 @@ const rejectVerificationSchema = z.object({
   requiresResubmission: z.boolean().default(false),
 });
 
+const createWorkExperienceSchema = z.object({
+  jobTitle: z.string().trim().min(2).max(150),
+  companyName: z.string().trim().max(150).optional(),
+  description: z.string().trim().max(2000).optional(),
+  location: z.string().trim().max(255).optional(),
+  startDate: z.string().date().optional(),
+  endDate: z.string().date().optional(),
+  isCurrent: z.boolean().optional(),
+  skillsUsed: z.array(z.string().trim().max(40)).max(20).optional(),
+});
+const updateWorkExperienceSchema = createWorkExperienceSchema.partial();
+const reorderWorkExperienceSchema = z.object({ orderedIds: z.array(uuid).min(1).max(50) });
+
+const upsertBusinessProfileSchema = z.object({
+  businessName: z.string().trim().min(2).max(150),
+  description: z.string().trim().max(2000).optional(),
+  stateId: uuid.optional(),
+  lgaId: uuid.optional(),
+  areaId: uuid.optional(),
+  address: z.string().trim().max(255).optional(),
+  landmark: z.string().trim().max(255).optional(),
+  openingHours: z.string().trim().max(255).optional(),
+  contactPhone: z.string().trim().max(30).optional(),
+  contactEmail: z.string().trim().email().max(255).optional(),
+  storefrontPhotoUrl: z.string().url().optional(),
+  isEnabled: z.boolean().optional(),
+});
+const addBusinessMediaSchema = z.object({ mediaUrl: z.string().url() });
+
+const createProfessionalServiceSchema = z.object({
+  name: z.string().trim().min(2).max(150),
+  description: z.string().trim().max(2000).optional(),
+  pricingType: z.enum(['hourly', 'daily', 'project', 'fixed', 'negotiable', 'contact_for_quote']).optional(),
+  price: z.number().nonnegative().max(100000000).optional(),
+  priceCurrency: z.enum(['NGN', 'USD']).optional(),
+  durationEstimate: z.string().trim().max(100).optional(),
+  isActive: z.boolean().optional(),
+});
+const updateProfessionalServiceSchema = createProfessionalServiceSchema.partial();
+
+const reportProfileSchema = z.object({
+  category: z.enum(['fake_profile', 'fraud_scam', 'inappropriate_content', 'false_information', 'harassment', 'spam', 'other']),
+  reason: z.string().trim().min(5).max(1000),
+});
+
 /**
  * Converts camelCase API input into the snake_case column names the
  * profile services expect, only for keys actually present.
@@ -110,6 +155,22 @@ function toSnakeCaseProfileInput(body) {
     workingHours: 'working_hours',
     displayName: 'display_name',
     isCompany: 'is_company',
+    jobTitle: 'job_title',
+    companyName: 'company_name',
+    startDate: 'start_date',
+    endDate: 'end_date',
+    isCurrent: 'is_current',
+    skillsUsed: 'skills_used',
+    businessName: 'business_name',
+    openingHours: 'opening_hours',
+    contactPhone: 'contact_phone',
+    contactEmail: 'contact_email',
+    storefrontPhotoUrl: 'storefront_photo_url',
+    isEnabled: 'is_enabled',
+    pricingType: 'pricing_type',
+    priceCurrency: 'price_currency',
+    durationEstimate: 'duration_estimate',
+    isActive: 'is_active',
   };
   const out = {};
   for (const [key, value] of Object.entries(body)) {
@@ -141,6 +202,14 @@ module.exports = {
   reorderPortfolioMediaSchema,
   submitVerificationSchema,
   rejectVerificationSchema,
+  createWorkExperienceSchema,
+  updateWorkExperienceSchema,
+  reorderWorkExperienceSchema,
+  upsertBusinessProfileSchema,
+  addBusinessMediaSchema,
+  createProfessionalServiceSchema,
+  updateProfessionalServiceSchema,
+  reportProfileSchema,
   toSnakeCaseProfileInput,
   validateBody,
 };

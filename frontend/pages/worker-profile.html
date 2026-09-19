@@ -72,6 +72,8 @@
             <span class="wp-name">${esc(profile.full_name)}</span>
             ${profile.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : ''}
             ${profile.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : ''}
+            ${profile.email_verified_at ? '<span class="badge badge-neutral" title="Email address verified">Email Verified</span>' : ''}
+            ${profile.phone_verified_at ? '<span class="badge badge-neutral" title="Phone number verified">Phone Verified</span>' : ''}
           </div>
           <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
           <div class="wp-meta-row">
@@ -86,6 +88,7 @@
             ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
               <button class="btn btn-primary" id="contact-btn">Contact</button>
               <button class="btn btn-secondary" id="hire-btn">Hire</button>
+              <button class="btn btn-ghost btn-sm" id="report-profile-btn" title="Report this profile">Report</button>
             `}
           </div>
         </div>
@@ -148,6 +151,69 @@
       <div class="wp-section">
         <h2>Portfolio</h2>
         <div class="wp-gallery" id="wp-gallery">${portfolios.map(projectCardHtml).join('')}</div>
+      </div>`;
+    }
+
+    function experienceHtml(entries) {
+      if (!entries || entries.length === 0) return '';
+      const rangeFor = (e) => [
+        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
+        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
+      ].filter(Boolean).join(' — ');
+      return `
+      <div class="wp-section">
+        <h2>Experience</h2>
+        ${entries.map((e) => `
+          <div style="margin-bottom: var(--space-4);">
+            <strong>${esc(e.job_title)}</strong>
+            ${e.company_name ? ` <span class="text-secondary">· ${esc(e.company_name)}</span>` : ''}
+            <div class="text-secondary text-xs">${esc(rangeFor(e))}${e.location ? ` · ${esc(e.location)}` : ''}</div>
+            ${e.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(e.description)}</p>` : ''}
+          </div>`).join('')}
+      </div>`;
+    }
+
+    function servicesHtml(services) {
+      if (!services || services.length === 0) return '';
+      const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
+      return `
+      <div class="wp-section">
+        <h2>Services</h2>
+        <div style="display:grid; gap: var(--space-3);">
+          ${services.map((s) => {
+            const priceLabel = s.price !== null
+              ? `${formatMoney(s.price, s.price_currency)} · ${PRICING_LABELS[s.pricing_type] || s.pricing_type}`
+              : (PRICING_LABELS[s.pricing_type] || s.pricing_type);
+            return `
+            <div class="card" style="padding: var(--space-4);">
+              <div style="display:flex; justify-content:space-between; gap: var(--space-3); flex-wrap:wrap;">
+                <strong>${esc(s.name)}</strong>
+                <span class="text-gold text-sm" style="font-weight:600;">${esc(priceLabel)}</span>
+              </div>
+              ${s.duration_estimate ? `<div class="text-secondary text-xs" style="margin-top:2px;">${esc(s.duration_estimate)}</div>` : ''}
+              ${s.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(s.description)}</p>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    }
+
+    function businessHtml(business) {
+      if (!business) return '';
+      const location = [business.area_name, business.lga_name, business.state_name].filter(Boolean).join(', ');
+      return `
+      <div class="wp-section">
+        <h2>Business</h2>
+        <div class="card" style="padding: var(--space-4); display:flex; gap: var(--space-4); flex-wrap:wrap; align-items:flex-start;">
+          ${business.storefront_photo_url ? `<img src="${business.storefront_photo_url}" alt="" loading="lazy" style="width:120px; height:120px; object-fit:cover; border-radius: var(--radius-md); flex-shrink:0;" />` : ''}
+          <div>
+            <strong>${esc(business.business_name)}</strong>
+            ${business.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(business.description)}</p>` : ''}
+            ${location ? `<div class="text-secondary text-sm" style="margin-top: var(--space-2);">${esc(location)}${business.address ? ` — ${esc(business.address)}` : ''}</div>` : ''}
+            ${business.opening_hours ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${esc(business.opening_hours)}</div>` : ''}
+            ${business.contact_phone ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${esc(business.contact_phone)}</div>` : ''}
+          </div>
+        </div>
       </div>`;
     }
 
@@ -232,17 +298,77 @@
       });
     }
 
+    function openReportModal(profile) {
+      const CATEGORIES = [
+        ['fake_profile', 'Fake profile'],
+        ['fraud_scam', 'Fraud or scam'],
+        ['inappropriate_content', 'Inappropriate content'],
+        ['false_information', 'False information'],
+        ['harassment', 'Harassment'],
+        ['spam', 'Spam'],
+        ['other', 'Other'],
+      ];
+      Modal.open({
+        title: `Report ${esc(profile.full_name)}`,
+        bodyHtml: `
+          <form id="report-form" novalidate>
+            <div class="field">
+              <label for="report-category">Reason</label>
+              <select id="report-category" name="category">
+                ${CATEGORIES.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label for="report-reason">Details</label>
+              <textarea id="report-reason" name="reason" rows="4" placeholder="What happened?" required></textarea>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+              <button type="submit" class="btn btn-danger" id="report-submit">Submit report</button>
+            </div>
+          </form>`,
+        onMount: () => {
+          document.getElementById('report-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            if (form.reason.value.trim().length < 5) {
+              Toast.error('Please provide a bit more detail.');
+              return;
+            }
+            const submitBtn = document.getElementById('report-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              await API.post(`/profiles/${profile.user_id}/report`, {
+                category: form.category.value,
+                reason: form.reason.value.trim(),
+              });
+              Modal.close();
+              Toast.success('Report submitted. Our team will review it.');
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
+    }
+
     async function wireActions(profile, user) {
       const contactBtn = document.getElementById('contact-btn');
       const hireBtn = document.getElementById('hire-btn');
+      const reportBtn = document.getElementById('report-profile-btn');
       if (!contactBtn) return;
 
       if (!user) {
         const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
         contactBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
         hireBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+        if (reportBtn) reportBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
         return;
       }
+
+      if (reportBtn) reportBtn.addEventListener('click', () => openReportModal(profile));
 
       contactBtn.addEventListener('click', async () => {
         FormHelpers.setLoading(contactBtn, true);
@@ -278,10 +404,13 @@
       }
 
       try {
-        const [{ profile }, portfolioResult, reviewsResult] = await Promise.all([
+        const [{ profile }, portfolioResult, reviewsResult, experienceResult, servicesResult, businessResult] = await Promise.all([
           API.get(`/profiles/worker/${workerId}`),
           API.get(`/portfolio/worker/${workerId}`).catch(() => ({ portfolios: [] })),
           API.get(`/reviews/worker/${workerId}`).catch(() => ({ reviews: [] })),
+          API.get(`/profiles/worker/${workerId}/experience`).catch(() => ({ entries: [] })),
+          API.get(`/profiles/worker/${workerId}/services`).catch(() => ({ services: [] })),
+          API.get(`/profiles/worker/${workerId}/business`).catch(() => ({ profile: null })),
         ]);
 
         const isOwner = user?.id === workerId;
@@ -289,7 +418,10 @@
         content.innerHTML =
           headerHtml(profile, isOwner) +
           aboutHtml(profile) +
+          servicesHtml(servicesResult.services || []) +
           skillsHtml(profile.skills) +
+          businessHtml(businessResult.profile) +
+          experienceHtml(experienceResult.entries || []) +
           portfolioHtml(portfolioResult.portfolios || []);
 
         content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));
