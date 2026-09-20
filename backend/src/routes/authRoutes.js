@@ -47,6 +47,13 @@ router.get('/google', controller.googleRedirect);
 router.get('/google/callback', controller.googleCallback);
 router.get('/facebook', controller.facebookRedirect);
 router.get('/facebook/callback', controller.facebookCallback);
+// POST /facebook/data-deletion (Meta's User Data Deletion Callback) is
+// intentionally NOT mounted here -- see server.js, registered before
+// the global CORS/json middleware with its own form-urlencoded parser,
+// the same reasoning as the Apple callback above. It's a public,
+// signature-verified endpoint (see facebookDataDeletionService), not
+// authenticate-gated -- there is no Job Rush session at that point.
+router.get('/facebook/deletion-status/:code', controller.facebookDeletionStatus);
 router.get('/apple', controller.appleRedirect);
 // POST /apple/callback is intentionally NOT mounted here -- see
 // server.js, where it's registered before the global CORS middleware.

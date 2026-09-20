@@ -10,6 +10,7 @@ const appleOAuthService = require('../services/appleOAuthService');
 const oauthStateService = require('../services/oauthStateService');
 const oauthMobileHandoffService = require('../services/oauthMobileHandoffService');
 const referralService = require('../services/referralService');
+const facebookDataDeletionService = require('../services/facebookDataDeletionService');
 const deviceService = require('../services/deviceService');
 const notificationService = require('../services/notificationService');
 const emailService = require('../services/emailService');
@@ -568,6 +569,47 @@ const deleteAccount = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Account deleted.' });
 });
 
+/**
+ * POST /api/auth/facebook/data-deletion
+ * Meta's User Data Deletion Callback — public, unauthenticated by
+ * design (no Job Rush session exists at this point), authorized
+ * instead by verifying the HMAC-signed `signed_request` body field
+ * Facebook sends. Never trusts a user_id from anywhere else in the
+ * request. Must always respond with the JSON shape Meta expects, even
+ * when no matching Job Rush account exists — see
+ * facebookDataDeletionService.processDeletionRequest.
+ */
+const facebookDataDeletion = asyncHandler(async (req, res) => {
+  const signedRequest = req.body?.signed_request;
+  const payload = facebookDataDeletionService.verifySignedRequest(signedRequest);
+
+  if (!payload) {
+    logger.warn('Rejected Facebook data deletion callback with invalid or missing signed_request');
+    return res.status(400).json({ error: 'Invalid signed_request.' });
+  }
+
+  const result = await facebookDataDeletionService.processDeletionRequest(payload.user_id);
+  res.status(200).json(result);
+});
+
+/**
+ * GET /api/auth/facebook/deletion-status/:code — public status lookup
+ * for the confirmation code Facebook (and the /data-deletion page)
+ * hands back. Deliberately returns only status + timestamps, never
+ * the Facebook or Job Rush user IDs behind a given code.
+ */
+const facebookDeletionStatus = asyncHandler(async (req, res) => {
+  const result = await facebookDataDeletionService.getStatus(req.params.code);
+  if (!result) {
+    return res.status(404).json({ error: 'No deletion request found for this reference.' });
+  }
+  res.status(200).json({
+    status: result.status,
+    requestedAt: result.requested_at,
+    completedAt: result.completed_at,
+  });
+});
+
 module.exports = {
   register,
   requestOtp,
@@ -596,4 +638,6 @@ module.exports = {
   confirmPhoneChange,
   deactivateAccount,
   deleteAccount,
+  facebookDataDeletion,
+  facebookDeletionStatus,
 };

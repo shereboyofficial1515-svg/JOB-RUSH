@@ -185,6 +185,14 @@ const Chrome = (function () {
                 <li><a href="${pageHref('support')}">Support</a></li>
               </ul>
             </div>
+            <div class="footer-col">
+              <h4>Legal</h4>
+              <ul>
+                <li><a href="/privacy">Privacy Policy</a></li>
+                <li><a href="/terms">Terms of Service</a></li>
+                <li><a href="/data-deletion">Data Deletion</a></li>
+              </ul>
+            </div>
           </div>
           <div class="footer-bottom">
             <span>&copy; ${new Date().getFullYear()} JOB RUSH. All rights reserved.</span>
