@@ -1,0 +1,24 @@
+{
+  "name": "job-rush-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Capacitor Android wrapper for the Job Rush web application. Contains no application business logic of its own — it loads the real production site (see capacitor.config.json) and adds native Android capabilities (push notifications, camera/file access, deep links, incoming-call handling) around it.",
+  "scripts": {
+    "sync": "cap sync android",
+    "open:android": "cap open android",
+    "build:debug": "cd android && ./gradlew assembleDebug",
+    "build:release": "cd android && ./gradlew bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.2"
+  }
+}

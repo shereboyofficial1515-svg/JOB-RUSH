@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Job Rush brand palette, matching frontend/css/tokens.css's navy
+         and gold tokens, so the native chrome (status bar, splash,
+         incoming-call screen) matches the web app exactly instead of
+         an approximated color. -->
+    <color name="jobrushNavy">#0B1F3A</color>
+    <color name="jobrushDeepNavy">#07162A</color>
+    <color name="jobrushGold">#C9A227</color>
+
+    <!-- Referenced by the base AppCompat theme (styles.xml) -->
+    <color name="colorPrimary">#0B1F3A</color>
+    <color name="colorPrimaryDark">#07162A</color>
+    <color name="colorAccent">#C9A227</color>
+</resources>

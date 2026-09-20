@@ -8,6 +8,7 @@ const googleOAuthService = require('../services/googleOAuthService');
 const facebookOAuthService = require('../services/facebookOAuthService');
 const appleOAuthService = require('../services/appleOAuthService');
 const oauthStateService = require('../services/oauthStateService');
+const oauthMobileHandoffService = require('../services/oauthMobileHandoffService');
 const deviceService = require('../services/deviceService');
 const notificationService = require('../services/notificationService');
 const emailService = require('../services/emailService');
@@ -278,10 +279,28 @@ const resetPassword = asyncHandler(async (req, res) => {
  * uses and redirects into the app.
  */
 async function completeOAuthLogin(req, res, user, frontendBase) {
+  // Set only when this OAuth flow was started by the Android app (see
+  // googleRedirect/facebookRedirect/appleRedirect passing ?client to
+  // buildAuthorizationUrl, which signs it into `state`). The Android
+  // app runs this whole flow in a Custom Tab, not its own WebView --
+  // Google blocks OAuth inside an embedded WebView user-agent -- so a
+  // cookie set on this response would land in the Custom Tab's cookie
+  // jar, not the app's. Handing back a one-time code via a jobrush://
+  // deep link instead lets the app's OWN WebView redeem it (see
+  // oauthMobileHandoffService + the /auth/mobile-handoff route) and
+  // get the session cookie into the cookie jar that actually matters.
+  const isAndroid = oauthStateService.parseState(req.query.state)?.payload === 'android';
+
   const has2FA = await twoFactorService.isEnabled(user.id);
   if (has2FA) {
     const challengeToken = await twoFactorService.createLoginChallenge(user.id);
-    return res.redirect(`${frontendBase}/pages/login.html?twoFactorChallenge=${encodeURIComponent(challengeToken)}`);
+    const suffix = isAndroid ? '&client=android' : '';
+    return res.redirect(`${frontendBase}/pages/login.html?twoFactorChallenge=${encodeURIComponent(challengeToken)}${suffix}`);
+  }
+
+  if (isAndroid) {
+    const code = await oauthMobileHandoffService.issue(user.id);
+    return res.redirect(`jobrush://oauth-complete?code=${encodeURIComponent(code)}`);
   }
 
   const { rawToken, expiresAt } = await establishSession(req, user);
@@ -291,13 +310,34 @@ async function completeOAuthLogin(req, res, user, frontendBase) {
 }
 
 /**
+ * GET /api/auth/mobile-handoff?code=...
+ * The Android app's own WebView (not the Custom Tab the OAuth flow ran
+ * in) hits this directly after being woken up by the jobrush://
+ * oauth-complete deep link — see completeOAuthLogin above. This is the
+ * one request in the whole Android OAuth path that actually needs to
+ * set the session cookie, since it's the one request made from the
+ * WebView's own cookie jar.
+ */
+const mobileOAuthHandoff = asyncHandler(async (req, res) => {
+  const frontendBase = getOAuthRedirectBase();
+  const userId = await oauthMobileHandoffService.consume(req.query.code);
+  if (!userId) {
+    return res.redirect(`${frontendBase}/pages/login.html?error=invalid_state`);
+  }
+
+  const { rawToken, expiresAt } = await establishSession(req, { id: userId });
+  res.cookie(env.SESSION_COOKIE_NAME, rawToken, { ...sessionService.COOKIE_OPTIONS, expires: expiresAt });
+  return res.redirect(`${frontendBase}/pages/dashboard.html`);
+});
+
+/**
  * GET /api/auth/google
  * Redirects the browser to Google's consent screen. Not an API call
  * the frontend fetches — a real navigation, since Google's OAuth flow
  * requires the user's own browser to interact with Google directly.
  */
 const googleRedirect = asyncHandler(async (req, res) => {
-  const url = googleOAuthService.buildAuthorizationUrl();
+  const url = googleOAuthService.buildAuthorizationUrl(req.query.client);
   res.redirect(url);
 });
 
@@ -348,7 +388,7 @@ const googleCallback = asyncHandler(async (req, res) => {
  * Facebook's own consent screen.
  */
 const facebookRedirect = asyncHandler(async (req, res) => {
-  const url = facebookOAuthService.buildAuthorizationUrl();
+  const url = facebookOAuthService.buildAuthorizationUrl(req.query.client);
   res.redirect(url);
 });
 
@@ -401,7 +441,7 @@ const facebookCallback = asyncHandler(async (req, res) => {
  * instead of redirecting with query params -- see appleCallback below.
  */
 const appleRedirect = asyncHandler(async (req, res) => {
-  const url = appleOAuthService.buildAuthorizationUrl();
+  const url = appleOAuthService.buildAuthorizationUrl(req.query.client);
   res.redirect(url);
 });
 
@@ -514,6 +554,7 @@ module.exports = {
   verifyOtp,
   login,
   verifyLoginTwoFactor,
+  mobileOAuthHandoff,
   googleRedirect,
   googleCallback,
   facebookRedirect,

@@ -38,6 +38,11 @@ router.post('/otp/request', otpRequestLimiter, validateBody(requestOtpSchema), c
 router.post('/otp/verify', otpVerifyLimiter, validateBody(verifyOtpSchema), controller.verifyOtp);
 
 router.post('/login', loginLimiter, validateBody(loginSchema), controller.login);
+// Android app only — see completeOAuthLogin/oauthMobileHandoffService.
+// No `authenticate` middleware: the whole point is to issue the first
+// session cookie, before any session exists.
+router.get('/mobile-handoff', controller.mobileOAuthHandoff);
+
 router.get('/google', controller.googleRedirect);
 router.get('/google/callback', controller.googleCallback);
 router.get('/facebook', controller.facebookRedirect);

@@ -82,6 +82,16 @@ const env = {
   VAPID_PRIVATE_KEY: optional('VAPID_PRIVATE_KEY', ''),
   VAPID_SUBJECT: optional('VAPID_SUBJECT', 'mailto:support@jobrush.ng'),
 
+  // Firebase Cloud Messaging (Android app push — new messages, incoming
+  // calls while the app is backgrounded/killed). The full JSON contents
+  // of a Firebase service account key, as one line with real newlines
+  // escaped as \n (same convention as APPLE_PRIVATE_KEY below) — from
+  // Firebase Console → Project Settings → Service Accounts → Generate
+  // new private key. When unset, fcmService no-ops, same as pushService
+  // does when VAPID isn't configured — the app runs fine without it,
+  // Android app users just won't get background push until it's set.
+  FIREBASE_SERVICE_ACCOUNT_JSON: optional('FIREBASE_SERVICE_ACCOUNT_JSON', ''),
+
   TERMII_API_KEY: optional('TERMII_API_KEY', ''),
   TERMII_SENDER_ID: optional('TERMII_SENDER_ID', 'JobRush'),
   TERMII_BASE_URL: optional('TERMII_BASE_URL', 'https://api.ng.termii.com'),

@@ -7,34 +7,47 @@ const env = require('../config/env');
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
- * Stateless CSRF state token: timestamp + HMAC(timestamp, SESSION_SECRET),
- * base64url-encoded. Avoids a server-side state table — the signature
- * can't be forged without SESSION_SECRET, and the embedded timestamp
- * lets verification reject anything older than STATE_TTL_MS without a
- * database round trip.
+ * Stateless CSRF state token: timestamp + an optional payload + HMAC
+ * over both, base64url-encoded. The payload is currently only ever
+ * "android" (see authController's completeOAuthLogin) — it lets the
+ * OAuth callback tell whether the flow started from the Android app's
+ * Custom Tab, without a server-side session to look it up in, since
+ * this token is the only thing that survives the round trip to
+ * Google/Facebook/Apple and back.
  */
-function createState() {
+function createState(payload = '') {
   const timestamp = Date.now().toString();
-  const signature = crypto.createHmac('sha256', env.SESSION_SECRET).update(timestamp).digest('hex');
-  return Buffer.from(`${timestamp}.${signature}`).toString('base64url');
+  const encodedPayload = Buffer.from(payload, 'utf8').toString('base64url');
+  const data = `${timestamp}.${encodedPayload}`;
+  const signature = crypto.createHmac('sha256', env.SESSION_SECRET).update(data).digest('hex');
+  return Buffer.from(`${data}.${signature}`).toString('base64url');
 }
 
-function verifyState(state) {
+/** Returns { payload } if state is authentic and unexpired, otherwise null. */
+function parseState(state) {
   try {
     const decoded = Buffer.from(state, 'base64url').toString('utf8');
-    const [timestamp, signature] = decoded.split('.');
-    const expectedSignature = crypto.createHmac('sha256', env.SESSION_SECRET).update(timestamp).digest('hex');
+    const [timestamp, encodedPayload, signature] = decoded.split('.');
+    if (!timestamp || signature === undefined) return null;
+
+    const data = `${timestamp}.${encodedPayload}`;
+    const expectedSignature = crypto.createHmac('sha256', env.SESSION_SECRET).update(data).digest('hex');
 
     const sigBuf = Buffer.from(signature, 'utf8');
     const expectedBuf = Buffer.from(expectedSignature, 'utf8');
     if (sigBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(sigBuf, expectedBuf)) {
-      return false;
+      return null;
     }
+    if (Date.now() - Number(timestamp) >= STATE_TTL_MS) return null;
 
-    return Date.now() - Number(timestamp) < STATE_TTL_MS;
+    return { payload: Buffer.from(encodedPayload || '', 'base64url').toString('utf8') };
   } catch {
-    return false;
+    return null;
   }
 }
 
-module.exports = { createState, verifyState };
+function verifyState(state) {
+  return parseState(state) !== null;
+}
+
+module.exports = { createState, verifyState, parseState };

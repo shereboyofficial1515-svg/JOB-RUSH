@@ -2,6 +2,7 @@ const webpush = require('web-push');
 const { query } = require('../config/db');
 const env = require('../config/env');
 const logger = require('../utils/logger');
+const fcmService = require('./fcmService');
 
 const isConfigured = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
 
@@ -42,6 +43,18 @@ async function unsubscribe(userId, endpoint) {
  * retried forever.
  */
 async function sendPushToUser(userId, { title, body, data, tag, requireInteraction = false } = {}) {
+  // Fire both channels in parallel — a browser subscription and an
+  // Android FCM token are independent, unrelated delivery paths for
+  // the same logical notification, exactly like the existing
+  // email/SMS/in-app channels already sent alongside each other.
+  const [webResult] = await Promise.all([
+    sendWebPush(userId, { title, body, data, tag, requireInteraction }),
+    fcmService.sendDataToUser(userId, { ...(data || {}), title: title || '', body: body || '', tag: tag || '' }),
+  ]);
+  return webResult;
+}
+
+async function sendWebPush(userId, { title, body, data, tag, requireInteraction = false } = {}) {
   if (!isConfigured) return { sent: 0, skipped: 'not_configured' };
 
   const { rows: subs } = await query('SELECT * FROM push_subscriptions WHERE user_id = $1', [userId]);

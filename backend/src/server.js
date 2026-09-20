@@ -195,6 +195,16 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/email-preview', emailPreviewRoutes);
 app.use('/api/email', emailUnsubscribeRoutes);
 
+// Digital Asset Links file for the Android app's HTTPS App Links (see
+// mobile/ANDROID.md) — needs its own route because express.static's
+// default `dotfiles: 'ignore'` would otherwise silently 404 anything
+// under /.well-known/, and changing that policy globally just to serve
+// one file is a bigger, less precise change than routing this file by
+// itself.
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', '.well-known', 'assetlinks.json'));
+});
+
 // Serves the frontend (plain static HTML/CSS/JS, no build step) from
 // this same service. Registered after every /api/* route above, so
 // Express always matches a real API route first — this can never
