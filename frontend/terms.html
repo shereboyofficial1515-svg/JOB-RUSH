@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service — JOB RUSH</title>
+  <meta name="description" content="The terms that govern your use of Job Rush." />
+  <link rel="icon" type="image/png" href="assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main">
+    <section class="container legal-page">
+      <h1>Terms of Service</h1>
+      <p class="text-secondary">Last updated: September 2026. By creating a Job Rush account or using the platform, you agree to these terms.</p>
+
+      <h2>What Job Rush is</h2>
+      <p>Job Rush connects people looking for work with people looking to hire skilled professionals, currently focused on Delta State, Nigeria. You can search for professionals or jobs, message and call directly, hire and be hired through a built-in escrow and wallet system, and build a public professional profile.</p>
+
+      <h2>Eligibility</h2>
+      <p>You must be at least 18 years old and able to enter into a binding agreement to use Job Rush. You're responsible for the accuracy of the information on your account and for keeping your login credentials secure.</p>
+
+      <h2>Job Rush is a marketplace, not an employer</h2>
+      <p>Job Rush facilitates connections between hirers and workers — it is not a party to any job, contract, or agreement made between users, and does not employ workers or guarantee jobs, customers, income, or outcomes. You are responsible for your own conduct, work quality, and compliance with applicable law in any arrangement you enter into through the platform.</p>
+
+      <h2>Payments and fees</h2>
+      <p>Payments are processed through Paystack. When a hirer funds a job, the amount is held in escrow until the work is marked complete and released, or a dispute is resolved. Job Rush charges a platform fee on funds released through escrow. Workers withdraw their available wallet balance to their bank account. <a href="pages/pro.html">JOB RUSH PRO</a> is an optional paid subscription that improves profile visibility — it does not guarantee jobs or income, and can be cancelled at any time.</p>
+
+      <h2>Your content</h2>
+      <p>You keep ownership of the photos, videos, descriptions, and other content you upload. By uploading it, you give Job Rush permission to store, display, and process it as needed to operate the platform (for example, showing your portfolio to other users, or generating a video thumbnail). Do not upload anything you don't have the right to share, or that is illegal, infringing, or fraudulent.</p>
+
+      <h2>Prohibited conduct</h2>
+      <ul>
+        <li>Creating a fake profile, or impersonating another person or business.</li>
+        <li>Harassment, hate speech, threats, or abusive behavior toward other users.</li>
+        <li>Attempting to defraud another user or Job Rush itself.</li>
+        <li>Circumventing Job Rush's payment/escrow system for a transaction that started on the platform, in a way intended to avoid platform fees or dispute protection.</li>
+        <li>Uploading content you don't have the rights to, or that is illegal, obscene, or infringing.</li>
+        <li>Attempting to access another user's account or data without authorization.</li>
+      </ul>
+      <p>We may suspend or disable accounts that violate these terms, following the same reporting/moderation process described in our <a href="pages/documentation.html#blocking-reporting">Help Center</a>.</p>
+
+      <h2>Verification and badges</h2>
+      <p>The free Verified badge reflects that an admin has reviewed identity documents you submitted — it does not constitute a background check or a guarantee of a user's conduct or work quality. PRO is a paid visibility subscription, unrelated to verification.</p>
+
+      <h2>Account suspension and termination</h2>
+      <p>We may suspend or disable an account that violates these terms or poses a risk to other users or the platform. You can deactivate (reversible) or permanently delete (irreversible) your own account at any time from Settings — see our <a href="data-deletion">Data Deletion page</a> for exactly what that does.</p>
+
+      <h2>Disclaimers</h2>
+      <p>Job Rush is provided "as is." We work to keep the platform available and secure, but we don't guarantee it will always be error-free or uninterrupted. We are not responsible for the conduct, work quality, or reliability of any user you interact with through the platform.</p>
+
+      <h2>Changes to these terms</h2>
+      <p>If we make material changes to these terms, we'll update the "last updated" date above and, where appropriate, notify you in-app.</p>
+
+      <h2>Contact us</h2>
+      <p>Questions about these terms? Email <a href="mailto:support@jobrush.ng">support@jobrush.ng</a>.</p>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <style>
+    .legal-page { max-width: 760px; padding-top: var(--space-8); padding-bottom: var(--space-9); }
+    .legal-page h1 { margin-bottom: var(--space-3); }
+    .legal-page h2 { margin-top: var(--space-8); }
+    .legal-page ul, .legal-page ol { padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); }
+    .legal-page ul li, .legal-page ol li { color: var(--text-secondary); }
+  </style>
+
+  <script src="js/config/assets.js"></script>
+  <script src="js/config/env.js"></script>
+  <script src="js/config/api.js"></script>
+  <script src="js/modules/accessibility.js"></script>
+  <script src="js/utils/sanitize.js"></script>
+  <script src="js/utils/toast.js"></script>
+  <script src="js/utils/animate.js"></script>
+  <script src="js/modules/notificationBell.js"></script>
+  <script src="js/utils/modal.js"></script>
+  <script src="js/modules/chrome.js"></script>
+  <script src="js/modules/auth.js"></script>
+  <script>
+    (async function init() {
+      let user = null;
+      try { user = await Auth.getCurrentUser(); } catch {}
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+    })();
+  </script>
+</body>
+
+</html>

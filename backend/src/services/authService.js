@@ -9,6 +9,8 @@ const otpService = require('./otpService');
 const sessionService = require('./sessionService');
 const notificationService = require('./notificationService');
 const referralService = require('./referralService');
+const storageService = require('./storageService');
+const logger = require('../utils/logger');
 
 const PUBLIC_USER_FIELDS = `
   id, email, phone, full_name, role, account_status,
@@ -543,10 +545,18 @@ async function deactivateAccount(userId, password) {
  * deleted their account. Redacting PII and permanently disabling
  * sign-in achieves the same real-world outcome ("this account is
  * gone") without breaking referential integrity for everyone else.
+ *
+ * Extracted from the single public deleteAccount() below so the
+ * Facebook Data Deletion callback (facebookDataDeletionService) can
+ * trigger the exact same deletion mechanics through a DIFFERENT
+ * authorization gate — Meta's verified signed request stands in for
+ * the password confirmation a logged-in user provides, since a
+ * Facebook-only account never has a real password to confirm with
+ * (see findOrCreateOAuthUser's randomly-generated, never-used hash).
+ * This is not a second deletion system; both entry points below call
+ * this same function.
  */
-async function deleteAccount(userId, password) {
-  await assertPasswordConfirmed(userId, password);
-
+async function performAccountDeletion(userId) {
   const anonymizedEmail = `deleted-${userId}@deleted.jobrush.ng`;
   const unusablePasswordHash = await hashPassword(generateOpaqueToken(32));
 
@@ -564,9 +574,42 @@ async function deleteAccount(userId, password) {
     );
   });
 
+  // Best-effort and after the DB transaction commits — a Supabase
+  // Storage hiccup must never leave the account half-deleted (DB says
+  // gone, files still there) NOR block the account record itself from
+  // being redacted while storage cleanup is retried/investigated.
+  await storageService.deleteAllUserFiles(userId).catch((err) => {
+    logger.error('Storage cleanup failed during account deletion', { userId, error: err.message });
+  });
+}
+
+/** POST /api/auth/account/delete — the user deleting their own account from Settings. */
+async function deleteAccount(userId, password) {
+  await assertPasswordConfirmed(userId, password);
+  await performAccountDeletion(userId);
+
   await recordAuditEvent({
     actorUserId: userId,
     action: 'ACCOUNT_DELETED',
+    resourceType: 'user',
+    resourceId: userId,
+    result: 'success',
+  });
+}
+
+/**
+ * Facebook's own Data Deletion Request callback — see
+ * facebookDataDeletionService.processDeletionRequest. Authorization
+ * here is Meta's HMAC-signed request (verified before this is ever
+ * called), not a password; there is no user-supplied credential in
+ * this flow at all.
+ */
+async function deleteAccountViaFacebookRequest(userId) {
+  await performAccountDeletion(userId);
+
+  await recordAuditEvent({
+    actorUserId: userId,
+    action: 'ACCOUNT_DELETED_VIA_FACEBOOK_REQUEST',
     resourceType: 'user',
     resourceId: userId,
     result: 'success',
@@ -593,4 +636,5 @@ module.exports = {
   confirmPhoneChange,
   deactivateAccount,
   deleteAccount,
+  deleteAccountViaFacebookRequest,
 };

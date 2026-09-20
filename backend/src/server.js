@@ -5,6 +5,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
 const env = require('./config/env');
+const { facebookDeletionLimiter } = require('./middleware/rateLimiter');
 const authRoutes = require('./routes/authRoutes');
 const authController = require('./controllers/authController');
 const profileRoutes = require('./routes/profileRoutes');
@@ -109,6 +110,20 @@ app.use(
 // violation before ever reaching the handler.
 app.post('/api/auth/apple/callback', express.urlencoded({ extended: false }), authController.appleCallback);
 
+// Meta's User Data Deletion Callback — a server-to-server POST from
+// Facebook's own infrastructure, form-urlencoded (a single
+// `signed_request` field), with no Origin header and no Job Rush
+// session. Mounted the same way as the Apple callback above so it
+// never depends on CORS or the global JSON body parser; authorization
+// here is entirely the HMAC signature check inside
+// facebookDataDeletionService, not anything from this middleware chain.
+app.post(
+  '/api/auth/facebook/data-deletion',
+  facebookDeletionLimiter,
+  express.urlencoded({ extended: false }),
+  authController.facebookDataDeletion
+);
+
 // APP_BASE_URL is normally one origin, but accepts a comma-separated
 // list so the same deployment can be pointed at more than one
 // frontend at once if needed (e.g. testing a deployed Render backend
@@ -206,6 +221,24 @@ app.use('/api/email', emailUnsubscribeRoutes);
 // itself.
 app.get('/.well-known/assetlinks.json', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'frontend', '.well-known', 'assetlinks.json'));
+});
+
+// Clean, extension-less public URLs required by Meta's App Dashboard
+// (Data Deletion, Privacy Policy, Terms of Service URLs) and generally
+// nicer to hand out than a "/pages/data-deletion.html" link. Explicit
+// routes rather than express.static's `extensions` option, matching
+// the assetlinks.json approach above: these three specific paths need
+// this behavior, not every path on the site. No authenticate
+// middleware — these must load for a signed-out visitor and for
+// Meta's own review tooling.
+app.get('/data-deletion', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'data-deletion.html'));
+});
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'privacy.html'));
+});
+app.get('/terms', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', '..', 'frontend', 'terms.html'));
 });
 
 // Serves the frontend (plain static HTML/CSS/JS, no build step) from

@@ -292,6 +292,43 @@ async function deleteObject(bucketKey, storagePath) {
   }
 }
 
+/**
+ * Removes every file a user has ever uploaded, across every bucket —
+ * called on account deletion (both the self-service Settings flow and
+ * the Facebook Data Deletion callback). Every upload in this app is
+ * written to `<bucket>/<ownerUserId>/<randomFilename>` (see
+ * uploadToBucket above), so a user's entire footprint in a bucket is
+ * exactly the objects under their own `<userId>/` prefix — this lists
+ * and removes by prefix instead of needing to join back through
+ * portfolio_media/message_media/verification_documents to find each
+ * path individually. Best-effort per bucket: one bucket failing to
+ * list/delete doesn't stop the others from being cleaned, and the
+ * caller (authService) doesn't let a storage failure block the
+ * account-level deletion itself from completing.
+ */
+async function deleteAllUserFiles(userId) {
+  const supabase = getSupabaseClient();
+
+  for (const bucket of Object.values(BUCKETS)) {
+    try {
+      const { data: files, error: listError } = await supabase.storage.from(bucket.name).list(userId);
+      if (listError) {
+        logger.error('Could not list user files for deletion', { bucket: bucket.name, userId, error: listError.message });
+        continue;
+      }
+      if (!files || files.length === 0) continue;
+
+      const paths = files.map((f) => `${userId}/${f.name}`);
+      const { error: removeError } = await supabase.storage.from(bucket.name).remove(paths);
+      if (removeError) {
+        logger.error('Could not delete user files', { bucket: bucket.name, userId, count: paths.length, error: removeError.message });
+      }
+    } catch (err) {
+      logger.error('Unexpected error deleting user files from bucket', { bucket: bucket.name, userId, error: err.message });
+    }
+  }
+}
+
 module.exports = {
   BUCKETS,
   MAX_VIDEO_DURATION_SECONDS,
@@ -305,4 +342,5 @@ module.exports = {
   getSignedUrl,
   getPublicUrlForPath,
   deleteObject,
+  deleteAllUserFiles,
 };

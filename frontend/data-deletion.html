@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Deletion — JOB RUSH</title>
+  <meta name="description" content="How to request deletion of your Job Rush account and personal data, including for accounts linked through Facebook." />
+  <link rel="icon" type="image/png" href="assets/icons/favicon-32.png" />
+  <link rel="stylesheet" href="css/tokens.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/animations.css" />
+</head>
+
+<body>
+  <a href="#main" class="skip-link">Skip to content</a>
+  <div id="header-mount"></div>
+
+  <main id="main">
+    <section class="container legal-page">
+      <h1>Account &amp; Data Deletion</h1>
+      <p class="text-secondary">This page explains how to permanently delete your Job Rush account and the personal data associated with it — including if you signed up or logged in with Facebook.</p>
+
+      <div class="card" id="status-check-card" hidden>
+        <h3 style="margin-bottom: var(--space-2);">Your deletion request status</h3>
+        <p class="text-secondary text-sm" id="status-check-text">Checking…</p>
+      </div>
+
+      <h2>How to request deletion</h2>
+
+      <div class="card legal-step-card">
+        <h3>Option 1 — From your Job Rush account</h3>
+        <ol>
+          <li>Log in to Job Rush.</li>
+          <li>Go to <strong>Settings → Account &amp; Security</strong>.</li>
+          <li>Select <strong>Delete account</strong> and confirm with your password.</li>
+        </ol>
+        <p class="text-secondary text-sm">If your account was created only through Facebook, Google, or Apple sign-in and you've never set a Job Rush password, use Option 2 or 3 below instead.</p>
+        <a href="pages/profile-settings.html?tab=account" class="btn btn-secondary btn-sm">Go to Account Settings</a>
+      </div>
+
+      <div class="card legal-step-card">
+        <h3>Option 2 — Through Facebook (if you signed in with Facebook)</h3>
+        <ol>
+          <li>Open Facebook's <strong>Settings &amp; Privacy → Settings → Apps and Websites</strong>.</li>
+          <li>Find <strong>Job Rush</strong> in your list of active apps.</li>
+          <li>Select <strong>Remove</strong>, and choose to also request deletion of your activity/data from the app.</li>
+        </ol>
+        <p class="text-secondary text-sm">Facebook automatically notifies Job Rush when you do this, and we process the deletion the same way as any other request — no further action is needed from you here.</p>
+      </div>
+
+      <div class="card legal-step-card">
+        <h3>Option 3 — Email us directly</h3>
+        <p>If you can't log in, email <a href="mailto:support@jobrush.ng">support@jobrush.ng</a> from the address on your account and ask us to delete your account. We'll verify it's really you before acting on the request.</p>
+      </div>
+
+      <h2>What gets deleted</h2>
+      <ul>
+        <li>Your name, email address, and phone number (replaced with a permanently anonymized placeholder).</li>
+        <li>Your password.</li>
+        <li>Your profile photo, portfolio images/videos, verification documents, chat attachments, and any other files you uploaded to Job Rush.</li>
+        <li>All of your active login sessions are immediately signed out.</li>
+        <li>Your account is permanently disabled — it can never be logged into again.</li>
+      </ul>
+
+      <h2>What may be retained</h2>
+      <p>A small amount of information may be kept even after deletion, where there's a genuine legal, safety, or platform-integrity reason to do so:</p>
+      <ul>
+        <li><strong>Transaction and payment records</strong> — kept as required for financial recordkeeping and fraud prevention, independent of your name being attached to them.</li>
+        <li><strong>Messages, reviews, job posts, and dispute history involving other users</strong> — these belong to a shared conversation or transaction, so deleting your account doesn't erase the other person's copy of it; your identifying details are removed from your side, but the record itself isn't stripped from people you interacted with.</li>
+        <li><strong>A record that a deletion request occurred</strong> — kept for our own audit and abuse-prevention purposes, containing no personal details beyond the fact and date of the request.</li>
+      </ul>
+
+      <h2>This is irreversible</h2>
+      <p>Once your account is deleted, it cannot be recovered or logged back into. If you're not sure yet, consider <strong>deactivating</strong> your account instead (Settings → Account &amp; Security → Deactivate account) — that hides your profile and signs you out everywhere, but you can log back in any time to restore it.</p>
+
+      <p class="text-secondary text-sm" style="margin-top: var(--space-8);">Questions about this process? Contact <a href="mailto:support@jobrush.ng">support@jobrush.ng</a> or read our <a href="privacy">Privacy Policy</a>.</p>
+    </section>
+  </main>
+
+  <div id="footer-mount"></div>
+
+  <style>
+    .legal-page { max-width: 760px; padding-top: var(--space-8); padding-bottom: var(--space-9); }
+    .legal-page h1 { margin-bottom: var(--space-3); }
+    .legal-page h2 { margin-top: var(--space-8); }
+    .legal-page ul, .legal-page ol { padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); }
+    .legal-page ul li, .legal-page ol li { color: var(--text-secondary); }
+    .legal-step-card { margin: var(--space-4) 0; }
+    .legal-step-card h3 { margin-bottom: var(--space-3); }
+    .legal-step-card ol { margin-bottom: var(--space-3); }
+  </style>
+
+  <script src="js/config/assets.js"></script>
+  <script src="js/config/env.js"></script>
+  <script src="js/config/api.js"></script>
+  <script src="js/modules/accessibility.js"></script>
+  <script src="js/utils/sanitize.js"></script>
+  <script src="js/utils/toast.js"></script>
+  <script src="js/utils/animate.js"></script>
+  <script src="js/modules/notificationBell.js"></script>
+  <script src="js/utils/modal.js"></script>
+  <script src="js/modules/chrome.js"></script>
+  <script src="js/modules/auth.js"></script>
+  <script>
+    (async function init() {
+      // This page must load and render fully for a signed-out visitor
+      // (Facebook's own review tooling included) — getCurrentUser()
+      // failing just means the header renders its logged-out state,
+      // never an error on the page itself.
+      let user = null;
+      try { user = await Auth.getCurrentUser(); } catch {}
+      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+
+      // If Facebook (or a user checking their own request) arrives here
+      // with ?id=<confirmation code>, show that specific request's
+      // status — this is the exact URL facebookDataDeletionService
+      // hands back to Meta as the callback response's `url` field.
+      const code = new URLSearchParams(window.location.search).get('id');
+      if (code) {
+        const card = document.getElementById('status-check-card');
+        const text = document.getElementById('status-check-text');
+        card.hidden = false;
+        try {
+          const result = await API.get(`/auth/facebook/deletion-status/${encodeURIComponent(code)}`);
+          const when = new Date(result.completedAt || result.requestedAt).toLocaleString();
+          text.textContent = result.status === 'completed'
+            ? `Completed on ${when}. Your account and personal data have been deleted.`
+            : `Received on ${when}. No Job Rush account was found linked to this request — there was nothing to delete.`;
+        } catch {
+          text.textContent = 'We could not find a deletion request matching this reference.';
+        }
+      }
+    })();
+  </script>
+</body>
+
+</html>

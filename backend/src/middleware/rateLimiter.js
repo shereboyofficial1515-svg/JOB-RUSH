@@ -71,6 +71,17 @@ const videoUploadLimiter = rateLimit({
   message: { error: 'Too many video uploads. Please slow down and try again shortly.' },
 });
 
+// Facebook's own servers call this, not end users — generous, but
+// still bounded so a misbehaving/compromised caller (or someone
+// probing the endpoint directly) can't hammer it indefinitely.
+const facebookDeletionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests.' },
+});
+
 module.exports = {
   loginLimiter,
   registrationLimiter,
@@ -79,4 +90,5 @@ module.exports = {
   passwordResetLimiter,
   uploadLimiter,
   videoUploadLimiter,
+  facebookDeletionLimiter,
 };
