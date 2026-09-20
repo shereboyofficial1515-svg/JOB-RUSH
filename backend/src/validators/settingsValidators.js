@@ -6,6 +6,7 @@ const updateSettingsSchema = z.object({
   defaultCoverNote: z.string().trim().max(2000).optional(),
   requireCoverNote: z.boolean().optional(),
 
+  siteTheme: z.enum(['dark', 'light', 'system']).optional(),
   chatTheme: z.enum(['dark', 'light', 'system']).optional(),
   chatWallpaper: z.string().trim().max(40).optional(),
   chatFontSize: z.enum(['small', 'default', 'large', 'extra_large']).optional(),
@@ -25,6 +26,7 @@ function toSnakeCaseSettingsInput(body) {
     profileVisibility: 'profile_visibility',
     defaultCoverNote: 'default_cover_note',
     requireCoverNote: 'require_cover_note',
+    siteTheme: 'site_theme',
     chatTheme: 'chat_theme',
     chatWallpaper: 'chat_wallpaper',
     chatFontSize: 'chat_font_size',

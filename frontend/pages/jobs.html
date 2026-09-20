@@ -22,6 +22,7 @@
       <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Find work</h1>
       <form id="jobs-search-form" class="jobs-search">
         <input type="text" name="keyword" placeholder="Search by title or keyword" aria-label="Keyword" />
+        <select name="categoryId" id="categoryId" aria-label="Category"><option value="">Any category</option></select>
         <select name="employmentType" aria-label="Employment type">
           <option value="">Any type</option>
           <option value="full_time">Full-time</option>
@@ -126,6 +127,16 @@
       const form = document.getElementById('jobs-search-form');
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('keyword')) form.keyword.value = urlParams.get('keyword');
+
+      try {
+        const { categories } = await API.get('/catalog/categories');
+        form.categoryId.innerHTML =
+          '<option value="">Any category</option>' + categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        if (urlParams.get('categoryId')) form.categoryId.value = urlParams.get('categoryId');
+      } catch {
+        // Category filter is a progressive enhancement — if the catalog
+        // can't load, job search still works without it.
+      }
 
       LocationSelect.init({
         stateSelect: form.stateId,

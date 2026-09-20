@@ -12,14 +12,31 @@
    surfaces for content" brief. .floating-card explicitly re-anchors
    its own text tokens back to light-theme values below, since it's a
    white card nested inside this navy-scoped section. */
+/* A photographic background sits behind the same navy gradient used
+   before (now with alpha so the photo shows through faintly), not
+   instead of it — the gradient is deliberately heavy (90%/85% opaque)
+   so the section still reads as "navy," matching the brand direction,
+   rather than becoming a colorful photo with text on top. Swapped to
+   a smaller image on narrow viewports below (spec: responsive images,
+   don't ship the desktop asset to mobile networks). */
 .hero {
   --text-primary: var(--text-on-navy);
   --text-secondary: rgba(255, 255, 255, 0.72);
   --border-subtle: rgba(255, 255, 255, 0.16);
-  background: linear-gradient(160deg, var(--color-primary-navy), var(--color-deep-navy));
+  background:
+    linear-gradient(160deg, rgba(11, 31, 58, 0.93), rgba(7, 22, 42, 0.9)),
+    url('../assets/images/hero-professionals-1920.jpg') center 30% / cover no-repeat;
   color: var(--text-primary);
   padding: var(--space-9) 0;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+@media (max-width: 640px) {
+  .hero {
+    background:
+      linear-gradient(160deg, rgba(11, 31, 58, 0.93), rgba(7, 22, 42, 0.9)),
+      url('../assets/images/hero-professionals-960.jpg') center 30% / cover no-repeat;
+  }
 }
 
 .hero-grid {
@@ -82,6 +99,22 @@
 .floating-card-status { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-success); display: inline-block; }
 
+.section-heading-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.section-heading-row h2 { margin-bottom: 0; }
+.view-all-link {
+  font-weight: 600;
+  color: var(--accent-text);
+  white-space: nowrap;
+  transition: color var(--duration-micro) var(--ease-standard);
+}
+.view-all-link:hover { color: var(--accent); }
+
 .category-strip {
   display: flex;
   gap: var(--space-3);
@@ -97,9 +130,9 @@
   border-radius: var(--radius-pill);
   font-size: var(--text-sm);
   font-weight: 500;
-  transition: border-color var(--duration-micro) var(--ease-standard), color var(--duration-micro) var(--ease-standard);
+  transition: border-color var(--duration-micro) var(--ease-standard), color var(--duration-micro) var(--ease-standard), transform var(--duration-micro) var(--ease-standard);
 }
-.category-chip:hover { border-color: var(--border-gold); color: var(--accent); }
+.category-chip:hover { border-color: var(--border-gold); color: var(--accent); transform: translateY(-1px); }
 
 .how-it-works {
   list-style: none;

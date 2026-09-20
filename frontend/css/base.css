@@ -93,12 +93,24 @@ fieldset { border: none; padding: 0; margin: 0; }
 .container {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-6);
+  box-sizing: border-box;
+}
+
+/* Responsive horizontal padding scale — content never touches the
+   viewport edge; only the padding value changes per breakpoint, so
+   spacing stays consistent instead of ad-hoc per component. */
+@media (max-width: 1024px) {
+  .container { padding: 0 var(--space-5); }
 }
 
 @media (max-width: 640px) {
   h1 { font-size: var(--text-3xl); }
   h2 { font-size: var(--text-2xl); }
+  .container { padding: 0 var(--space-5); }
+}
+
+@media (max-width: 380px) {
   .container { padding: 0 var(--space-4); }
 }
 
