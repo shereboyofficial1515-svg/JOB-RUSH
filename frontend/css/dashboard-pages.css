@@ -30,7 +30,7 @@
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
 }
-.wallet-tab.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+.wallet-tab.is-active { color: var(--accent-text); border-bottom-color: var(--accent); }
 
 .ledger-row {
   display: flex;
@@ -40,7 +40,7 @@
   border-bottom: 1px solid var(--border-subtle);
 }
 .ledger-row:last-child { border-bottom: none; }
-.ledger-amount.credit { color: #6FD79B; }
+.ledger-amount.credit { color: var(--status-success); }
 .ledger-amount.debit { color: var(--text-secondary); }
 
 /* ---------- Messaging ---------- */
@@ -74,8 +74,8 @@
   transition: background-color var(--transition-fast) var(--ease-standard),
               border-left-color var(--transition-fast) var(--ease-standard);
 }
-.conversation-item:hover { background: rgba(240,240,240,0.04); }
-.conversation-item.is-active { background: rgba(240,176,0,0.08); border-left: 2px solid var(--accent); }
+.conversation-item:hover { background: rgba(11, 31, 58, 0.04); }
+.conversation-item.is-active { background: rgba(201, 162, 39, 0.1); border-left: 2px solid var(--accent); }
 .conversation-item .preview { color: var(--text-secondary); font-size: var(--text-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .thread-panel { display: flex; flex-direction: column; }
@@ -83,7 +83,7 @@
 .thread-messages { flex: 1; overflow-y: auto; padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
 
 .message-bubble { max-width: 60%; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: var(--text-sm); }
-.message-bubble.own { align-self: flex-end; background: var(--color-primary-gold); color: var(--text-on-gold); }
+.message-bubble.own { align-self: flex-end; background: var(--color-primary-navy); color: var(--text-on-navy); }
 .message-bubble.other { align-self: flex-start; background: var(--bg-elevated); }
 .message-bubble.is-sending { opacity: 0.6; }
 .message-bubble.is-failed { opacity: 0.85; border: 1px solid var(--status-danger); }
@@ -132,26 +132,32 @@
 
 /* ---------- Chat theme (Chat Settings > Chat theme) ----------
    Scoped to .messages-layout rather than :root -- this is a chat-only
-   theme, not a site-wide light mode. Every rule above already reads
+   theme, not a site-wide mode switch. Every rule above already reads
    color through the shared --bg-surface/--bg-elevated/--bg-page/
    --text-primary/--text-secondary/--border-subtle variables, so
    redefining them here re-themes the whole conversation list, thread
    header, bubbles, composer, and icon buttons without duplicating any
    of those rules. Set via ChatAppearance (js/modules/accessibility.js)
-   as html[data-chat-theme], read from user_settings.chat_theme. */
-html[data-chat-theme="light"] .messages-layout {
-  --bg-surface: #FFFFFF;
-  --bg-elevated: #EEF1F5;
-  --bg-page: #F7F8FA;
-  --text-primary: #101B2C;
-  --text-secondary: #5B6472;
-  --border-subtle: rgba(16, 27, 44, 0.12);
+   as html[data-chat-theme], read from user_settings.chat_theme.
+
+   The app's own default theme is now light-first, so "light" needs no
+   override here any more (it already matches the global defaults) --
+   the override that actually does something is "dark", for anyone who
+   still wants a dark chat screen against the rest of the (now light)
+   app. */
+html[data-chat-theme="dark"] .messages-layout {
+  --bg-surface: #0F172A;
+  --bg-elevated: #1E293B;
+  --bg-page: #0B1220;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --border-subtle: rgba(241, 245, 249, 0.12);
   /* color/background aren't just "read the variable" here -- they
      force a fresh property declaration on .messages-layout itself.
      Without this, text elements that only ever inherit `color` from
      <body> (e.g. the bare <strong> conversation names, which never
      re-reference var(--text-primary) themselves) keep body's already
-     -resolved dark-mode color, because CSS inherits the computed
+     -resolved light-mode color, because CSS inherits the computed
      value of a property, not a live reference to the variable that
      produced it -- redefining --text-primary deeper in the tree
      doesn't retroactively change what an ancestor already resolved. */
@@ -159,28 +165,29 @@ html[data-chat-theme="light"] .messages-layout {
   color: var(--text-primary);
 }
 /* These two rules use a hand-picked rgba tint (not a variable) tuned
-   for the dark palette -- a light tint on a white background is
-   invisible, so they need their own light-mode values rather than
-   inheriting through a variable that doesn't exist for them. */
-html[data-chat-theme="light"] .conversation-item:hover { background: rgba(16, 27, 44, 0.05); }
-html[data-chat-theme="light"] .badge-neutral { background: rgba(16, 27, 44, 0.08); }
+   for the dark palette -- the default light-tinted values would be
+   invisible against this dark override, so they need their own
+   dark-mode values rather than inheriting through a variable that
+   doesn't exist for them. */
+html[data-chat-theme="dark"] .conversation-item:hover { background: rgba(241, 245, 249, 0.06); }
+html[data-chat-theme="dark"] .badge-neutral { background: rgba(241, 245, 249, 0.1); }
 
 /* "system" defers to the OS/browser color-scheme instead of forcing
-   one -- only takes effect when the OS actually reports light, so a
-   dark-OS user sees no change (the base palette is already dark). */
-@media (prefers-color-scheme: light) {
+   one -- only takes effect when the OS actually reports dark, since
+   the base palette is already light. */
+@media (prefers-color-scheme: dark) {
   html[data-chat-theme="system"] .messages-layout {
-    --bg-surface: #FFFFFF;
-    --bg-elevated: #EEF1F5;
-    --bg-page: #F7F8FA;
-    --text-primary: #101B2C;
-    --text-secondary: #5B6472;
-    --border-subtle: rgba(16, 27, 44, 0.12);
+    --bg-surface: #0F172A;
+    --bg-elevated: #1E293B;
+    --bg-page: #0B1220;
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --border-subtle: rgba(241, 245, 249, 0.12);
     background: var(--bg-surface);
     color: var(--text-primary);
   }
-  html[data-chat-theme="system"] .conversation-item:hover { background: rgba(16, 27, 44, 0.05); }
-  html[data-chat-theme="system"] .badge-neutral { background: rgba(16, 27, 44, 0.08); }
+  html[data-chat-theme="system"] .conversation-item:hover { background: rgba(241, 245, 249, 0.06); }
+  html[data-chat-theme="system"] .badge-neutral { background: rgba(241, 245, 249, 0.1); }
 }
 
 /* ---------- Chat wallpaper (Chat Settings > Chat wallpaper) ----------
@@ -192,7 +199,7 @@ html[data-chat-theme="light"] .badge-neutral { background: rgba(16, 27, 44, 0.08
    automatically follows the chat theme above since it reads the same
    variables. Set via ChatAppearance as html[data-chat-wallpaper]. */
 html[data-chat-wallpaper="solid"] .thread-messages {
-  background-image: linear-gradient(180deg, rgba(240, 176, 0, 0.05), rgba(240, 176, 0, 0) 240px);
+  background-image: linear-gradient(180deg, rgba(201, 162, 39, 0.05), rgba(201, 162, 39, 0) 240px);
 }
 html[data-chat-wallpaper="geometric"] .thread-messages {
   background-image: repeating-linear-gradient(135deg, var(--border-subtle) 0, var(--border-subtle) 1px, transparent 1px, transparent 26px);

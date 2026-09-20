@@ -2,7 +2,22 @@
 
 .section { padding: var(--space-9) 0; }
 
+/* The homepage hero is one of the deliberate navy brand surfaces (nav/
+   hero/footer) — same scoped-token pattern as .site-header in
+   components.css, so hero-copy/hero-trust text below picks up
+   light-on-navy automatically. .hero-search input and .floating-card
+   are NOT touched by this (they don't reference --bg-surface here),
+   so they stay their normal white — a white search bar and a white
+   trust card sitting on the navy hero, matching the "navy hero, white
+   surfaces for content" brief. .floating-card explicitly re-anchors
+   its own text tokens back to light-theme values below, since it's a
+   white card nested inside this navy-scoped section. */
 .hero {
+  --text-primary: var(--text-on-navy);
+  --text-secondary: rgba(255, 255, 255, 0.72);
+  --border-subtle: rgba(255, 255, 255, 0.16);
+  background: linear-gradient(160deg, var(--color-primary-navy), var(--color-deep-navy));
+  color: var(--text-primary);
   padding: var(--space-9) 0;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -43,7 +58,13 @@
 
 .hero-visual { display: flex; justify-content: center; }
 
+/* Re-anchors the text tokens .hero redefines above back to their
+   light-theme values — this is a white .card (see components.css)
+   floating inside the navy hero, not a navy surface itself. */
 .floating-card {
+  --text-primary: var(--color-dark-text);
+  --text-secondary: var(--color-muted-text);
+  --border-subtle: rgba(11, 31, 58, 0.12);
   width: 280px;
   animation: float 5s ease-in-out infinite;
 }
@@ -57,7 +78,7 @@
 
 .floating-card-top { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
 .floating-card-badges { display: flex; gap: var(--space-2); margin-bottom: var(--space-4); }
-.floating-card-rating { margin-bottom: var(--space-3); color: var(--accent); }
+.floating-card-rating { margin-bottom: var(--space-3); color: var(--accent-text); }
 .floating-card-status { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-success); display: inline-block; }
 
