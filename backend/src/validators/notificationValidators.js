@@ -21,6 +21,10 @@ const pushUnsubscribeSchema = z.object({
   endpoint: z.string().url(),
 });
 
+const fcmTokenSchema = z.object({
+  token: z.string().min(1),
+});
+
 function validateBody(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);
@@ -35,4 +39,4 @@ function validateBody(schema) {
   };
 }
 
-module.exports = { updatePreferencesSchema, pushSubscribeSchema, pushUnsubscribeSchema, validateBody };
+module.exports = { updatePreferencesSchema, pushSubscribeSchema, pushUnsubscribeSchema, fcmTokenSchema, validateBody };

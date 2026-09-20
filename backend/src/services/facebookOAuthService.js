@@ -17,9 +17,9 @@ function assertConfigured() {
   }
 }
 
-function buildAuthorizationUrl() {
+function buildAuthorizationUrl(client) {
   assertConfigured();
-  const state = oauthStateService.createState();
+  const state = oauthStateService.createState(client === 'android' ? 'android' : '');
   const params = new URLSearchParams({
     client_id: env.FACEBOOK_APP_ID,
     redirect_uri: env.FACEBOOK_REDIRECT_URI,

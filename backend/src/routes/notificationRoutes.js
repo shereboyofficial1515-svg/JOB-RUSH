@@ -6,6 +6,7 @@ const {
   updatePreferencesSchema,
   pushSubscribeSchema,
   pushUnsubscribeSchema,
+  fcmTokenSchema,
 } = require('../validators/notificationValidators');
 
 const router = express.Router();
@@ -21,5 +22,10 @@ router.patch('/preferences', validateBody(updatePreferencesSchema), controller.u
 router.get('/push/public-key', controller.getPushPublicKey);
 router.post('/push/subscribe', validateBody(pushSubscribeSchema), controller.pushSubscribe);
 router.post('/push/unsubscribe', validateBody(pushUnsubscribeSchema), controller.pushUnsubscribe);
+
+// Android app only (FCM) — separate token shape from the web-push
+// subscribe/unsubscribe pair above, same authenticate-then-store shape.
+router.post('/push/fcm-token', validateBody(fcmTokenSchema), controller.registerFcmToken);
+router.delete('/push/fcm-token', validateBody(fcmTokenSchema), controller.unregisterFcmToken);
 
 module.exports = router;

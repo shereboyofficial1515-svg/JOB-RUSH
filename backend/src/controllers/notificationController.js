@@ -1,5 +1,6 @@
 const notificationService = require('../services/notificationService');
 const pushService = require('../services/pushService');
+const fcmService = require('../services/fcmService');
 const asyncHandler = require('../utils/asyncHandler');
 
 const list = asyncHandler(async (req, res) => {
@@ -50,6 +51,18 @@ const pushUnsubscribe = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'Unsubscribed from push notifications.' });
 });
 
+/** POST /api/notifications/push/fcm-token — called by the Android app after Firebase issues/rotates its token. */
+const registerFcmToken = asyncHandler(async (req, res) => {
+  await fcmService.registerToken(req.user.id, req.body.token);
+  res.status(200).json({ message: 'Device registered for push notifications.' });
+});
+
+/** DELETE /api/notifications/push/fcm-token — called by the Android app on logout, mirroring web push's unsubscribe. */
+const unregisterFcmToken = asyncHandler(async (req, res) => {
+  await fcmService.unregisterToken(req.user.id, req.body.token);
+  res.status(200).json({ message: 'Device unregistered from push notifications.' });
+});
+
 module.exports = {
   list,
   unreadCount,
@@ -60,4 +73,6 @@ module.exports = {
   getPushPublicKey,
   pushSubscribe,
   pushUnsubscribe,
+  registerFcmToken,
+  unregisterFcmToken,
 };

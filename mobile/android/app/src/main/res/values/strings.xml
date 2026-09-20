@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Job Rush</string>
+    <string name="title_activity_main">Job Rush</string>
+    <string name="package_name">ng.jobrush.app</string>
+    <string name="custom_url_scheme">ng.jobrush.app</string>
+</resources>

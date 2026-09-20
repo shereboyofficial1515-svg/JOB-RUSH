@@ -43,3 +43,15 @@ build/
 # Claude Code local agent worktree scratch state — launch.json (dev
 # server config, not secret) stays tracked.
 .claude/worktrees/
+
+# Android app (mobile/) — signing material and local SDK paths are
+# machine/developer-specific and must never be committed; see
+# mobile/ANDROID.md's Signing section for how to supply them instead.
+mobile/android/local.properties
+mobile/android/keystore.properties
+mobile/android/**/*.jks
+mobile/android/**/*.keystore
+mobile/android/.gradle/
+mobile/android/captures/
+*.apk
+*.aab

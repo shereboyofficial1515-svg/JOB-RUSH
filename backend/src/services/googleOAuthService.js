@@ -13,9 +13,9 @@ function assertConfigured() {
   }
 }
 
-function buildAuthorizationUrl() {
+function buildAuthorizationUrl(client) {
   assertConfigured();
-  const state = oauthStateService.createState();
+  const state = oauthStateService.createState(client === 'android' ? 'android' : '');
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
     redirect_uri: env.GOOGLE_REDIRECT_URI,

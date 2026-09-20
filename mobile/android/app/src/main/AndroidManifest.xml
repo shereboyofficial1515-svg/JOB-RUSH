@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- OAuth hand-off deep link — see JobRushWebViewClient (opens
+                 Google/Facebook/Apple in a Custom Tab) and completeOAuthLogin
+                 on the backend (redirects the Custom Tab here on success). -->
+            <intent-filter android:label="Job Rush sign-in">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="jobrush" android:host="oauth-complete" />
+            </intent-filter>
+
+            <!-- HTTPS App Link for notification taps / shared links (e.g. a
+                 conversation or job URL) landing directly in the app instead
+                 of a browser. Requires /.well-known/assetlinks.json to be
+                 hosted on the production domain — see ANDROID.md; without
+                 it Android silently falls back to opening these in the
+                 browser instead, it does not crash. -->
+            <intent-filter android:autoVerify="true" android:label="Job Rush">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="job-rush.onrender.com" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Native incoming-call screen (Answer/Reject), shown over the
+             lock screen via a full-screen notification intent — see
+             JobRushFirebaseMessagingService and IncomingCallService. This
+             is a separate lightweight Activity, not the WebView: the real
+             call UI (mic/camera/speaker controls) is call-room.html,
+             reused unchanged once the user taps Answer. -->
+        <activity
+            android:name=".IncomingCallActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:theme="@style/AppTheme.NoActionBarLaunch" />
+
+        <service
+            android:name=".JobRushFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".IncomingCallService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions — every one of these maps to a real, existing Job
+         Rush feature (see ANDROID.md's permission table); none are
+         requested speculatively. All camera/mic/notification requests
+         happen at the moment of use (WebView media-permission prompts,
+         PushNotifications.requestPermissions()), never on launch. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Granular media read permissions (Android 13+) for chat/portfolio
+         attachment pickers; READ_EXTERNAL_STORAGE covers the same need
+         on Android 12L and below, where the granular permissions don't
+         exist yet. Neither is required for the camera-capture path. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Call notifications: a foreground service is what keeps the
+         ringtone playing and the incoming-call UI reachable while the
+         app is backgrounded; USE_FULL_SCREEN_INTENT is what lets that
+         notification interrupt the lock screen like a real call. On
+         Android 14+ this permission is granted by default only to apps
+         the system trusts for calling — see ANDROID.md's Known
+         Limitations for what that means in practice here. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+</manifest>
