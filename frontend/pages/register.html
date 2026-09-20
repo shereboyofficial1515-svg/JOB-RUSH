@@ -130,6 +130,20 @@
     const existing = await Auth.getCurrentUser();
     if (existing) { window.location.href = 'dashboard.html'; return; }
 
+    // Referral attribution (see mobile/../backend referralService):
+    // captured into sessionStorage the moment this page loads with
+    // ?ref=, so it survives a refresh or a validation-error re-render
+    // of this same form — the URL param alone would not. The backend
+    // is still the source of truth once registration succeeds; this
+    // is only about not losing the code before that POST happens.
+    const urlRef = new URLSearchParams(window.location.search).get('ref');
+    if (urlRef) {
+      try { sessionStorage.setItem('jr_referral_code', urlRef); } catch {}
+    }
+    function getStoredReferralCode() {
+      try { return sessionStorage.getItem('jr_referral_code') || urlRef || undefined; } catch { return urlRef || undefined; }
+    }
+
     let oauthInProgress = false;
     function startOAuthRedirect(provider) {
       if (oauthInProgress) return;
@@ -140,7 +154,9 @@
         btn.setAttribute('aria-disabled', 'true');
         if (p === provider) btn.querySelector('.btn-label').textContent = 'Redirecting…';
       });
-      window.location.href = `${API.baseUrl}/auth/${provider}`;
+      const referralCode = getStoredReferralCode();
+      const suffix = referralCode ? `?ref=${encodeURIComponent(referralCode)}` : '';
+      window.location.href = `${API.baseUrl}/auth/${provider}${suffix}`;
     }
 
     document.getElementById('google-register-btn').addEventListener('click', (e) => {
@@ -175,7 +191,7 @@
 
       FormHelpers.setLoading(submitBtn, true);
       try {
-        await Auth.register({ fullName, email: email || undefined, phone: phone || undefined, password, role });
+        await Auth.register({ fullName, email: email || undefined, phone: phone || undefined, password, role, referralCode: getStoredReferralCode() });
         const destination = email || phone;
         const purpose = email ? 'registration_email' : 'registration_phone';
         window.location.href = `verify-otp.html?destination=${encodeURIComponent(destination)}&purpose=${purpose}`;

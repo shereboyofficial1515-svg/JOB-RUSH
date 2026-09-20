@@ -17,6 +17,9 @@ const updateSettingsSchema = z.object({
   textSize: z.enum(['small', 'default', 'large', 'extra_large']).optional(),
   highContrast: z.boolean().optional(),
   reducedMotion: z.boolean().optional(),
+
+  onboardingStatus: z.enum(['not_started', 'completed', 'skipped']).optional(),
+  referralIntroSeen: z.boolean().optional(),
 });
 
 /** camelCase API input -> snake_case columns, only for keys present. */
@@ -36,6 +39,8 @@ function toSnakeCaseSettingsInput(body) {
     textSize: 'text_size',
     highContrast: 'high_contrast',
     reducedMotion: 'reduced_motion',
+    onboardingStatus: 'onboarding_status',
+    referralIntroSeen: 'referral_intro_seen',
   };
   const out = {};
   for (const [key, value] of Object.entries(body)) {

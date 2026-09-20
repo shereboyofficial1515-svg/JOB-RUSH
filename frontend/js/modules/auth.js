@@ -4,8 +4,8 @@
  * rather than constructing requests inline.
  */
 const Auth = (function () {
-  async function register({ fullName, email, phone, password, role }) {
-    return API.post('/auth/register', { fullName, email, phone, password, role });
+  async function register({ fullName, email, phone, password, role, referralCode }) {
+    return API.post('/auth/register', { fullName, email, phone, password, role, referralCode });
   }
 
   async function requestOtp({ destination, channel, purpose }) {

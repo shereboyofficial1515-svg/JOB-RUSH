@@ -2,6 +2,7 @@ const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
 const { ensureHirerProfileRow } = require('./profileService');
+const referralService = require('./referralService');
 
 async function getSkillsForJob(jobId) {
   const { rows } = await query(
@@ -74,6 +75,11 @@ async function createJob(hirerUserId, input) {
     );
     const job = rows[0];
     await setJobSkills(job.id, input.skillIds, client);
+
+    if (job.status !== 'draft') {
+      referralService.markActivityCompleted(hirerUserId, 'job_posted').catch(() => {});
+    }
+
     return job;
   });
 }

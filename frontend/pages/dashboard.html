@@ -40,6 +40,14 @@
         <div id="notif-bell-mount"></div>
       </div>
 
+      <div class="card referral-feedback-banner" id="referral-feedback-banner" hidden>
+        <div>
+          <strong>You joined Job Rush through a referral</strong>
+          <p class="text-secondary text-sm" style="margin-bottom:0;">Share your experience so far — it helps whoever referred you, and takes less than a minute.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="referral-feedback-btn" type="button">Share your experience</button>
+      </div>
+
       <div class="stat-grid" id="stat-grid">
         <!-- populated by JS -->
       </div>
@@ -68,6 +76,7 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/modules/onboarding.js"></script>
   <script>
     function statCard(label, value) {
       return `<div class="card stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
@@ -160,12 +169,75 @@
       }
     }
 
+    function openReferralFeedbackModal() {
+      let selectedRating = 0;
+      Modal.open({
+        title: 'Share your Job Rush experience',
+        bodyHtml: `
+          <p class="text-secondary text-sm">This goes to the person who referred you and helps qualify their referral — only you can submit it.</p>
+          <div class="field">
+            <label>Your rating</label>
+            <div class="star-rating-input" id="star-rating-input">
+              ${[1, 2, 3, 4, 5].map((n) => `<button type="button" class="star-btn" data-rating="${n}" aria-label="${n} star${n > 1 ? 's' : ''}">★</button>`).join('')}
+            </div>
+          </div>
+          <div class="field">
+            <label for="referral-feedback-text">What was your experience using Job Rush?</label>
+            <textarea id="referral-feedback-text" rows="4" maxlength="2000"></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="submit-referral-feedback-btn">Submit feedback</button>
+          </div>
+        `,
+        onMount: (modalEl) => {
+          const stars = modalEl.querySelectorAll('.star-btn');
+          stars.forEach((btn) => {
+            btn.addEventListener('click', () => {
+              selectedRating = Number(btn.dataset.rating);
+              stars.forEach((s) => s.classList.toggle('is-filled', Number(s.dataset.rating) <= selectedRating));
+            });
+          });
+          modalEl.querySelector('#submit-referral-feedback-btn').addEventListener('click', async (e) => {
+            const feedbackText = modalEl.querySelector('#referral-feedback-text').value.trim();
+            if (selectedRating < 1) return Toast.error('Please select a rating.');
+            if (!feedbackText) return Toast.error('Please share a few words about your experience.');
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            try {
+              await API.post('/referrals/feedback', { rating: selectedRating, feedbackText });
+              Toast.success('Thank you for your feedback!');
+              Modal.close();
+              document.getElementById('referral-feedback-banner').hidden = true;
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              btn.disabled = false;
+            }
+          });
+        },
+      });
+    }
+
+    async function checkReferralFeedbackPrompt() {
+      try {
+        const status = await API.get('/referrals/my-status');
+        if (status.referred && !status.feedbackSubmitted) {
+          document.getElementById('referral-feedback-banner').hidden = false;
+        }
+      } catch {
+        // Not critical — the banner just doesn't show if this fails.
+      }
+    }
+
     (async function init() {
       const user = await Auth.requireSession('login.html');
       if (!user) return;
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
+      document.getElementById('referral-feedback-btn').addEventListener('click', openReferralFeedbackModal);
+      checkReferralFeedbackPrompt();
 
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
@@ -174,6 +246,12 @@
       } else {
         await loadWorkerDashboard(user);
       }
+
+      // Dashboard is the one page every signup path (password+OTP,
+      // OAuth) always lands on first — the single correct place to
+      // show onboarding exactly once. Fires after the dashboard's own
+      // content is in place so it isn't the very first thing painted.
+      Onboarding.maybeShow();
     })();
   </script>
 </body>

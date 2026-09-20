@@ -1,6 +1,7 @@
 const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 const { ensureWorkerProfileRow } = require('./profileService');
+const referralService = require('./referralService');
 
 const EDITABLE_FIELDS = ['name', 'description', 'pricing_type', 'price', 'price_currency', 'duration_estimate', 'is_active'];
 const QUOTE_ONLY_TYPES = ['negotiable', 'contact_for_quote'];
@@ -57,6 +58,11 @@ async function create(workerUserId, input) {
     `INSERT INTO professional_services (${columns.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
     values
   );
+
+  if (rows[0].is_active) {
+    referralService.markActivityCompleted(workerUserId, 'service_published').catch(() => {});
+  }
+
   return rows[0];
 }
 

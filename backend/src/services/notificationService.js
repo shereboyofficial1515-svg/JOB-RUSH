@@ -44,6 +44,17 @@ const CHANNEL_POLICY = {
   support_ticket_updated: ['in_app', 'email'],
   account_deactivated: ['in_app', 'email'],
   announcement: ['in_app'],
+
+  // Referral program — spam-conscious on purpose (Part 11 explicitly
+  // says "do not spam users"). A new signup is low-stakes and in-app
+  // only; the milestone/paid events are genuinely significant (real
+  // money), so those get email + SMS like withdrawal_approved does.
+  referral_new_signup: ['in_app'],
+  referral_qualified: ['in_app', 'email'],
+  referral_milestone_reached: ['in_app', 'email', 'sms'],
+  referral_reward_approved: ['in_app', 'email'],
+  referral_reward_paid: ['in_app', 'email', 'sms'],
+  referred_welcome: ['in_app'],
 };
 
 async function getPreferences(userId) {

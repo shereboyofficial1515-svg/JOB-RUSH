@@ -2,6 +2,7 @@ const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const { ensureWorkerProfileRow } = require('./profileService');
 const { getPublicUrlForPath, deleteObject } = require('./storageService');
+const referralService = require('./referralService');
 
 const MAX_MEDIA_PER_PORTFOLIO = 20;
 const MAX_VIDEOS_PER_WORKER = 3;
@@ -147,6 +148,9 @@ async function createPortfolio(workerUserId, { title, description, categoryId, p
      RETURNING *`,
     [workerUserId, title, description || null, categoryId || null, projectType || null, externalLink || null]
   );
+
+  referralService.markActivityCompleted(workerUserId, 'portfolio_published').catch(() => {});
+
   return rows[0];
 }
 

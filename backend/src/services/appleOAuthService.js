@@ -43,9 +43,10 @@ function assertConfigured() {
   }
 }
 
-function buildAuthorizationUrl(client) {
+function buildAuthorizationUrl(client, referralCode) {
   assertConfigured();
-  const state = oauthStateService.createState(client === 'android' ? 'android' : '');
+  const payload = [client === 'android' ? 'android' : null, referralCode ? `ref:${referralCode}` : null].filter(Boolean).join(',');
+  const state = oauthStateService.createState(payload);
   const params = new URLSearchParams({
     client_id: env.APPLE_CLIENT_ID,
     redirect_uri: env.APPLE_REDIRECT_URI,

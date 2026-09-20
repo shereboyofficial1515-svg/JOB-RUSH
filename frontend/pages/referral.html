@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Referral Program — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="manifest" href="../manifest.json" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Referral Program</h1>
+        <div id="notif-bell-mount"></div>
+      </div>
+
+      <div class="card referral-hero-card">
+        <div class="referral-hero-copy">
+          <h2 style="margin-bottom: var(--space-2);">Invite people to Job Rush and earn ₦15,000</h2>
+          <p class="text-secondary">When 12 people you referred complete the required Job Rush activity and share their experience, you become eligible for a ₦15,000 reward.
+            <a href="documentation.html#referral-program">How does the referral program work?</a>
+          </p>
+        </div>
+      </div>
+
+      <div class="referral-link-card card">
+        <div class="field" style="margin-bottom: var(--space-4);">
+          <label>Your referral link</label>
+          <div class="referral-link-row">
+            <input type="text" id="referral-link-input" readonly />
+            <button class="btn btn-secondary" id="copy-link-btn" type="button">Copy Link</button>
+            <button class="btn btn-primary" id="share-link-btn" type="button">Share</button>
+          </div>
+        </div>
+        <p class="text-xs text-secondary">Your referral code: <strong id="referral-code-text">—</strong></p>
+      </div>
+
+      <div class="referral-progress-card card">
+        <div class="referral-progress-header">
+          <h3 style="margin-bottom: 0;">Progress toward your next ₦15,000</h3>
+          <span class="referral-progress-count" id="progress-count">0 / 12</span>
+        </div>
+        <div class="referral-progress-bar">
+          <div class="referral-progress-fill" id="progress-fill" style="width: 0%;"></div>
+        </div>
+        <p class="text-sm text-secondary" id="progress-message">Loading your referral progress…</p>
+
+        <div class="stat-grid referral-stat-grid">
+          <div class="stat-card"><span class="stat-label">Qualified</span><span class="stat-value" id="stat-qualified">—</span></div>
+          <div class="stat-card"><span class="stat-label">Pending</span><span class="stat-value" id="stat-pending">—</span></div>
+          <div class="stat-card"><span class="stat-label">Disqualified</span><span class="stat-value" id="stat-disqualified">—</span></div>
+          <div class="stat-card"><span class="stat-label">Total referred</span><span class="stat-value" id="stat-total">—</span></div>
+        </div>
+      </div>
+
+      <div class="card" id="rewards-card" hidden>
+        <h3>Your rewards</h3>
+        <div id="rewards-list"></div>
+      </div>
+
+      <div class="card">
+        <h3>Your referrals</h3>
+        <div id="referrals-list">
+          <div class="skeleton" style="height:16px; width:70%; margin-bottom:12px;"></div>
+          <div class="skeleton" style="height:16px; width:50%;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .referral-hero-card { background: linear-gradient(135deg, var(--color-primary-navy), var(--color-deep-navy)); color: var(--text-on-navy); margin-bottom: var(--space-5); }
+    .referral-hero-card a { color: var(--color-light-gold); font-weight: 600; }
+    .referral-hero-card .text-secondary { color: rgba(255,255,255,0.75); }
+
+    .referral-link-card { margin-bottom: var(--space-5); }
+    .referral-link-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+    .referral-link-row input { flex: 1 1 220px; min-width: 0; font-family: monospace; font-size: var(--text-sm); }
+    .referral-link-row .btn { flex-shrink: 0; }
+
+    .referral-progress-card { margin-bottom: var(--space-5); }
+    .referral-progress-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+    .referral-progress-count { font-size: var(--text-xl); font-weight: 700; color: var(--accent-text); }
+    .referral-progress-bar { height: 10px; border-radius: var(--radius-pill); background: var(--bg-elevated); overflow: hidden; margin-bottom: var(--space-3); }
+    .referral-progress-fill { height: 100%; background: linear-gradient(90deg, var(--color-primary-gold), var(--color-secondary-gold)); border-radius: var(--radius-pill); transition: width var(--duration-normal) var(--ease-standard); }
+    .referral-stat-grid { margin-top: var(--space-5); }
+
+    .referral-row {
+      display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);
+      padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);
+    }
+    .referral-row:last-child { border-bottom: none; }
+    .referral-row-name { font-weight: 600; }
+    .referral-row-meta { font-size: var(--text-xs); color: var(--text-secondary); }
+
+    .reward-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+    .reward-row:last-child { border-bottom: none; }
+
+    @media (max-width: 480px) {
+      /* flex-basis (the "220px" in the base rule's `flex: 1 1 220px`)
+         tracks whichever axis is currently the main axis — switching
+         to a column layout without resetting it turns that 220px into
+         a HEIGHT instead of a width, producing a huge, mostly-empty
+         input box. flex: none + width: 100% sidesteps that entirely. */
+      .referral-link-row { flex-direction: column; }
+      .referral-link-row .btn, .referral-link-row input { width: 100%; flex: none; }
+    }
+  </style>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/env.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/modules/accessibility.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/ringtoneManager.js"></script>
+  <script src="../js/modules/incomingCallWatcher.js"></script>
+  <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script>
+    const STATUS_LABELS = {
+      registered: 'Registered — activity pending',
+      activity_completed: 'Feedback pending',
+      qualified: 'Qualified',
+      disqualified: 'Disqualified',
+    };
+    const STATUS_BADGE_CLASS = {
+      registered: 'badge-neutral',
+      activity_completed: 'badge-neutral',
+      qualified: 'badge-verified',
+      disqualified: 'badge-danger',
+    };
+
+    function referralRowHtml(r) {
+      return `
+        <div class="referral-row">
+          <div>
+            <div class="referral-row-name">${esc(r.referredName)}</div>
+            <div class="referral-row-meta">Joined ${new Date(r.createdAt).toLocaleDateString()}</div>
+          </div>
+          <span class="badge ${STATUS_BADGE_CLASS[r.status] || 'badge-neutral'}">${STATUS_LABELS[r.status] || r.status}</span>
+        </div>`;
+    }
+
+    const REWARD_STATUS_LABELS = { eligible: 'Under review', approved: 'Approved — payment processing', rejected: 'Not approved', paid: 'Paid' };
+    function rewardRowHtml(r) {
+      return `
+        <div class="reward-row">
+          <div>
+            <div class="referral-row-name">₦${Number(r.amount).toLocaleString()} — ${r.milestone} qualified referrals</div>
+            <div class="referral-row-meta">Eligible since ${new Date(r.eligible_at).toLocaleDateString()}</div>
+          </div>
+          <span class="badge ${r.status === 'paid' ? 'badge-verified' : r.status === 'rejected' ? 'badge-danger' : 'badge-neutral'}">${REWARD_STATUS_LABELS[r.status] || r.status}</span>
+        </div>`;
+    }
+
+    async function loadDashboard() {
+      const data = await API.get('/referrals/me');
+
+      document.getElementById('referral-link-input').value = data.referralLink;
+      document.getElementById('referral-code-text').textContent = data.referralCode;
+
+      const pct = Math.min(100, Math.round((data.qualifiedCount / data.milestone) * 100));
+      document.getElementById('progress-count').textContent = `${data.qualifiedCount} / ${data.milestone}`;
+      document.getElementById('progress-fill').style.width = `${pct}%`;
+      document.getElementById('progress-message').textContent =
+        data.qualifiedCount >= data.milestone
+          ? `You've reached ${data.milestone} qualified referrals — your ₦${data.rewardAmount.toLocaleString()} reward is under review.`
+          : `${data.remainingForNextReward} more qualified referral${data.remainingForNextReward === 1 ? '' : 's'} needed for your next ₦${data.rewardAmount.toLocaleString()} reward.`;
+
+      document.getElementById('stat-qualified').textContent = data.qualifiedCount;
+      document.getElementById('stat-pending').textContent = data.pendingCount;
+      document.getElementById('stat-disqualified').textContent = data.disqualifiedCount;
+      document.getElementById('stat-total').textContent = data.totalReferrals;
+
+      const list = document.getElementById('referrals-list');
+      if (data.referrals.length === 0) {
+        list.innerHTML = `<p class="text-secondary">You haven't referred anyone yet. Share your link above to get started.</p>`;
+      } else {
+        list.innerHTML = data.referrals.map(referralRowHtml).join('');
+      }
+
+      if (data.rewards.length > 0) {
+        document.getElementById('rewards-card').hidden = false;
+        document.getElementById('rewards-list').innerHTML = data.rewards.map(rewardRowHtml).join('');
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      IncomingCallWatcher.start();
+      PushNotifications.registerIfAlreadySubscribed();
+      SidebarNav.render(user, 'referral');
+
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.getElementById('copy-link-btn').addEventListener('click', async () => {
+        const input = document.getElementById('referral-link-input');
+        try {
+          await navigator.clipboard.writeText(input.value);
+          Toast.success('Referral link copied.');
+        } catch {
+          input.select();
+          Toast.error('Could not copy automatically — select and copy manually.');
+        }
+      });
+
+      document.getElementById('share-link-btn').addEventListener('click', async () => {
+        const link = document.getElementById('referral-link-input').value;
+        const shareData = { title: 'Join me on Job Rush', text: 'Join me on Job Rush and create your professional profile:', url: link };
+        if (navigator.share) {
+          try { await navigator.share(shareData); } catch { /* user cancelled */ }
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(link);
+          Toast.success('Referral link copied — paste it anywhere to share.');
+        } catch {
+          Toast.error('Could not copy the link. Copy it from the field above instead.');
+        }
+      });
+
+      try {
+        await loadDashboard();
+      } catch (err) {
+        document.getElementById('referrals-list').innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      }
+    })();
+  </script>
+</body>
+
+</html>
