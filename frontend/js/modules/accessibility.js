@@ -23,8 +23,16 @@ const Accessibility = (function () {
   const CACHE_KEY = 'jr_accessibility_cache';
   let currentPrefs = {};
 
+  const systemDarkQuery = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+
+  /** 'light'/'dark' pass through; 'system' (or unset) follows the OS. */
+  function resolveTheme(siteTheme) {
+    if (siteTheme === 'light' || siteTheme === 'dark') return siteTheme;
+    return systemDarkQuery && systemDarkQuery.matches ? 'dark' : 'light';
+  }
+
   function apply(prefs) {
-    const { textSize, highContrast, reducedMotion, chatTheme, chatWallpaper } = prefs;
+    const { textSize, highContrast, reducedMotion, chatTheme, chatWallpaper, siteTheme } = prefs;
     currentPrefs = prefs;
     const root = document.documentElement;
     if (textSize) root.setAttribute('data-text-size', textSize);
@@ -32,6 +40,21 @@ const Accessibility = (function () {
     root.setAttribute('data-reduced-motion', String(!!reducedMotion));
     if (chatTheme) root.setAttribute('data-chat-theme', chatTheme);
     if (chatWallpaper) root.setAttribute('data-chat-wallpaper', chatWallpaper);
+    root.setAttribute('data-theme', resolveTheme(siteTheme));
+  }
+
+  // A saved preference of 'system' (or no preference yet, e.g. a
+  // logged-out visitor) should track OS changes live, without needing
+  // a reload — re-resolve and re-apply whenever the OS scheme flips,
+  // but only while the effective preference is still "system".
+  if (systemDarkQuery) {
+    const onSystemChange = () => {
+      if (!currentPrefs.siteTheme || currentPrefs.siteTheme === 'system') {
+        document.documentElement.setAttribute('data-theme', resolveTheme(currentPrefs.siteTheme));
+      }
+    };
+    if (systemDarkQuery.addEventListener) systemDarkQuery.addEventListener('change', onSystemChange);
+    else if (systemDarkQuery.addListener) systemDarkQuery.addListener(onSystemChange);
   }
 
   function readCache() {
@@ -53,14 +76,18 @@ const Accessibility = (function () {
     }
   }
 
+  // Apply immediately, even before any cache/server value is known, so
+  // a first-time or logged-out visitor sees their OS's color scheme
+  // right away instead of a flash of the light-mode default.
   const cached = readCache();
-  if (cached) apply(cached);
+  apply(cached || { siteTheme: 'system' });
 
   function prefsFromSettings(settings) {
     return {
       textSize: settings.text_size,
       highContrast: settings.high_contrast,
       reducedMotion: settings.reduced_motion,
+      siteTheme: settings.site_theme,
       chatTheme: settings.chat_theme,
       chatWallpaper: settings.chat_wallpaper,
       // Not a DOM attribute -- apply() ignores this, it just rides
@@ -109,5 +136,24 @@ const Accessibility = (function () {
     return currentPrefs;
   }
 
-  return { apply, applyFromSettings, writeCache, getPrefs };
+  /**
+   * Sets the site theme preference — usable by anyone, logged in or
+   * not. Applies + caches immediately for instant feedback; if the
+   * visitor is logged in, also persists to their account so it
+   * follows them across devices. A logged-out choice still sticks on
+   * this device via the cache, same as every other accessibility pref.
+   */
+  async function setSiteTheme(siteTheme) {
+    const prefs = { ...currentPrefs, siteTheme };
+    apply(prefs);
+    writeCache(prefs);
+    if (typeof API === 'undefined') return;
+    try {
+      await API.patch('/settings', { siteTheme });
+    } catch {
+      // Logged out, or offline — the local cache above already stands.
+    }
+  }
+
+  return { apply, applyFromSettings, writeCache, getPrefs, setSiteTheme, resolveTheme };
 })();

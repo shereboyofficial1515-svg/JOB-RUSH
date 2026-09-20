@@ -8,6 +8,7 @@ const EDITABLE_FIELDS = [
   'profile_visibility',
   'default_cover_note',
   'require_cover_note',
+  'site_theme',
   'chat_theme',
   'chat_wallpaper',
   'chat_font_size',

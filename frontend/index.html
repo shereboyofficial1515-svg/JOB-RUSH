@@ -8,6 +8,12 @@
   <meta name="description"
     content="JOB RUSH connects hirers with verified professionals across Delta State. Post a job, interview, hire, and pay securely — all in one place." />
   <link rel="icon" type="image/png" href="assets/icons/favicon-32.png" />
+  <!-- Above-the-fold hero background — preloaded so it doesn't compete
+       with other requests for bandwidth on the LCP element; each media
+       query matches the same breakpoint the CSS background-image swap
+       in home.css uses, so only one size is ever actually downloaded. -->
+  <link rel="preload" as="image" href="assets/images/hero-professionals-1920.jpg" media="(min-width: 641px)" />
+  <link rel="preload" as="image" href="assets/images/hero-professionals-960.jpg" media="(max-width: 640px)" />
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
@@ -64,15 +70,14 @@
 
     <!-- CATEGORIES -->
     <section class="container section reveal">
-      <h2>Popular categories</h2>
-      <div class="category-strip">
-        <a class="category-chip" href="pages/jobs.html?category=artisans">Artisans &amp; Trades</a>
-        <a class="category-chip" href="pages/jobs.html?category=tech">Tech &amp; Digital</a>
-        <a class="category-chip" href="pages/jobs.html?category=home-services">Home Services</a>
-        <a class="category-chip" href="pages/jobs.html?category=events">Events &amp; Media</a>
-        <a class="category-chip" href="pages/jobs.html?category=beauty">Beauty &amp; Wellness</a>
-        <a class="category-chip" href="pages/jobs.html?category=logistics">Logistics &amp; Delivery</a>
-        <a class="category-chip" href="pages/jobs.html?category=admin">Admin &amp; Support</a>
+      <div class="section-heading-row">
+        <h2>Popular categories</h2>
+        <a href="pages/jobs.html" class="text-sm view-all-link">View all jobs &rarr;</a>
+      </div>
+      <div class="category-strip" id="category-strip">
+        <div class="skeleton" style="height:44px; width:140px; border-radius:999px; flex-shrink:0;"></div>
+        <div class="skeleton" style="height:44px; width:120px; border-radius:999px; flex-shrink:0;"></div>
+        <div class="skeleton" style="height:44px; width:160px; border-radius:999px; flex-shrink:0;"></div>
       </div>
     </section>
 
@@ -148,6 +153,17 @@
         const keyword = e.target.keyword.value.trim();
         window.location.href = `pages/jobs.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
       });
+
+      try {
+        const { categories } = await API.get('/catalog/categories');
+        const strip = document.getElementById('category-strip');
+        strip.innerHTML = categories
+          .map((c) => `<a class="category-chip" href="pages/jobs.html?categoryId=${c.id}">${esc(c.name)}</a>`)
+          .join('');
+      } catch {
+        document.getElementById('category-strip').innerHTML =
+          '<p class="text-secondary text-sm">Categories are temporarily unavailable — <a href="pages/jobs.html">browse all jobs</a> instead.</p>';
+      }
 
       ScrollReveal.observe();
     })();

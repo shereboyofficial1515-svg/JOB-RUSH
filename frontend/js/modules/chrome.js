@@ -44,13 +44,25 @@ const Chrome = (function () {
     // components.css) instead of squeezing into that row next to the
     // brand and hamburger, which used to wrap the brand text and
     // overlap it with the bell.
+    // .mobile-cta stays visible in the collapsed mobile header (see
+    // components.css) instead of disappearing into the hamburger drawer
+    // entirely — logged-out visitors should see at a glance that they
+    // can sign up, not have to open a menu to discover it. Only one
+    // button gets this treatment so the header row doesn't wrap/overlap
+    // the way it did when both auth buttons sat in the row (see below).
     const authButtonsHtml = user
       ? `<a href="${pageHref('dashboard')}" class="btn btn-secondary btn-sm">Dashboard</a>
          <button class="btn btn-ghost btn-sm" data-action="logout">Log out</button>`
       : `<a href="${pageHref('login')}" class="btn btn-ghost btn-sm">Log in</a>
-         <a href="${pageHref('register')}" class="btn btn-primary btn-sm">Get Started</a>`;
+         <a href="${pageHref('register')}" class="btn btn-primary btn-sm mobile-cta">Sign Up</a>`;
 
-    const actionsHtml = (user ? `<div id="notif-bell-mount"></div>` : '') + authButtonsHtml;
+    const themeToggleHtml = `
+      <button class="theme-toggle" type="button" data-action="toggle-theme" aria-label="Switch to dark mode">
+        <svg class="theme-toggle-icon-sun" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+        <svg class="theme-toggle-icon-moon" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" hidden><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+      </button>`;
+
+    const actionsHtml = themeToggleHtml + (user ? `<div id="notif-bell-mount"></div>` : '') + authButtonsHtml;
 
     mount.innerHTML = `
       <header class="site-header">
@@ -113,6 +125,28 @@ const Chrome = (function () {
     const notifMount = mount.querySelector('#notif-bell-mount');
     if (notifMount && typeof NotificationBell !== 'undefined') {
       NotificationBell.render(notifMount);
+    }
+
+    const themeToggle = mount.querySelector('[data-action="toggle-theme"]');
+    if (themeToggle && typeof Accessibility !== 'undefined') {
+      const sunIcon = themeToggle.querySelector('.theme-toggle-icon-sun');
+      const moonIcon = themeToggle.querySelector('.theme-toggle-icon-moon');
+      const syncIcon = () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        sunIcon.hidden = isDark;
+        moonIcon.hidden = !isDark;
+        themeToggle.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+      };
+      syncIcon();
+      themeToggle.addEventListener('click', () => {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        Accessibility.setSiteTheme(isDark ? 'light' : 'dark');
+        syncIcon();
+      });
+      // The OS-level listener in accessibility.js updates data-theme
+      // directly on <html> when following "system" — observe it so the
+      // icon stays correct without this module needing its own listener.
+      new MutationObserver(syncIcon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     }
   }
 

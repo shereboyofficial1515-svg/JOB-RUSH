@@ -64,6 +64,18 @@
   --status-danger-bg: rgba(192, 57, 43, 0.1);
   --status-warning: var(--color-primary-gold);
 
+  /* Popover surfaces (notification dropdown, "more actions" menus) —
+     a separate alias from --bg-surface/--text-primary because these
+     panels deliberately re-anchor to a fixed light appearance even
+     when their trigger sits inside a permanently-navy container like
+     the header (see .notif-dropdown/.more-menu-panel). Keeping them
+     as their own token means dark mode below can flip them without
+     touching the light-on-navy re-anchoring those components rely on. */
+  --bg-popover: var(--color-white);
+  --text-popover-primary: var(--color-dark-text);
+  --text-popover-secondary: var(--color-muted-text);
+  --border-popover: rgba(11, 31, 58, 0.12);
+
   /* ---- JR design-system aliases (stable public names for the tokens
      above — use these in new code; the --color-*/--bg-*/--text-*
      names above remain for existing component compatibility). ---- */
@@ -163,6 +175,40 @@ html[data-high-contrast="true"] {
 }
 html[data-high-contrast="true"] :focus-visible {
   outline-width: 3px;
+}
+
+/* Site-wide dark theme (spec: "theme system"). Set via html[data-theme],
+   applied by js/modules/accessibility.js — resolves the user's saved
+   preference (light/dark/system) to an actual "light" or "dark" value,
+   defaulting to the OS's prefers-color-scheme when no explicit choice
+   has been saved. Real Job Rush brand colors, not an inverted palette:
+   deep navy surfaces, white/light-gray text, gold stays the accent.
+   Components that already reference the aliases below (--bg-page,
+   --bg-surface, --text-primary, ...) pick this up automatically —
+   only components that hardcode a raw color instead of an alias would
+   need a separate override, and none of the app's light-surface
+   components do that except the popovers handled by --bg-popover
+   above. Components already locked to navy in light mode (header,
+   footer, hero, sidebars, auth split panel) are simply already home:
+   their local light-on-navy token overrides need no change here. */
+html[data-theme="dark"] {
+  --bg-page: var(--color-deep-navy);
+  --bg-surface: var(--color-primary-navy);
+  --bg-elevated: var(--color-secondary-navy);
+  --text-primary: var(--color-white);
+  --text-secondary: #A9B4C4;
+  --accent-text: var(--color-light-gold);
+  --border-subtle: rgba(255, 255, 255, 0.14);
+  --border-gold: rgba(224, 193, 90, 0.55);
+  --status-success-bg: rgba(31, 122, 77, 0.22);
+  --status-danger-bg: rgba(192, 57, 43, 0.22);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  --bg-popover: var(--color-primary-navy);
+  --text-popover-primary: var(--color-white);
+  --text-popover-secondary: #A9B4C4;
+  --border-popover: rgba(255, 255, 255, 0.14);
 }
 
 /* Reduced motion: stronger than the OS-level media query above —

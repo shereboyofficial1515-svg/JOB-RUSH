@@ -402,6 +402,22 @@
 
 .header-actions { display: flex; align-items: center; gap: var(--space-3); }
 
+/* Light/dark toggle — same "adapts via currentColor" approach as
+   .notif-bell-btn, since it appears on the navy header for every
+   visitor (logged in or not), unlike the bell which is auth-only. */
+.theme-toggle {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+.theme-toggle:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
 .nav-toggle {
   display: none;
   background: none;
@@ -429,11 +445,16 @@
     animation: drawer-fade-in var(--transition-normal) var(--ease-smooth);
   }
 
-  /* The Dashboard/Log out (or Log in/Get Started) buttons move into
-     the mobile nav drawer instead of squeezing into the header row
-     next to the brand, bell, and hamburger — that combination wrapped
-     the brand text and overlapped it with the notification bell. */
-  .header-actions .btn { display: none; }
+  /* The Dashboard/Log out (or Log in) buttons move into the mobile nav
+     drawer instead of squeezing into the header row next to the brand,
+     bell, and hamburger — that combination wrapped the brand text and
+     overlapped it with the notification bell. The single Sign Up CTA
+     (.mobile-cta) is the exception: logged-out visitors should see
+     that account creation exists without opening the menu first, and
+     one compact button next to the hamburger doesn't reintroduce the
+     wrapping/overlap that having two buttons there used to cause. */
+  .header-actions .btn:not(.mobile-cta) { display: none; }
+  .header-actions .btn.mobile-cta { padding: var(--space-2) var(--space-3); }
   .nav-mobile-actions {
     display: flex;
     flex-direction: column;
@@ -871,15 +892,15 @@
    values explicitly so it doesn't inherit .site-header's light-on-navy
    overrides just because it happens to be nested inside it in the DOM. */
 .notif-dropdown {
-  --text-primary: var(--color-dark-text);
-  --text-secondary: var(--color-muted-text);
-  --border-subtle: rgba(11, 31, 58, 0.12);
+  --text-primary: var(--text-popover-primary);
+  --text-secondary: var(--text-popover-secondary);
+  --border-subtle: var(--border-popover);
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   width: 340px;
   max-height: 420px;
-  background: var(--color-white);
+  background: var(--bg-popover);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
@@ -935,13 +956,13 @@
 /* Same re-anchoring as .notif-dropdown above — a floating light card
    regardless of where its trigger button lives. */
 .more-menu-panel {
-  --text-primary: var(--color-dark-text);
-  --border-subtle: rgba(11, 31, 58, 0.12);
+  --text-primary: var(--text-popover-primary);
+  --border-subtle: var(--border-popover);
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
   min-width: 170px;
-  background: var(--color-white);
+  background: var(--bg-popover);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-elevated);
