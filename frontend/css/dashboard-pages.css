@@ -21,7 +21,21 @@
 .wallet-balance-label { font-size: var(--text-sm); color: var(--text-secondary); }
 .wallet-balance-value { font-family: var(--font-display); font-size: var(--text-3xl); font-weight: 700; margin: var(--space-2) 0 var(--space-5); }
 
-.wallet-tabs { display: flex; gap: var(--space-2); margin-bottom: var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+/* This tab bar (reused on Wallet, Applications, and similar list-
+   filter pages) has no max item count, so a phone-width row can't
+   guarantee every tab fits -- overflow-x:auto lets it scroll
+   horizontally instead of forcing the last tab(s) past the viewport
+   edge. white-space:nowrap on the tabs stops them from wrapping their
+   own label text mid-scroll, which would break the single-row layout
+   this is designed around. */
+.wallet-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .wallet-tab {
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-sm);
@@ -29,6 +43,8 @@
   color: var(--text-secondary);
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .wallet-tab.is-active { color: var(--accent-text); border-bottom-color: var(--accent); }
 

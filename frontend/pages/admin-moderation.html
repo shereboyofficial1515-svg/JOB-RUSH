@@ -93,8 +93,8 @@
     }
     return sectionShell('jobs', 'Jobs', `
       <form id="job-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
-        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; min-width:180px; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
-        <select name="status" style="background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
+        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; min-width:180px; background: var(--bg-surface); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+        <select name="status" style="background: var(--bg-surface); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
           <option value="">Any status</option>
           <option value="open">Open</option>
           <option value="closed">Closed</option>
@@ -225,8 +225,8 @@
       return '';
     }
     return sectionShell('portfolio', 'Portfolio projects', `
-      <form id="portfolio-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
-        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+      <form id="portfolio-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+        <input type="text" name="keyword" placeholder="Search by title" style="flex:1; min-width:180px; background: var(--bg-surface); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
         <button type="submit" class="btn btn-sm btn-primary">Search</button>
       </form>
       <div class="admin-table-scroll"><table class="admin-table">

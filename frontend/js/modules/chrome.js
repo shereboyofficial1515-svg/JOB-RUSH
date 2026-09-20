@@ -74,6 +74,7 @@ const Chrome = (function () {
           </button>
         </div>
       </header>
+      <div class="main-nav-backdrop" data-action="close-nav"></div>
     `;
 
     // Logout appears twice — once in the header, once duplicated into
@@ -86,12 +87,14 @@ const Chrome = (function () {
 
     const toggleBtn = mount.querySelector('[data-action="toggle-nav"]');
     const nav = mount.querySelector('.main-nav');
+    const backdrop = mount.querySelector('.main-nav-backdrop');
     if (toggleBtn && nav) {
       const openIcon = toggleBtn.querySelector('.nav-toggle-icon-open');
       const closeIcon = toggleBtn.querySelector('.nav-toggle-icon-close');
 
       function setNavOpen(isOpen) {
         nav.classList.toggle('is-open', isOpen);
+        if (backdrop) backdrop.classList.toggle('is-open', isOpen);
         toggleBtn.setAttribute('aria-expanded', String(isOpen));
         toggleBtn.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
         openIcon.hidden = isOpen;
@@ -99,6 +102,7 @@ const Chrome = (function () {
       }
 
       toggleBtn.addEventListener('click', () => setNavOpen(!nav.classList.contains('is-open')));
+      if (backdrop) backdrop.addEventListener('click', () => setNavOpen(false));
 
       // Navigating via a link (or tapping Log out) should leave the
       // menu closed rather than visually stuck open — behind whichever

@@ -49,7 +49,11 @@
 .admin-sidebar .brand { margin-bottom: var(--space-2); }
 .admin-sidebar .admin-badge { margin-bottom: var(--space-6); }
 
-.admin-main { padding: var(--space-6) var(--space-7); }
+/* min-width: 0 — same fix as .dashboard-main in components.css. Without
+   it, a wide descendant (here, .stat-grid's minmax(200px, 1fr) tracks)
+   forces this whole grid column past the viewport on a narrow phone,
+   instead of the descendant's own content wrapping/collapsing first. */
+.admin-main { padding: var(--space-6) var(--space-7); min-width: 0; }
 
 .admin-section { margin-bottom: var(--space-8); }
 .admin-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); }
