@@ -18,6 +18,8 @@ const EDITABLE_FIELDS = [
   'text_size',
   'high_contrast',
   'reduced_motion',
+  'onboarding_status',
+  'referral_intro_seen',
 ];
 
 function pickAllowed(input, allowedFields) {

@@ -9,6 +9,7 @@ const facebookOAuthService = require('../services/facebookOAuthService');
 const appleOAuthService = require('../services/appleOAuthService');
 const oauthStateService = require('../services/oauthStateService');
 const oauthMobileHandoffService = require('../services/oauthMobileHandoffService');
+const referralService = require('../services/referralService');
 const deviceService = require('../services/deviceService');
 const notificationService = require('../services/notificationService');
 const emailService = require('../services/emailService');
@@ -86,7 +87,7 @@ async function issueSessionAndRespond(req, res, user) {
  * flow: register -> request OTP -> verify OTP -> account becomes active.
  */
 const register = asyncHandler(async (req, res) => {
-  const user = await authService.registerUser(req.body);
+  const user = await authService.registerUser({ ...req.body, registrationIp: getClientIp(req) });
 
   if (user.email) {
     emailService
@@ -279,17 +280,36 @@ const resetPassword = asyncHandler(async (req, res) => {
  * uses and redirects into the app.
  */
 async function completeOAuthLogin(req, res, user, frontendBase) {
-  // Set only when this OAuth flow was started by the Android app (see
-  // googleRedirect/facebookRedirect/appleRedirect passing ?client to
-  // buildAuthorizationUrl, which signs it into `state`). The Android
-  // app runs this whole flow in a Custom Tab, not its own WebView --
-  // Google blocks OAuth inside an embedded WebView user-agent -- so a
-  // cookie set on this response would land in the Custom Tab's cookie
-  // jar, not the app's. Handing back a one-time code via a jobrush://
-  // deep link instead lets the app's OWN WebView redeem it (see
-  // oauthMobileHandoffService + the /auth/mobile-handoff route) and
-  // get the session cookie into the cookie jar that actually matters.
-  const isAndroid = oauthStateService.parseState(req.query.state)?.payload === 'android';
+  // The state payload is a comma-joined list of tokens (see
+  // googleRedirect/facebookRedirect/appleRedirect building it via
+  // buildAuthorizationUrl(client, referralCode)) -- currently either
+  // or both of "android" and "ref:<code>" may be present.
+  const stateTokens = (oauthStateService.parseState(req.query.state)?.payload || '').split(',').filter(Boolean);
+
+  // Set only when this OAuth flow was started by the Android app. The
+  // Android app runs this whole flow in a Custom Tab, not its own
+  // WebView -- Google blocks OAuth inside an embedded WebView
+  // user-agent -- so a cookie set on this response would land in the
+  // Custom Tab's cookie jar, not the app's. Handing back a one-time
+  // code via a jobrush:// deep link instead lets the app's OWN WebView
+  // redeem it (see oauthMobileHandoffService + the /auth/mobile-handoff
+  // route) and get the session cookie into the cookie jar that
+  // actually matters.
+  const isAndroid = stateTokens.includes('android');
+
+  // Only ever attributed for a genuinely NEW account -- an existing
+  // user who happens to click a referral link and then logs in via
+  // Google must never retroactively gain a referrer.
+  const referralToken = stateTokens.find((t) => t.startsWith('ref:'));
+  if (user.isNewUser && referralToken) {
+    await referralService
+      .attributeReferral({ query }, {
+        referredUserId: user.id,
+        referralCode: referralToken.slice(4),
+        registrationIp: getClientIp(req),
+      })
+      .catch((err) => logger.error('OAuth referral attribution failed', { userId: user.id, error: err.message }));
+  }
 
   const has2FA = await twoFactorService.isEnabled(user.id);
   if (has2FA) {
@@ -337,7 +357,7 @@ const mobileOAuthHandoff = asyncHandler(async (req, res) => {
  * requires the user's own browser to interact with Google directly.
  */
 const googleRedirect = asyncHandler(async (req, res) => {
-  const url = googleOAuthService.buildAuthorizationUrl(req.query.client);
+  const url = googleOAuthService.buildAuthorizationUrl(req.query.client, req.query.ref);
   res.redirect(url);
 });
 
@@ -388,7 +408,7 @@ const googleCallback = asyncHandler(async (req, res) => {
  * Facebook's own consent screen.
  */
 const facebookRedirect = asyncHandler(async (req, res) => {
-  const url = facebookOAuthService.buildAuthorizationUrl(req.query.client);
+  const url = facebookOAuthService.buildAuthorizationUrl(req.query.client, req.query.ref);
   res.redirect(url);
 });
 
@@ -441,7 +461,7 @@ const facebookCallback = asyncHandler(async (req, res) => {
  * instead of redirecting with query params -- see appleCallback below.
  */
 const appleRedirect = asyncHandler(async (req, res) => {
-  const url = appleOAuthService.buildAuthorizationUrl(req.query.client);
+  const url = appleOAuthService.buildAuthorizationUrl(req.query.client, req.query.ref);
   res.redirect(url);
 });
 

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Referral Program — JOB RUSH Admin</title>
+<link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+<link rel="stylesheet" href="../css/tokens.css" />
+<link rel="stylesheet" href="../css/base.css" />
+<link rel="stylesheet" href="../css/components.css" />
+<link rel="stylesheet" href="../css/animations.css" />
+<link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <a href="../index.html" class="brand">
+      <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+      <span>JOB RUSH</span>
+    </a>
+    <span class="badge badge-neutral admin-badge">Admin Portal</span>
+
+    <nav class="sidebar-nav" aria-label="Referral program sections">
+      <a href="#rewards">Pending rewards</a>
+      <a href="#referrers">Referrers</a>
+    </nav>
+
+    <a href="admin-dashboard.html" class="btn btn-ghost btn-block" style="justify-content: flex-start;">&larr; Back to dashboard</a>
+    <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+  </aside>
+
+  <div class="admin-main">
+    <div class="dashboard-topbar">
+      <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Referral Program</h1>
+    </div>
+
+    <div id="referrals-content">
+      <div class="skeleton" style="height: 200px; margin-bottom: var(--space-6);"></div>
+      <div class="skeleton" style="height: 200px;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/config/assets.js"></script>
+<script src="../js/config/env.js"></script>
+<script src="../js/config/api.js"></script>
+<script src="../js/modules/accessibility.js"></script>
+<script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/toast.js"></script>
+<script src="../js/utils/animate.js"></script>
+<script src="../js/utils/modal.js"></script>
+<script src="../js/modules/auth.js"></script>
+<script>
+  function sectionShell(id, title, bodyHtml) {
+    return `
+      <section class="admin-section card" id="${id}">
+        <div class="admin-section-header"><h3 style="margin-bottom:0;">${title}</h3></div>
+        ${bodyHtml}
+      </section>
+    `;
+  }
+
+  function emptyRow(colspan, message) {
+    return `<tr><td colspan="${colspan}" class="text-secondary" style="text-align:center; padding: var(--space-5);">${message}</td></tr>`;
+  }
+
+  const REWARD_STATUS_BADGE = { eligible: 'badge-neutral', approved: 'badge-verified', rejected: 'badge-danger', paid: 'badge-pro' };
+
+  // ---------------- Pending rewards ----------------
+
+  async function loadRewardsSection() {
+    return sectionShell('rewards', 'Referral rewards',
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Referrer</th><th>Milestone</th><th>Amount</th><th>Status</th><th>Eligible since</th><th></th></tr></thead>
+        <tbody id="rewards-body">${emptyRow(6, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function loadRewardsBody() {
+    const tbody = document.getElementById('rewards-body');
+    try {
+      const { rewards } = await API.get('/admin/referrals/rewards');
+      tbody.innerHTML = rewards.length
+        ? rewards.map((r) => `
+          <tr>
+            <td>${esc(r.referrer_full_name)}<br><span class="text-xs text-secondary">${esc(r.referrer_email || '')}</span></td>
+            <td>${r.milestone}</td>
+            <td>₦${Number(r.amount).toLocaleString()}</td>
+            <td><span class="badge ${REWARD_STATUS_BADGE[r.status] || 'badge-neutral'}">${r.status}</span></td>
+            <td>${new Date(r.eligible_at).toLocaleDateString()}</td>
+            <td>
+              ${r.status === 'eligible' ? `
+                <button class="btn btn-sm btn-primary" data-approve="${r.id}">Approve</button>
+                <button class="btn btn-sm btn-danger" data-reject="${r.id}">Reject</button>
+              ` : r.status === 'approved' ? `
+                <button class="btn btn-sm btn-primary" data-pay="${r.id}">Mark as Paid</button>
+              ` : ''}
+            </td>
+          </tr>`).join('')
+        : emptyRow(6, 'No referral rewards yet.');
+
+      tbody.querySelectorAll('[data-approve]').forEach((btn) => btn.addEventListener('click', () => approveReward(btn.dataset.approve)));
+      tbody.querySelectorAll('[data-reject]').forEach((btn) => btn.addEventListener('click', () => rejectRewardPrompt(btn.dataset.reject)));
+      tbody.querySelectorAll('[data-pay]').forEach((btn) => btn.addEventListener('click', () => markRewardPaid(btn.dataset.pay)));
+    } catch (err) {
+      tbody.innerHTML = emptyRow(6, err.message);
+    }
+  }
+
+  async function approveReward(id) {
+    if (!confirm('Approve this ₦15,000 referral reward? The referrer will be notified.')) return;
+    try {
+      await API.post(`/admin/referrals/rewards/${id}/approve`);
+      Toast.success('Reward approved.');
+      loadRewardsBody();
+    } catch (err) {
+      Toast.error(err.message);
+    }
+  }
+
+  function rejectRewardPrompt(id) {
+    Modal.open({
+      title: 'Reject referral reward',
+      bodyHtml: `
+        <div class="field">
+          <label for="reject-reason">Reason (shown in the audit log)</label>
+          <textarea id="reject-reason" rows="3"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-reject-btn">Reject reward</button>
+        </div>`,
+      onMount: (modalEl) => {
+        modalEl.querySelector('#confirm-reject-btn').addEventListener('click', async () => {
+          const reason = modalEl.querySelector('#reject-reason').value.trim();
+          if (!reason) return Toast.error('Please provide a reason.');
+          try {
+            await API.post(`/admin/referrals/rewards/${id}/reject`, { reason });
+            Toast.success('Reward rejected.');
+            Modal.close();
+            loadRewardsBody();
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      },
+    });
+  }
+
+  async function markRewardPaid(id) {
+    if (!confirm('Mark as paid? This credits ₦15,000 to the referrer\'s Job Rush wallet immediately.')) return;
+    try {
+      await API.post(`/admin/referrals/rewards/${id}/mark-paid`);
+      Toast.success('Reward marked as paid and credited to the wallet.');
+      loadRewardsBody();
+    } catch (err) {
+      Toast.error(err.message);
+    }
+  }
+
+  // ---------------- Referrers ("who referred whom") ----------------
+
+  async function loadReferrersSection() {
+    return sectionShell('referrers', 'Referrers',
+      `<div class="admin-table-scroll"><table class="admin-table">
+        <thead><tr><th>Referrer</th><th>Code</th><th>Qualified</th><th>Pending</th><th>Disqualified</th><th>Flagged</th><th></th></tr></thead>
+        <tbody id="referrers-body">${emptyRow(7, 'Loading…')}</tbody>
+      </table></div>`);
+  }
+
+  async function loadReferrersBody() {
+    const tbody = document.getElementById('referrers-body');
+    try {
+      const { referrers } = await API.get('/admin/referrals');
+      tbody.innerHTML = referrers.length
+        ? referrers.map((r) => `
+          <tr>
+            <td>${esc(r.full_name)}<br><span class="text-xs text-secondary">${esc(r.email || '')}</span></td>
+            <td><code>${esc(r.referral_code || '—')}</code></td>
+            <td>${r.qualified_count} / 12</td>
+            <td>${r.pending_count}</td>
+            <td>${r.disqualified_count}</td>
+            <td>${r.flagged_count > 0 ? `<span class="badge badge-danger">${r.flagged_count}</span>` : '—'}</td>
+            <td><button class="btn btn-sm btn-secondary" data-detail="${r.referrer_user_id}">View</button></td>
+          </tr>`).join('')
+        : emptyRow(7, 'No referrers yet.');
+
+      tbody.querySelectorAll('[data-detail]').forEach((btn) => btn.addEventListener('click', () => showReferrerDetail(btn.dataset.detail)));
+    } catch (err) {
+      tbody.innerHTML = emptyRow(7, err.message);
+    }
+  }
+
+  const REFERRAL_STATUS_LABELS = {
+    registered: 'Registered — activity pending',
+    activity_completed: 'Feedback pending',
+    qualified: 'Qualified',
+    disqualified: 'Disqualified',
+  };
+
+  async function showReferrerDetail(referrerUserId) {
+    try {
+      const { referrer, referrals } = await API.get(`/admin/referrals/${referrerUserId}/detail`);
+      Modal.open({
+        title: `${referrer.full_name} — Referral Detail`,
+        bodyHtml: `
+          <p class="text-secondary text-sm">Referral code: <strong>${esc(referrer.referral_code || '—')}</strong> · Account created ${new Date(referrer.created_at).toLocaleDateString()}</p>
+          <div class="admin-table-scroll" style="margin-top: var(--space-4);">
+            <table class="admin-table">
+              <thead><tr><th>Referred user</th><th>Registered</th><th>Activity</th><th>Feedback</th><th>Rating</th><th>Status</th>${referrals.some((r) => r.flagged_for_review) ? '<th>Flag</th>' : ''}</tr></thead>
+              <tbody>
+                ${referrals.map((r) => `
+                  <tr>
+                    <td>${esc(r.referred_full_name)}<br><span class="text-xs text-secondary">${esc(r.referred_email || '')}</span></td>
+                    <td>${new Date(r.referred_registered_at).toLocaleDateString()}</td>
+                    <td>${r.activity_completed_at ? esc(r.activity_type || 'Done') : '—'}</td>
+                    <td>${r.feedback_submitted_at ? 'Submitted' : '—'}</td>
+                    <td>${r.feedback_rating ? '★'.repeat(r.feedback_rating) : '—'}</td>
+                    <td><span class="badge ${r.status === 'qualified' ? 'badge-verified' : r.status === 'disqualified' ? 'badge-danger' : 'badge-neutral'}">${REFERRAL_STATUS_LABELS[r.status] || r.status}</span></td>
+                    ${r.flagged_for_review ? `<td><span class="badge badge-danger" title="${esc(r.flagged_reason || '')}">Flagged</span></td>` : (referrals.some((x) => x.flagged_for_review) ? '<td></td>' : '')}
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        `,
+        onMount: (modalEl) => { modalEl.style.maxWidth = '720px'; },
+      });
+    } catch (err) {
+      Toast.error(err.message);
+    }
+  }
+
+  (async function init() {
+    const user = await Auth.requireSession('admin-login.html');
+    if (!user) return;
+
+    document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('admin-login.html'));
+
+    const content = document.getElementById('referrals-content');
+    try {
+      const sections = await Promise.all([loadRewardsSection(), loadReferrersSection()]);
+      content.innerHTML = sections.join('');
+      await Promise.all([loadRewardsBody(), loadReferrersBody()]);
+    } catch (err) {
+      content.innerHTML = `<div class="card"><p class="text-secondary">${err.message || 'You do not have access to this section.'}</p></div>`;
+    }
+  })();
+</script>
+</body>
+</html>

@@ -10,6 +10,7 @@ const registerSchema = z
     password: z.string().min(8).max(128),
     fullName: z.string().trim().min(2).max(150),
     role: z.enum(['worker', 'hirer', 'both']).default('worker'),
+    referralCode: z.string().trim().max(20).optional(),
   })
   .refine((data) => data.email || data.phone, {
     message: 'Either email or phone is required',

@@ -1054,3 +1054,86 @@
 .modal-close:hover { color: var(--text-primary); }
 .modal-body { overflow-y: auto; }
 .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+
+/* ---------- Onboarding + referral-intro modals ----------
+   Reuse .modal/.modal-body as-is (already mobile-height-capped with
+   internal scroll) — only the step content inside needs its own
+   styling. .referral-intro-modal gets a bit more width since its
+   10-step numbered list reads cramped at the default 480px on
+   anything above phone width; width:100% + the backdrop's own
+   padding still keeps it safe on small screens regardless. */
+.referral-intro-modal { max-width: 560px; }
+
+.onboarding-step p:last-child { margin-bottom: 0; }
+
+.onboarding-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-5) 0;
+}
+.onboarding-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-subtle);
+  transition: background-color var(--duration-micro) var(--ease-standard), transform var(--duration-micro) var(--ease-standard);
+}
+.onboarding-dot.is-active { background: var(--accent); transform: scale(1.25); }
+
+.onboarding-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.onboarding-actions-referral {
+  justify-content: flex-end;
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+}
+@media (max-width: 480px) {
+  .onboarding-actions-referral { flex-direction: column-reverse; align-items: stretch; }
+  .onboarding-actions-referral .btn { width: 100%; text-align: center; }
+}
+
+.referral-steps {
+  margin: var(--space-4) 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.referral-steps li { color: var(--text-secondary); font-size: var(--text-sm); }
+.referral-steps li strong { color: var(--text-primary); }
+
+.referral-feedback-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+  border-left: 3px solid var(--accent);
+}
+.referral-feedback-banner .btn { flex-shrink: 0; }
+@media (max-width: 480px) {
+  .referral-feedback-banner { flex-direction: column; align-items: stretch; }
+  .referral-feedback-banner .btn { width: 100%; }
+}
+
+.star-rating-input { display: flex; gap: var(--space-1); }
+.star-btn {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--border-subtle);
+  padding: var(--space-1);
+  cursor: pointer;
+  transition: color var(--duration-micro) var(--ease-standard), transform var(--duration-micro) var(--ease-standard);
+}
+.star-btn:hover { transform: scale(1.1); }
+.star-btn.is-filled { color: var(--accent); }

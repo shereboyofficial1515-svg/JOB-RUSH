@@ -255,6 +255,36 @@
     { id: 'payments', group: 'Trust, Reviews & Payments', title: 'Payments', html: `
       <p>All payments run through Paystack. A hirer funds escrow for a hired worker; once the work is done, the hirer releases the funds (or a dispute can be opened if something's wrong). Workers withdraw their available balance from <a href="wallet.html">Wallet</a>. Splitting one job into several separate milestone payments isn't available yet — escrow currently covers the full job amount at once.</p>` },
 
+    // ---------------- Referral Program ----------------
+    { id: 'referral-program', group: 'Referral Program', title: 'What is the referral program?', html: `
+      <p>Invite people to join Job Rush using your own unique referral link. When <strong>12 people you referred</strong> become <strong>qualified</strong> referrals (see below — registering alone isn't enough), you become eligible for a <strong>₦15,000</strong> reward, reviewed and paid by an admin.</p>` },
+    { id: 'referral-getting-link', group: 'Referral Program', title: 'How do I get my referral link?', html: `
+      <p>Open <a href="referral.html">Referrals</a> from your dashboard sidebar. Your unique code and full referral link are generated automatically the first time you visit — there's nothing to set up.</p>` },
+    { id: 'referral-sharing', group: 'Referral Program', title: 'How do I share my link?', html: `
+      <p>Use the <strong>Copy Link</strong> button to copy it anywhere, or <strong>Share</strong> to send it through your device's own share menu (WhatsApp, SMS, email, etc.) where supported. You don't need to type your code anywhere — the link already has it built in.</p>` },
+    { id: 'referral-attribution', group: 'Referral Program', title: 'How does Job Rush know who referred a user?', html: `
+      <p>Your link looks like <code>jobrush.ng/register?ref=JR-ABC123</code>. When someone registers through it, Job Rush permanently records their account as referred by you at the moment their account is created — this is stored in the database, not just remembered by their browser, so it survives a refresh or a validation error during signup. Once set, a referrer can't normally be changed, and a referral code can't be used to refer the same account it belongs to.</p>` },
+    { id: 'referral-what-counts', group: 'Referral Program', title: 'What counts as a referral?', html: `
+      <p>Someone registering through your link creates a referral record right away, but registration alone does not make it a <strong>qualified</strong> referral — the kind that counts toward your ₦15,000. Qualification requires real, meaningful use of Job Rush, described next.</p>` },
+    { id: 'referral-qualification', group: 'Referral Program', title: 'What makes a referral qualified?', html: `
+      <p>A referred account becomes qualified once the person you referred:</p>
+      <ol>
+        <li>Registers through your referral link.</li>
+        <li>Completes a real Job Rush activity — publishing a portfolio project, publishing a service, posting a job, or completing a substantial share of their professional profile.</li>
+        <li>Shares their experience: a 1–5 star rating and a short written comment about using Job Rush.</li>
+      </ol>
+      <p>Only the referred person can submit their own feedback — a referrer can never submit it on someone else's behalf.</p>` },
+    { id: 'referral-milestone', group: 'Referral Program', title: 'How many qualified referrals are required?', html: `
+      <p><strong>12</strong> unique qualified referrals. Every Job Rush user who reaches 12 independently becomes eligible — it isn't a single first-past-the-post race.</p>` },
+    { id: 'referral-reward-amount', group: 'Referral Program', title: 'How much is the reward, and how is it reviewed?', html: `
+      <p>The reward is <strong>₦15,000</strong>. Reaching 12 qualified referrals makes you eligible for admin review — it does not pay out automatically. An admin reviews the referral history, then approves or rejects the reward; once approved and marked paid, the ₦15,000 is credited to your Job Rush wallet, from where it can be withdrawn the same way as any other wallet balance.</p>` },
+    { id: 'referral-self-and-duplicates', group: 'Referral Program', title: 'Can I refer myself, change my referrer, or count someone twice?', html: `
+      <p>No to all three. Self-referral is blocked, a referred account's referrer cannot be changed after registration (outside of a genuine admin correction), and each referred account can only ever count once toward one referrer's total, no matter how many times they use the platform.</p>` },
+    { id: 'referral-disqualified', group: 'Referral Program', title: 'What happens if a referral is disqualified?', html: `
+      <p>A referral can be marked disqualified — for example, if it's flagged as fraudulent on review. A disqualified referral doesn't count toward your 12, and you can see its status in your referral list.</p>` },
+    { id: 'referral-tracking', group: 'Referral Program', title: 'How can I track my referrals?', html: `
+      <p>Your <a href="referral.html">Referrals</a> page shows your progress toward 12, a breakdown of qualified/pending/disqualified referrals, and a list of everyone you've referred with their current status.</p>` },
+
     // ---------------- Business Profiles ----------------
     { id: 'business-profiles', group: 'Business Profiles', title: 'Store/business profiles', html: `
       <p>If you operate from a physical shop or business address, add it under Settings → <strong>Business Profile</strong> — business name, description, address, opening hours, and contact details. This is entirely separate from your personal location, which is never shown publicly. A business profile only appears on your public page once you explicitly turn on "Show my business profile publicly."</p>` },

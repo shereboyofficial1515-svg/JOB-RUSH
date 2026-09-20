@@ -13,9 +13,10 @@ function assertConfigured() {
   }
 }
 
-function buildAuthorizationUrl(client) {
+function buildAuthorizationUrl(client, referralCode) {
   assertConfigured();
-  const state = oauthStateService.createState(client === 'android' ? 'android' : '');
+  const payload = [client === 'android' ? 'android' : null, referralCode ? `ref:${referralCode}` : null].filter(Boolean).join(',');
+  const state = oauthStateService.createState(payload);
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
     redirect_uri: env.GOOGLE_REDIRECT_URI,

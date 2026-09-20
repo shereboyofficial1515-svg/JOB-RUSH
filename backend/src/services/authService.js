@@ -8,6 +8,7 @@ const { recordAuditEvent } = require('../security/auditLogger');
 const otpService = require('./otpService');
 const sessionService = require('./sessionService');
 const notificationService = require('./notificationService');
+const referralService = require('./referralService');
 
 const PUBLIC_USER_FIELDS = `
   id, email, phone, full_name, role, account_status,
@@ -36,7 +37,7 @@ function toPublicUser(row) {
  * at least one of email/phone before calling this in a real flow, or
  * for triggering OTP issuance immediately after.
  */
-async function registerUser({ email, phone, password, fullName, role }) {
+async function registerUser({ email, phone, password, fullName, role, referralCode, registrationIp }) {
   if (!isPasswordStrongEnough(password)) {
     throw new AppError(
       'Password must be at least 8 characters and include a letter and a number.',
@@ -60,22 +61,39 @@ async function registerUser({ email, phone, password, fullName, role }) {
 
   const passwordHash = await hashPassword(password);
 
-  const { rows } = await query(
-    `INSERT INTO users (email, phone, password_hash, full_name, role)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING ${PUBLIC_USER_FIELDS}`,
-    [email || null, phone || null, passwordHash, fullName, role]
-  );
+  // Transaction so the referral attribution (if a referralCode was
+  // supplied) either lands together with the new account or not at
+  // all — never a user row with no way to ever record who referred
+  // them, and never a referral row pointing at a user that doesn't
+  // exist.
+  const user = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `INSERT INTO users (email, phone, password_hash, full_name, role)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING ${PUBLIC_USER_FIELDS}`,
+      [email || null, phone || null, passwordHash, fullName, role]
+    );
+
+    if (referralCode) {
+      await referralService.attributeReferral(client, {
+        referredUserId: rows[0].id,
+        referralCode,
+        registrationIp,
+      });
+    }
+
+    return rows[0];
+  });
 
   await recordAuditEvent({
-    actorUserId: rows[0].id,
+    actorUserId: user.id,
     action: 'USER_REGISTERED',
     resourceType: 'user',
-    resourceId: rows[0].id,
+    resourceId: user.id,
     result: 'success',
   });
 
-  return toPublicUser(rows[0]);
+  return toPublicUser(user);
 }
 
 /**
@@ -313,7 +331,7 @@ async function resetPasswordWithToken({ rawToken, newPassword }) {
 async function findOrCreateOAuthUser({ providerColumn, providerId, email, fullName, provider }) {
   const { rows: byProviderId } = await query(`SELECT * FROM users WHERE ${providerColumn} = $1`, [providerId]);
   if (byProviderId.length > 0) {
-    return toPublicUser(byProviderId[0]);
+    return { ...toPublicUser(byProviderId[0]), isNewUser: false };
   }
 
   const { rows: byEmail } = await query('SELECT * FROM users WHERE email = $1', [email]);
@@ -330,7 +348,7 @@ async function findOrCreateOAuthUser({ providerColumn, providerId, email, fullNa
       resourceId: existing.id,
       result: 'success',
     });
-    return toPublicUser(existing);
+    return { ...toPublicUser(existing), isNewUser: false };
   }
 
   // Random, never-used password so the NOT NULL column is satisfied
@@ -353,7 +371,7 @@ async function findOrCreateOAuthUser({ providerColumn, providerId, email, fullNa
     result: 'success',
   });
 
-  return toPublicUser(rows[0]);
+  return { ...toPublicUser(rows[0]), isNewUser: true };
 }
 
 async function findOrCreateGoogleUser({ googleId, email, fullName }) {

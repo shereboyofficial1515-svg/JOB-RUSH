@@ -1,6 +1,7 @@
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
+const referralService = require('./referralService');
 
 // Fields a user may set on their own worker profile. Trust/visibility
 // fields (verification_status, is_pro, ratings, counts) are
@@ -135,6 +136,15 @@ async function updateWorkerProfile(userId, input) {
     userId,
     completion,
   ]);
+
+  // Referral qualifying activity (Part 5/13): a substantially complete
+  // professional profile is real, meaningful Job Rush usage -- not
+  // "opened the dashboard" or "changed a theme". 80% requires at least
+  // 5 of the 6 completion checks (title, bio, experience, location,
+  // photo, a skill), not just creating an empty profile row.
+  if (completion >= 80) {
+    referralService.markActivityCompleted(userId, 'profile_completed').catch(() => {});
+  }
 
   return getWorkerProfile(userId);
 }
