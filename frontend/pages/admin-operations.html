@@ -69,8 +69,8 @@
 
   function statusFilterHtml(name, options) {
     return `
-      <form class="admin-status-filter" data-filter-for="${name}" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
-        <select name="status">
+      <form class="admin-status-filter" data-filter-for="${name}" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+        <select name="status" style="max-width:100%;">
           <option value="">Any status</option>
           ${options.map((o) => `<option value="${o}">${o}</option>`).join('')}
         </select>

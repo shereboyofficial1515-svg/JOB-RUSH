@@ -107,20 +107,35 @@
   padding: 0;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-5);
+  gap: var(--space-6) var(--space-5);
   counter-reset: step;
 }
-.how-it-works li { position: relative; padding-top: var(--space-6); }
+/* Each step is left-aligned (heading/description read naturally),
+   except the number badge above them, which is independently centered
+   via its own auto side-margins on a fixed-width block -- this works
+   identically at every viewport from 320px to a large desktop without
+   any fixed left/margin-left offsets that only happen to look right
+   at one width. Previously .step-index was `position: absolute; left:
+   0`, which pinned the number flush against the step's left edge (and
+   therefore the screen edge on the single-column mobile layout)
+   instead of it having any deliberate position of its own. */
+.how-it-works li { text-align: left; }
 .step-index {
-  position: absolute;
-  top: 0; left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto var(--space-4);
+  border-radius: 50%;
+  background: rgba(201, 162, 39, 0.12);
+  border: 1px solid var(--border-gold);
   font-family: var(--font-display);
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   font-weight: 700;
-  color: var(--accent);
-  opacity: 0.5;
+  color: var(--accent-text);
 }
-.how-it-works h3 { font-size: var(--text-base); margin-top: var(--space-2); }
+.how-it-works h3 { font-size: var(--text-base); margin: 0 0 var(--space-2); }
 .how-it-works p { font-size: var(--text-sm); margin-bottom: 0; }
 
 .pro-band {

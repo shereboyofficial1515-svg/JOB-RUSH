@@ -15,15 +15,15 @@ async function searchUsers({ keyword, role, accountStatus, page = 1, pageSize = 
 
   if (keyword) {
     params.push(`%${keyword}%`);
-    conditions.push(`(full_name ILIKE $${params.length} OR email ILIKE $${params.length} OR phone ILIKE $${params.length})`);
+    conditions.push(`(u.full_name ILIKE $${params.length} OR u.email ILIKE $${params.length} OR u.phone ILIKE $${params.length})`);
   }
   if (role) {
     params.push(role);
-    conditions.push(`role = $${params.length}`);
+    conditions.push(`u.role = $${params.length}`);
   }
   if (accountStatus) {
     params.push(accountStatus);
-    conditions.push(`account_status = $${params.length}`);
+    conditions.push(`u.account_status = $${params.length}`);
   }
 
   const limit = Math.min(Math.max(parseInt(pageSize, 10) || 25, 1), 100);
@@ -31,10 +31,18 @@ async function searchUsers({ keyword, role, accountStatus, page = 1, pageSize = 
   params.push(limit, offset);
 
   const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  // LEFT JOIN worker_profiles so admins can see verification/PRO
+  // status directly in the user list, instead of having to open a
+  // second detail view per user just to check trust badges before
+  // deciding whether to act on an account.
   const { rows } = await query(
-    `SELECT id, full_name, email, phone, role, account_status, email_verified_at, phone_verified_at, created_at, last_login_at
-       FROM users ${whereClause}
-      ORDER BY created_at DESC
+    `SELECT u.id, u.full_name, u.email, u.phone, u.role, u.account_status,
+            u.email_verified_at, u.phone_verified_at, u.created_at, u.last_login_at,
+            wp.verification_status, wp.is_pro
+       FROM users u
+       LEFT JOIN worker_profiles wp ON wp.user_id = u.id
+       ${whereClause}
+      ORDER BY u.created_at DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );

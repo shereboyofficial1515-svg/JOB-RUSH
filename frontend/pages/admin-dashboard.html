@@ -120,9 +120,9 @@
         return '';
       }
       return sectionShell('users', 'User management', `
-      <form id="user-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
-        <input type="text" name="keyword" placeholder="Search name, email, or phone" style="flex:1; background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
-        <select name="accountStatus" style="background: var(--color-primary-navy); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
+      <form id="user-search-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+        <input type="text" name="keyword" placeholder="Search name, email, or phone" style="flex:1; min-width:180px; background: var(--bg-surface); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);" />
+        <select name="accountStatus" style="background: var(--bg-surface); border:1px solid var(--border-subtle); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); color: var(--text-primary);">
           <option value="">Any status</option>
           <option value="active">Active</option>
           <option value="suspended">Suspended</option>
@@ -132,37 +132,44 @@
         <button type="submit" class="btn btn-sm btn-primary">Search</button>
       </form>
       <div class="admin-table-scroll"><table class="admin-table">
-        <thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Status</th><th></th></tr></thead>
-        <tbody id="user-results-body">${emptyRow(5, 'Search for a user above.')}</tbody>
+        <thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Status</th><th>Badges</th><th></th></tr></thead>
+        <tbody id="user-results-body">${emptyRow(6, 'Search for a user above.')}</tbody>
       </table></div>
     `);
     }
 
     function userRowHtml(u) {
       const actions = [];
+      if (u.role === 'worker' || u.role === 'both') {
+        actions.push(`<a class="btn btn-sm btn-secondary" href="worker-profile.html?id=${u.id}" target="_blank" rel="noopener">View profile</a>`);
+      }
       if (u.account_status !== 'suspended') actions.push(`<button class="btn btn-sm btn-secondary" data-suspend-user="${u.id}">Suspend</button>`);
       if (u.account_status !== 'disabled') actions.push(`<button class="btn btn-sm btn-danger" data-disable-user="${u.id}">Disable</button>`);
       if (['suspended', 'disabled'].includes(u.account_status)) actions.push(`<button class="btn btn-sm btn-primary" data-reactivate-user="${u.id}">Reactivate</button>`);
+      const badges = [];
+      if (u.verification_status === 'approved') badges.push('<span class="badge badge-verified">Verified</span>');
+      if (u.is_pro) badges.push('<span class="badge badge-pro">PRO</span>');
       return `
       <tr data-user-row="${u.id}">
         <td>${esc(u.full_name)}</td>
         <td>${esc(u.email || u.phone) || '\u2014'}</td>
         <td>${u.role}</td>
         <td><span class="badge badge-neutral">${u.account_status}</span></td>
-        <td style="display:flex; gap: var(--space-2);">${actions.join('')}</td>
+        <td style="display:flex; gap: var(--space-1); flex-wrap:wrap;">${badges.join('') || '\u2014'}</td>
+        <td style="display:flex; gap: var(--space-2); flex-wrap:wrap;">${actions.join('')}</td>
       </tr>
     `;
     }
 
     async function runUserSearch(params) {
       const tbody = document.getElementById('user-results-body');
-      tbody.innerHTML = emptyRow(5, 'Searching\u2026');
+      tbody.innerHTML = emptyRow(6, 'Searching\u2026');
       try {
         const { users } = await API.get(`/admin/users?${params.toString()}`);
-        tbody.innerHTML = users.length ? users.map(userRowHtml).join('') : emptyRow(5, 'No users match.');
+        tbody.innerHTML = users.length ? users.map(userRowHtml).join('') : emptyRow(6, 'No users match.');
         wireUserActions();
       } catch (err) {
-        tbody.innerHTML = emptyRow(5, err.message);
+        tbody.innerHTML = emptyRow(6, err.message);
       }
     }
 
@@ -536,8 +543,8 @@
           API.get('/admin/subscriptions/revenue'),
         ]);
         return sectionShell('subscriptions', `PRO subscriptions — ₦${Number(summary.total_revenue).toLocaleString()} total revenue`, `
-        <form id="subscription-filter-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4);">
-          <select name="status">
+        <form id="subscription-filter-form" style="display:flex; gap: var(--space-2); margin-bottom: var(--space-4); flex-wrap: wrap;">
+          <select name="status" style="max-width:100%;">
             <option value="active" selected>Active</option>
             <option value="expired">Expired</option>
             <option value="cancelled">Cancelled</option>

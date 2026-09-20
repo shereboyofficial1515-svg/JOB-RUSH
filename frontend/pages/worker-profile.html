@@ -37,6 +37,7 @@
   <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/avatarBadge.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
@@ -66,7 +67,10 @@
       const price = formatMoney(profile.starting_price, profile.price_currency);
       return `
       <div class="wp-header">
-        <img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="120" height="120" />
+        ${AvatarBadge.wrap(
+          `<img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="120" height="120" />`,
+          { verified: profile.verification_status === 'approved', isPro: !!profile.is_pro, size: 'lg' }
+        )}
         <div class="wp-identity">
           <div class="wp-name-row">
             <span class="wp-name">${esc(profile.full_name)}</span>

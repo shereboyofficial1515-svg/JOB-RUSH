@@ -294,6 +294,39 @@
   color: var(--text-on-gold);
 }
 
+/* ---------- Profile picture verification badge ----------
+   A small status dot attached to the corner of an avatar image
+   (js/utils/avatarBadge.js), distinct from the .badge-pro/.badge-
+   verified text pills shown elsewhere next to a name. Gold = free
+   Verified badge; blue = paid PRO (a different color from the rest of
+   the accent palette specifically so PRO reads as its own, instantly
+   recognizable status at a glance, never confused with the ordinary
+   gold brand accent used everywhere else). */
+.avatar-badge-wrap { position: relative; display: inline-block; line-height: 0; flex-shrink: 0; }
+.avatar-badge-wrap img { display: block; }
+.avatar-badge {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--bg-surface);
+}
+.avatar-badge-verified { width: 18px; height: 18px; background: var(--color-primary-gold); }
+.avatar-badge-pro { width: 22px; height: 22px; background: #2563EB; }
+
+.avatar-badge-wrap-sm .avatar-badge-verified { width: 14px; height: 14px; border-width: 1.5px; }
+.avatar-badge-wrap-sm .avatar-badge-pro { width: 17px; height: 17px; border-width: 1.5px; }
+.avatar-badge-wrap-sm .avatar-badge-verified svg { width: 8px; height: 8px; }
+.avatar-badge-wrap-sm .avatar-badge-pro svg { width: 9px; height: 9px; }
+
+.avatar-badge-wrap-lg .avatar-badge-verified { width: 26px; height: 26px; border-width: 3px; }
+.avatar-badge-wrap-lg .avatar-badge-pro { width: 32px; height: 32px; border-width: 3px; }
+.avatar-badge-wrap-lg .avatar-badge-verified svg { width: 13px; height: 13px; }
+.avatar-badge-wrap-lg .avatar-badge-pro svg { width: 16px; height: 16px; }
+
 .badge-neutral {
   background: rgba(11, 31, 58, 0.06);
   color: var(--text-secondary);
@@ -348,13 +381,24 @@
 .brand img { width: 40px; height: 40px; flex-shrink: 0; }
 
 .main-nav { display: flex; align-items: center; gap: var(--space-6); }
-.main-nav a {
+/* Direct-child combinator, not descendant (`.main-nav a`) — the plain
+   nav links (Find Work, Find Talent, ...) are direct children of
+   .main-nav, but the Dashboard/Log in/Get Started buttons duplicated
+   into .nav-mobile-actions for the mobile drawer (see chrome.js) are
+   grandchildren, nested inside that wrapper div. A plain `.main-nav a`
+   descendant selector matched those buttons too and (0,1,1) beats
+   .btn-secondary's (0,1,0), silently overriding its intended navy
+   text with this rule's white/translucent nav-link color -- on
+   .btn-secondary's white background that rendered as an apparently
+   blank white button with invisible text. Scoping to direct children
+   only fixes the buttons without needing a `:not(.btn)` escape hatch. */
+.main-nav > a {
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-secondary);
   transition: color var(--duration-micro) var(--ease-standard);
 }
-.main-nav a:hover, .main-nav a.is-active { color: var(--text-primary); }
+.main-nav > a:hover, .main-nav > a.is-active { color: var(--text-primary); }
 
 .header-actions { display: flex; align-items: center; gap: var(--space-3); }
 
@@ -404,6 +448,26 @@
 @media (min-width: 861px) {
   .nav-mobile-actions { display: none; }
 }
+
+/* Scrim behind the open mobile nav dropdown — same pattern as
+   .mobile-nav-backdrop for the dashboard sidebar drawer below.
+   Without this, page content the dropdown doesn't fully cover (e.g.
+   the homepage's floating hero card, which starts underneath the
+   dropdown but extends past its bottom edge) visibly peeks out below
+   the open menu, reading as a stray, unexplained UI fragment. z-index
+   90 sits below .site-header's 100 (so the header/dropdown always
+   paints above it) and above ordinary page content (which has no
+   explicit z-index of its own). */
+.main-nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 22, 42, 0.45);
+  z-index: 90;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal) var(--ease-smooth);
+}
+.main-nav-backdrop.is-open { opacity: 1; pointer-events: auto; }
 
 /* ---------- Footer ---------- */
 /* Same scoped-token approach as .site-header above — the footer is
@@ -673,10 +737,18 @@
    descendant's own overflow-x:auto scrolling internally. */
 .dashboard-main { padding: var(--space-6) var(--space-7); min-width: 0; }
 
+/* flex-wrap + gap (not present before) — on a narrow phone, the right-
+   hand action group (notification bell + a page action button like
+   "Add project"/"Post a job") couldn't fit beside the heading on one
+   row and had nowhere to go but overflow past the viewport edge,
+   since flex items don't wrap onto a new line by default. Wrapping
+   drops that action group onto its own row instead. */
 .dashboard-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-bottom: var(--space-7);
 }
 
