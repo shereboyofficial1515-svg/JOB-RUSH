@@ -22,35 +22,57 @@
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-primary-gold), var(--color-secondary-gold));
-  color: var(--text-on-gold);
+  --btn-fg: var(--text-on-navy);
+  background: var(--color-primary-navy);
+  color: var(--btn-fg);
 }
-.btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
+.btn-primary:hover:not(:disabled) { background: var(--color-deep-navy); }
 
 .btn-secondary {
-  background: transparent;
-  border-color: var(--border-gold);
-  color: var(--accent);
+  --btn-fg: var(--color-primary-navy);
+  background: var(--color-white);
+  border-color: var(--color-primary-navy);
+  color: var(--btn-fg);
 }
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(240, 176, 0, 0.08);
+  background: rgba(11, 31, 58, 0.05);
 }
+
+/* Premium/PRO-specific CTA — gold is a deliberate accent for premium
+   actions only (e.g. "Upgrade to PRO"), never the default primary
+   button used everywhere else. */
+.btn-premium {
+  --btn-fg: var(--text-on-gold);
+  background: linear-gradient(135deg, var(--color-primary-gold), var(--color-secondary-gold));
+  color: var(--btn-fg);
+}
+.btn-premium:hover:not(:disabled) { filter: brightness(1.08); }
 
 .btn-ghost {
+  --btn-fg: var(--text-primary);
   background: transparent;
-  color: var(--text-primary);
+  color: var(--btn-fg);
 }
-.btn-ghost:hover:not(:disabled) { background: rgba(240, 240, 240, 0.06); }
+/* Used both on light surfaces and inside the navy sidebars (e.g. the
+   Log out button) — color-mix against currentColor adapts the hover
+   tint to whichever it resolves to, same reasoning as .notif-bell-btn. */
+.btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, currentColor 8%, transparent); }
 
 .btn-danger {
+  --btn-fg: var(--status-danger);
   background: transparent;
-  border-color: rgba(216, 71, 74, 0.5);
-  color: var(--status-danger);
+  border-color: rgba(192, 57, 43, 0.5);
+  color: var(--btn-fg);
 }
 
 .btn-block { width: 100%; }
 .btn-sm { padding: var(--space-2) var(--space-4); font-size: var(--text-xs); }
 
+/* --btn-fg (defined per variant above) is the correct-contrast color
+   for whichever button this is — the loading spinner reads that
+   instead of a color hardcoded to one specific variant, since
+   .btn-loading's own `color: transparent` means `currentColor` can't
+   be used directly here. */
 .btn-loading { position: relative; color: transparent !important; pointer-events: none; }
 .btn-loading::after {
   content: '';
@@ -59,7 +81,7 @@
   border: 2px solid currentColor;
   border-top-color: transparent;
   border-radius: 50%;
-  color: var(--text-on-gold);
+  color: var(--btn-fg, var(--text-on-navy));
   animation: spin 700ms linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -79,7 +101,7 @@
 .field select,
 .field textarea {
   width: 100%;
-  background: var(--color-primary-navy);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
@@ -94,7 +116,7 @@
   outline: none;
 }
 
-.field input::placeholder { color: rgba(208, 208, 208, 0.5); }
+.field input::placeholder { color: rgba(102, 112, 133, 0.75); }
 
 .field-hint { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-2); }
 .field-error { font-size: var(--text-xs); color: var(--status-danger); margin-top: var(--space-2); }
@@ -196,8 +218,8 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
-.settings-tab:hover { color: var(--text-primary); background: rgba(240,240,240,0.05); }
-.settings-tab.is-active { color: var(--accent); background: rgba(240, 176, 0, 0.12); border-color: var(--border-gold); }
+.settings-tab:hover { color: var(--text-primary); background: rgba(11, 31, 58, 0.05); }
+.settings-tab.is-active { color: var(--accent-text); background: rgba(201, 162, 39, 0.12); border-color: var(--border-gold); }
 
 .otp-input-group { display: flex; gap: var(--space-2); }
 .otp-input-group input {
@@ -262,9 +284,9 @@
 }
 
 .badge-verified {
-  background: rgba(47, 168, 106, 0.15);
-  color: #6FD79B;
-  border: 1px solid rgba(47, 168, 106, 0.4);
+  background: var(--status-success-bg);
+  color: var(--status-success);
+  border: 1px solid rgba(31, 122, 77, 0.35);
 }
 
 .badge-pro {
@@ -273,24 +295,37 @@
 }
 
 .badge-neutral {
-  background: rgba(240, 240, 240, 0.08);
+  background: rgba(11, 31, 58, 0.06);
   color: var(--text-secondary);
 }
 
 .badge-danger {
-  background: rgba(216, 71, 74, 0.12);
+  background: var(--status-danger-bg);
   color: var(--status-danger);
-  border: 1px solid rgba(216, 71, 74, 0.35);
+  border: 1px solid rgba(192, 57, 43, 0.35);
 }
 
-/* ---------- Top navigation ---------- */
+/* ---------- Top navigation ----------
+   Navigation stays navy regardless of the app's light-first theme
+   (per the brand spec: nav/hero/footer are the deliberate navy
+   surfaces). Redefining the shared text/border tokens HERE, at the
+   header's own scope, means every existing descendant rule below
+   (.main-nav a, .nav-toggle, etc.) that already reads
+   var(--text-primary)/var(--text-secondary)/var(--border-subtle)
+   automatically gets the correct light-on-navy values — no need to
+   touch each child selector individually. */
 .site-header {
+  --text-primary: var(--text-on-navy);
+  --text-secondary: rgba(255, 255, 255, 0.68);
+  --border-subtle: rgba(255, 255, 255, 0.16);
+  --bg-surface: var(--color-primary-navy);
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(0, 16, 32, 0.92);
+  background: rgba(11, 31, 58, 0.94);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
   z-index: 100;
+  color: var(--text-primary);
 }
 
 .site-header .container {
@@ -371,7 +406,16 @@
 }
 
 /* ---------- Footer ---------- */
+/* Same scoped-token approach as .site-header above — the footer is
+   the other deliberate navy surface, and its own background is added
+   here (it previously had none, just inheriting the old all-dark page
+   background, which no longer holds true). */
 .site-footer {
+  --text-primary: var(--text-on-navy);
+  --text-secondary: rgba(255, 255, 255, 0.68);
+  --border-subtle: rgba(255, 255, 255, 0.16);
+  background: var(--color-primary-navy);
+  color: var(--text-primary);
   border-top: 1px solid var(--border-subtle);
   padding: var(--space-8) 0 var(--space-6);
   margin-top: var(--space-9);
@@ -441,7 +485,7 @@
 
 /* ---------- Skeleton loading ---------- */
 .skeleton {
-  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(240,240,240,0.08) 37%, var(--bg-elevated) 63%);
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, rgba(255,255,255,0.8) 37%, var(--bg-elevated) 63%);
   background-size: 400% 100%;
   animation: skeleton-shimmer 1.4s ease infinite;
   border-radius: var(--radius-sm);
@@ -458,8 +502,15 @@
   grid-template-columns: 1fr 1fr;
 }
 
+/* Decorative brand panel — always navy (login/register split screen),
+   so it needs the same scoped light-on-navy tokens as the header/
+   footer/sidebar above for its own heading/subtext content to read
+   correctly against the new light-first global defaults. */
 .auth-visual {
+  --text-primary: var(--text-on-navy);
+  --text-secondary: rgba(255, 255, 255, 0.7);
   background: radial-gradient(circle at 30% 20%, var(--color-dark-blue), var(--color-primary-navy) 70%);
+  color: var(--text-primary);
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -472,7 +523,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background-image: repeating-linear-gradient(120deg, transparent 0 40px, rgba(240,176,0,0.04) 40px 42px);
+  background-image: repeating-linear-gradient(120deg, transparent 0 40px, rgba(201, 162, 39, 0.04) 40px 42px);
 }
 
 .auth-form-side {
@@ -486,7 +537,7 @@
 .auth-card .brand { margin-bottom: var(--space-7); }
 
 .auth-switch { text-align: center; margin-top: var(--space-6); font-size: var(--text-sm); color: var(--text-secondary); }
-.auth-switch a { color: var(--accent); font-weight: 600; }
+.auth-switch a { color: var(--accent-text); font-weight: 600; }
 
 .auth-divider {
   display: flex;
@@ -572,8 +623,16 @@
   min-height: 100vh;
 }
 
+/* Dashboard sidebar is navigation, so — like .site-header/.site-footer
+   above — it stays navy with the same scoped token redefinition, and
+   every existing .sidebar-nav rule below picks up light-on-navy
+   values automatically. */
 .dashboard-sidebar {
-  background: var(--bg-surface);
+  --text-primary: var(--text-on-navy);
+  --text-secondary: rgba(255, 255, 255, 0.68);
+  --border-subtle: rgba(255, 255, 255, 0.16);
+  background: var(--color-primary-navy);
+  color: var(--text-primary);
   border-right: 1px solid var(--border-subtle);
   padding: var(--space-5);
   display: flex;
@@ -602,10 +661,10 @@
   color: var(--text-secondary);
   transition: background-color var(--duration-micro) var(--ease-standard), color var(--duration-micro) var(--ease-standard);
 }
-.sidebar-nav a:hover { background: rgba(240,240,240,0.05); color: var(--text-primary); }
+.sidebar-nav a:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav a.is-active {
-  background: rgba(240, 176, 0, 0.12);
-  color: var(--accent);
+  background: rgba(201, 162, 39, 0.18);
+  color: var(--color-light-gold);
 }
 
 /* min-width: 0 overrides the grid item's default auto/min-content
@@ -711,7 +770,12 @@
   justify-content: center;
   border-radius: var(--radius-md);
 }
-.notif-bell-btn:hover { background: rgba(240,240,240,0.06); }
+/* This button appears on both the navy site header and the light
+   dashboard topbar, so its hover tint can't be a single fixed light-
+   or-dark rgba value — color-mix against currentColor (which itself
+   already resolves correctly per context via --text-primary) adapts
+   automatically: a light wash on navy, a dark wash on white. */
+.notif-bell-btn:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
 
 .notif-badge {
   position: absolute;
@@ -730,13 +794,21 @@
   padding: 0 3px;
 }
 
+/* A floating light-surface card, even when its trigger button sits in
+   the navy header — re-anchor the shared tokens to their light-theme
+   values explicitly so it doesn't inherit .site-header's light-on-navy
+   overrides just because it happens to be nested inside it in the DOM. */
 .notif-dropdown {
+  --text-primary: var(--color-dark-text);
+  --text-secondary: var(--color-muted-text);
+  --border-subtle: rgba(11, 31, 58, 0.12);
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
   width: 340px;
   max-height: 420px;
-  background: var(--bg-elevated);
+  background: var(--color-white);
+  color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-elevated);
@@ -762,8 +834,8 @@
   transition: background-color var(--duration-micro) var(--ease-standard);
 }
 .notif-row:last-child { border-bottom: none; }
-.notif-row:hover { background: rgba(240,240,240,0.04); }
-.notif-row.is-unread { background: rgba(240,176,0,0.06); }
+.notif-row:hover { background: rgba(11, 31, 58, 0.04); }
+.notif-row.is-unread { background: rgba(201, 162, 39, 0.08); }
 .notif-row.is-unread::before { content: ''; display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--accent); margin-right: var(--space-2); }
 
 .notif-row-title { font-size: var(--text-sm); font-weight: 600; }
@@ -788,12 +860,16 @@
   align-items: center;
   justify-content: center;
 }
+/* Same re-anchoring as .notif-dropdown above — a floating light card
+   regardless of where its trigger button lives. */
 .more-menu-panel {
+  --text-primary: var(--color-dark-text);
+  --border-subtle: rgba(11, 31, 58, 0.12);
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
   min-width: 170px;
-  background: var(--bg-elevated);
+  background: var(--color-white);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-elevated);
@@ -816,7 +892,7 @@
   color: var(--text-primary);
   width: 100%;
 }
-.more-menu-item:hover { background: rgba(240,240,240,0.06); }
+.more-menu-item:hover { background: rgba(11, 31, 58, 0.06); }
 .more-menu-item.is-danger { color: var(--status-danger); }
 
 /* ============================================================

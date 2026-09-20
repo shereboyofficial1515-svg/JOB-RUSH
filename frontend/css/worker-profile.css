@@ -171,7 +171,7 @@
 .wp-meta-item { display: flex; align-items: center; gap: var(--space-2); }
 .wp-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
 
-.wp-price { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--accent); }
+.wp-price { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--accent-text); }
 .wp-availability-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .wp-availability-dot.available { background: var(--status-success); }
 .wp-availability-dot.busy { background: var(--status-warning); }
@@ -182,7 +182,7 @@
 
 .wp-skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .wp-skill-chip {
-  background: rgba(240, 176, 0, 0.08);
+  background: rgba(11, 31, 58, 0.06);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   padding: var(--space-1) var(--space-3);

@@ -1,39 +1,85 @@
 /**
  * JOB RUSH — Design tokens.
- * Brand identity per spec: deep navy + gold, professional Nigerian
- * fintech/recruitment platform. No frameworks — every value here is
- * referenced by variable everywhere else so the palette/scale can
- * change in one place.
+ * Brand identity: professional navy + gold + white, light-first.
+ * White/near-white surfaces carry most of the visual space; navy is
+ * reserved for navigation, hero/footer bands, and primary actions;
+ * gold is a small accent for premium/verification signals only — it
+ * is never a background color for whole sections. No frameworks —
+ * every value here is referenced by variable everywhere else so the
+ * palette/scale can change in one place.
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
 :root {
-  /* ---- Brand colors (spec section 6) ---- */
-  --color-primary-navy: #001020;
-  --color-secondary-navy: #001030;
-  --color-dark-blue: #102040;
-  --color-primary-gold: #F0B000;
-  --color-secondary-gold: #F0A000;
-  --color-white: #F0F0F0;
-  --color-light-gray: #D0D0D0;
+  /* ---- Brand colors ---- */
+  --color-primary-navy: #0B1F3A;
+  --color-deep-navy: #07162A;
+  /* Secondary navy shades — used only for the small set of surfaces
+     that stay navy regardless of theme (hero band, auth split panel):
+     a subtle two-stop gradient, never a flat second color of their own. */
+  --color-secondary-navy: #0F274A;
+  --color-dark-blue: #16345E;
+  --color-primary-gold: #C9A227;
+  --color-light-gold: #E0C15A;
+  --color-secondary-gold: #B8901E;
+  --color-white: #FFFFFF;
+  --color-soft-bg: #F6F8FB;
+  --color-light-navy-tint: #EEF2F7;
+  --color-dark-text: #111827;
+  --color-muted-text: #667085;
   --color-black: #000000;
 
-  /* ---- Functional aliases ---- */
-  --bg-page: var(--color-primary-navy);
-  --bg-surface: var(--color-secondary-navy);
-  --bg-elevated: var(--color-dark-blue);
-  --text-primary: var(--color-white);
-  --text-secondary: var(--color-light-gray);
-  --text-on-gold: var(--color-primary-navy);
+  /* ---- Functional aliases ----
+     bg-page/bg-surface/bg-elevated/text-primary/text-secondary are
+     the ones almost every component already consumes — repointing
+     them here is what makes the light-first flip cascade app-wide
+     without touching each component. Components that must stay navy
+     regardless of theme (nav, footer, sidebars, hero bands) reference
+     --color-primary-navy / --text-on-navy directly instead of these. */
+  --bg-page: var(--color-soft-bg);
+  --bg-surface: var(--color-white);
+  --bg-elevated: var(--color-light-navy-tint);
+  --text-primary: var(--color-dark-text);
+  --text-secondary: var(--color-muted-text);
+  --text-on-gold: var(--color-deep-navy);
+  --text-on-navy: var(--color-white);
   --accent: var(--color-primary-gold);
-  --accent-hover: var(--color-secondary-gold);
-  --border-subtle: rgba(240, 240, 240, 0.12);
-  --border-gold: rgba(240, 176, 0, 0.5);
+  --accent-hover: var(--color-light-gold);
+  /* --color-primary-gold (#C9A227) is only ~2.4:1 against white/soft-bg
+     -- fine for backgrounds, badges, and borders (not text-contrast-
+     rated the same way), but it fails WCAG AA (4.5:1) as literal text
+     color on a light surface. --accent-text is a deliberately darker
+     gold/bronze that still reads as "gold" while passing 4.5:1 on both
+     white and the soft page background -- use this, not --accent,
+     wherever gold is the actual color of readable text (ratings,
+     prices, links) rather than a background/border/icon fill. */
+  --accent-text: #8A6A16;
+  --border-subtle: rgba(11, 31, 58, 0.12);
+  --border-gold: rgba(201, 162, 39, 0.5);
 
-  --status-success: #2FA86A;
-  --status-danger: #D8474A;
+  --status-success: #1F7A4D;
+  --status-success-bg: rgba(31, 122, 77, 0.1);
+  --status-danger: #C0392B;
+  --status-danger-bg: rgba(192, 57, 43, 0.1);
   --status-warning: var(--color-primary-gold);
+
+  /* ---- JR design-system aliases (stable public names for the tokens
+     above — use these in new code; the --color-*/--bg-*/--text-*
+     names above remain for existing component compatibility). ---- */
+  --jr-navy: var(--color-primary-navy);
+  --jr-navy-dark: var(--color-deep-navy);
+  --jr-gold: var(--color-primary-gold);
+  --jr-gold-light: var(--color-light-gold);
+  --jr-white: var(--color-white);
+  --jr-background: var(--bg-page);
+  --jr-surface: var(--bg-surface);
+  --jr-text: var(--text-primary);
+  --jr-muted: var(--text-secondary);
+  --jr-border: var(--border-subtle);
+  --jr-success: var(--status-success);
+  --jr-error: var(--status-danger);
+  --jr-warning: var(--status-warning);
 
   /* ---- Typography ----
      Headlines: Space Grotesk — geometric, confident, echoes the
@@ -76,8 +122,8 @@
   --duration-normal: 220ms;
   --duration-modal: 320ms;
 
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
-  --shadow-elevated: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 1px 2px rgba(11, 31, 58, 0.06), 0 4px 16px rgba(11, 31, 58, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(11, 31, 58, 0.14);
 
   --max-width: 1200px;
 }
@@ -105,14 +151,15 @@ html[data-text-size="default"] { font-size: 16px; }
 html[data-text-size="large"] { font-size: 18px; }
 html[data-text-size="extra_large"] { font-size: 21px; }
 
-/* High contrast: widen the gap between text/borders and the navy
+/* High contrast: widen the gap between text/borders and the light
    background beyond the default palette. */
 html[data-high-contrast="true"] {
-  --text-secondary: #F5F5F5;
-  --border-subtle: rgba(240, 240, 240, 0.35);
-  --border-gold: rgba(240, 176, 0, 0.9);
-  --bg-surface: #001428;
-  --bg-elevated: #14274a;
+  --text-primary: #000000;
+  --text-secondary: #1F2937;
+  --border-subtle: rgba(11, 31, 58, 0.45);
+  --border-gold: rgba(201, 162, 39, 0.9);
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #FFFFFF;
 }
 html[data-high-contrast="true"] :focus-visible {
   outline-width: 3px;
