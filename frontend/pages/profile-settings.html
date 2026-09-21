@@ -149,6 +149,8 @@
     const TABS = [
       { key: 'profile', label: 'Profile' },
       { key: 'experience', label: 'Experience', workerOnly: true },
+      { key: 'education', label: 'Education', workerOnly: true },
+      { key: 'cv', label: 'CV / Resume', workerOnly: true },
       { key: 'services', label: 'Services & Pricing', workerOnly: true },
       { key: 'business', label: 'Business Profile', workerOnly: true },
       { key: 'account', label: 'Account & Security' },
@@ -205,6 +207,60 @@
     // ============================================================
     // TAB: Profile (professional/company details + verification)
     // ============================================================
+    // Shared by both worker and hirer forms — gender is optional for
+    // both roles, off the public profile by default (gender_visibility
+    // defaults to 'private' server-side), with a self-describe option
+    // that only makes sense while gender itself is 'custom'.
+    const GENDER_OPTIONS = [
+      { value: '', label: 'Prefer not to answer' },
+      { value: 'male', label: 'Male' },
+      { value: 'female', label: 'Female' },
+      { value: 'non_binary', label: 'Non-binary' },
+      { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+      { value: 'custom', label: 'Self-describe' },
+    ];
+
+    function genderFieldsHtml(profile) {
+      return `
+      <div class="card" style="margin: var(--space-5) 0; padding: var(--space-4);">
+        <h3 style="margin-top: 0;">Personal information</h3>
+        <div class="field">
+          <label for="gender">Gender</label>
+          <select id="gender" name="gender">
+            ${GENDER_OPTIONS.map((o) => `<option value="${o.value}" ${(profile.gender || '') === o.value ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field" id="genderCustom-field" ${profile.gender === 'custom' ? '' : 'hidden'}>
+          <label for="genderCustom">Self-described gender</label>
+          <input type="text" id="genderCustom" name="genderCustom" maxlength="60" value="${esc(profile.gender_custom || '')}" placeholder="How you'd like it shown" />
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="genderVisibility" name="genderVisibility" style="width:auto;" ${profile.gender_visibility === 'public' ? 'checked' : ''} />
+            Show gender on my public profile
+          </label>
+          <div class="field-hint">Off by default. Only applies if a gender is selected above.</div>
+        </div>
+      </div>
+    `;
+    }
+
+    function wireGenderFields(form) {
+      const genderSelect = form.querySelector('#gender');
+      const customField = form.querySelector('#genderCustom-field');
+      genderSelect.addEventListener('change', () => {
+        customField.hidden = genderSelect.value !== 'custom';
+      });
+    }
+
+    function collectGenderFields(form) {
+      return {
+        gender: form.gender.value || null,
+        genderCustom: form.gender.value === 'custom' ? (form.genderCustom.value.trim() || undefined) : undefined,
+        genderVisibility: form.genderVisibility.checked ? 'public' : 'private',
+      };
+    }
+
     function workerFormHtml(profile) {
       const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(profile.verification_status);
       return `
@@ -237,6 +293,8 @@
             <button type="button" class="btn btn-sm btn-secondary" id="change-picture-btn">Change photo</button>
           </div>
         </div>
+        ${genderFieldsHtml(profile)}
+
         <div class="field" id="title-field">
           <label for="professionalTitle">Professional title</label>
           <input type="text" id="professionalTitle" name="professionalTitle" value="${esc(profile.professional_title || '')}" placeholder="e.g. Electrician" />
@@ -507,6 +565,8 @@
           </label>
         </div>
 
+        ${genderFieldsHtml(profile)}
+
         <h3 style="margin-top: var(--space-6);">Location</h3>
         <div class="field-note" id="location-message" hidden style="color: var(--color-warning, #92400e); background: var(--color-warning-bg, #fef3c7); padding: var(--space-3); border-radius: var(--radius-md, 6px); margin-bottom: var(--space-3);"></div>
         <div class="settings-field-grid cols-3">
@@ -532,6 +592,7 @@
     function wireWorkerForm(profile) {
       const form = document.getElementById('profile-form');
       wireProfilePictureUpload();
+      wireGenderFields(form);
       populateLocationSelects(form, profile);
 
       form.addEventListener('submit', async (e) => {
@@ -557,6 +618,7 @@
             languages: form.languages.value.trim()
               ? form.languages.value.split(',').map((l) => l.trim()).filter(Boolean).slice(0, 10)
               : [],
+            ...collectGenderFields(form),
           });
           Toast.success('Profile updated.');
         } catch (err) {
@@ -570,6 +632,7 @@
 
     function wireHirerForm(profile) {
       const form = document.getElementById('profile-form');
+      wireGenderFields(form);
       populateLocationSelects(form, profile);
 
       form.addEventListener('submit', async (e) => {
@@ -585,6 +648,7 @@
             stateId: form.stateId.value || undefined,
             lgaId: form.lgaId.value || undefined,
             areaId: form.areaId.value || undefined,
+            ...collectGenderFields(form),
           });
           Toast.success('Profile updated.');
         } catch (err) {
@@ -718,6 +782,290 @@
           Toast.error(err.message);
         } finally {
           FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    };
+
+    // ============================================================
+    // TAB: Education
+    // ============================================================
+    const EDUCATION_TYPE_LABELS = {
+      university: 'University',
+      college: 'College',
+      polytechnic: 'Polytechnic',
+      secondary_school: 'Secondary School',
+      vocational_training: 'Vocational Training',
+      professional_training: 'Professional Training',
+      certification: 'Certification',
+      online: 'Online Education',
+    };
+
+    function educationEntryHtml(e) {
+      const dateRange = [
+        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
+        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
+      ].filter(Boolean).join(' — ');
+      return `
+      <div class="card" style="margin-bottom: var(--space-4);" data-education-id="${e.id}">
+        <div style="display:flex; justify-content:space-between; gap: var(--space-3);">
+          <div>
+            <strong>${esc(e.institution)}</strong>
+            <div class="text-secondary text-sm">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
+            <div class="text-secondary text-xs" style="margin-top:2px;">${EDUCATION_TYPE_LABELS[e.education_type] || e.education_type}${dateRange ? ` · ${esc(dateRange)}` : ''}</div>
+          </div>
+          <div style="display:flex; gap: var(--space-2); flex-shrink:0; align-items:flex-start;">
+            <label class="text-xs" style="display:flex; align-items:center; gap: var(--space-1); white-space:nowrap;">
+              <input type="checkbox" data-toggle-education-visibility="${e.id}" style="width:auto;" ${e.visibility === 'public' ? 'checked' : ''} /> Show on profile
+            </label>
+            <button type="button" class="btn btn-sm btn-ghost" data-delete-education="${e.id}" aria-label="Remove">Remove</button>
+          </div>
+        </div>
+        ${e.description ? `<p class="text-sm" style="margin-top: var(--space-3);">${esc(e.description)}</p>` : ''}
+      </div>`;
+    }
+
+    function educationFormHtml() {
+      return `
+      <form id="education-form" class="card" style="margin-bottom: var(--space-5);">
+        <h3>Add education</h3>
+        <div class="field">
+          <label for="edu-institution">School / Institution</label>
+          <input type="text" id="edu-institution" name="institution" required placeholder="e.g. University of Benin" />
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="edu-type">Type</label>
+            <select id="edu-type" name="educationType">
+              ${Object.entries(EDUCATION_TYPE_LABELS).map(([v, l]) => `<option value="${v}" ${v === 'university' ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field">
+            <label for="edu-location">Location</label>
+            <input type="text" id="edu-location" name="location" placeholder="e.g. Benin City, Edo State" />
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="edu-degree">Degree / Certificate</label>
+            <input type="text" id="edu-degree" name="degree" placeholder="e.g. B.Sc., National Diploma" />
+          </div>
+          <div class="field">
+            <label for="edu-field">Field of study</label>
+            <input type="text" id="edu-field" name="fieldOfStudy" placeholder="e.g. Computer Science" />
+          </div>
+        </div>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="edu-start">Start date</label>
+            <input type="date" id="edu-start" name="startDate" />
+          </div>
+          <div class="field">
+            <label for="edu-end">End date</label>
+            <input type="date" id="edu-end" name="endDate" />
+          </div>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="edu-current" name="isCurrent" style="width:auto;" />
+            I'm currently studying here
+          </label>
+        </div>
+        <div class="field">
+          <label for="edu-description">Description</label>
+          <textarea id="edu-description" name="description" rows="3" placeholder="Notable coursework, achievements, activities"></textarea>
+        </div>
+        <div class="field">
+          <label style="display:flex; align-items:center; gap: var(--space-2);">
+            <input type="checkbox" id="edu-visibility" name="visibility" style="width:auto;" checked />
+            Show on my public profile
+          </label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm" id="education-submit">Add education</button>
+      </form>`;
+    }
+
+    async function loadEducationList(listEl) {
+      const { entries } = await API.get('/profiles/worker/me/education');
+      listEl.innerHTML = entries.length
+        ? entries.map(educationEntryHtml).join('')
+        : `<p class="text-secondary text-sm">No education added yet.</p>`;
+      listEl.querySelectorAll('[data-delete-education]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          await API.delete(`/profiles/worker/me/education/${btn.dataset.deleteEducation}`);
+          Toast.success('Removed.');
+          loadEducationList(listEl);
+        });
+      });
+      listEl.querySelectorAll('[data-toggle-education-visibility]').forEach((cb) => {
+        cb.addEventListener('change', async () => {
+          try {
+            await API.patch(`/profiles/worker/me/education/${cb.dataset.toggleEducationVisibility}`, {
+              visibility: cb.checked ? 'public' : 'private',
+            });
+            Toast.success(cb.checked ? 'Now visible on your profile.' : 'Hidden from your public profile.');
+          } catch (err) {
+            cb.checked = !cb.checked;
+            Toast.error(err.message);
+          }
+        });
+      });
+    }
+
+    TAB_LOADERS.education = async function loadEducationTab(content) {
+      content.innerHTML = educationFormHtml() + `<div id="education-list"></div>`;
+      const listEl = document.getElementById('education-list');
+      loadEducationList(listEl);
+
+      const form = document.getElementById('education-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('education-submit');
+        FormHelpers.setLoading(submitBtn, true);
+        try {
+          await API.post('/profiles/worker/me/education', {
+            institution: form.institution.value.trim(),
+            educationType: form.educationType.value,
+            degree: form.degree.value.trim() || undefined,
+            fieldOfStudy: form.fieldOfStudy.value.trim() || undefined,
+            location: form.location.value.trim() || undefined,
+            startDate: form.startDate.value || undefined,
+            endDate: form.isCurrent.checked ? undefined : (form.endDate.value || undefined),
+            isCurrent: form.isCurrent.checked,
+            description: form.description.value.trim() || undefined,
+            visibility: form.visibility.checked ? 'public' : 'private',
+          });
+          Toast.success('Education added.');
+          form.reset();
+          loadEducationList(listEl);
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(submitBtn, false);
+        }
+      });
+    };
+
+    // ============================================================
+    // TAB: CV / Resume
+    // ============================================================
+    function cvVisibilityLabel(v) {
+      return { public: 'Public — visible on your profile', private: 'Private — only you can see it', verified_hirers_only: 'Verified hirers only' }[v] || v;
+    }
+
+    function cvSummaryHtml(cv) {
+      if (!cv) {
+        return `<p class="text-secondary text-sm">No CV added yet. Upload a file or build one from your profile below.</p>`;
+      }
+      const label = cv.cv_type === 'built'
+        ? 'Built from your Job Rush profile'
+        : (cv.file_name || 'Uploaded CV');
+      return `
+      <div class="card" style="margin-bottom: var(--space-5);">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-3);">
+          <div>
+            <strong>${esc(label)}</strong>
+            <div class="text-secondary text-sm" style="margin-top: 2px;">${cvVisibilityLabel(cv.visibility)}</div>
+          </div>
+          <div style="display:flex; gap: var(--space-2); flex-wrap:wrap;">
+            ${cv.cv_type === 'uploaded_file' && cv.signedUrl ? `<a class="btn btn-sm btn-secondary" href="${cv.signedUrl}" target="_blank" rel="noopener">View / Download</a>` : ''}
+            ${cv.cv_type === 'built' ? `<a class="btn btn-sm btn-secondary" href="worker-profile.html?id=${currentUser.id}" target="_blank" rel="noopener">Preview</a>` : ''}
+            <button type="button" class="btn btn-sm btn-ghost" id="cv-remove-btn">Remove</button>
+          </div>
+        </div>
+        <div class="field" style="margin-top: var(--space-4); margin-bottom: 0;">
+          <label for="cv-visibility-select">Who can see your CV</label>
+          <select id="cv-visibility-select">
+            <option value="private" ${cv.visibility === 'private' ? 'selected' : ''}>Private — only you</option>
+            <option value="verified_hirers_only" ${cv.visibility === 'verified_hirers_only' ? 'selected' : ''}>Verified hirers only</option>
+            <option value="public" ${cv.visibility === 'public' ? 'selected' : ''}>Public — anyone viewing your profile</option>
+          </select>
+        </div>
+      </div>`;
+    }
+
+    TAB_LOADERS.cv = async function loadCvTab(content) {
+      const { cv } = await API.get('/profiles/worker/me/cv');
+      content.innerHTML = `
+        <div id="cv-summary">${cvSummaryHtml(cv)}</div>
+        <div class="card">
+          <h3>Replace / add a CV</h3>
+          <div style="display:flex; gap: var(--space-3); flex-wrap:wrap; margin-bottom: var(--space-4);">
+            <button type="button" class="btn btn-secondary btn-sm" id="cv-upload-btn">Upload PDF or image</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="cv-build-btn">Build from my profile</button>
+          </div>
+          <p class="text-secondary text-sm" style="margin:0;">Uploaded files: PDF, DOC, DOCX, JPG, PNG or WEBP, up to 15MB. Building from your profile uses your existing title, bio, skills, experience, education and portfolio — nothing needs to be typed twice.</p>
+        </div>
+      `;
+
+      async function refresh() {
+        const { cv } = await API.get('/profiles/worker/me/cv');
+        document.getElementById('cv-summary').innerHTML = cvSummaryHtml(cv);
+        wireSummaryActions(cv);
+      }
+
+      function wireSummaryActions(cv) {
+        const removeBtn = document.getElementById('cv-remove-btn');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', async () => {
+            if (!confirm('Remove your CV? This cannot be undone.')) return;
+            try {
+              await API.delete('/profiles/worker/me/cv');
+              Toast.success('CV removed.');
+              refresh();
+            } catch (err) {
+              Toast.error(err.message);
+            }
+          });
+        }
+        const visSelect = document.getElementById('cv-visibility-select');
+        if (visSelect) {
+          visSelect.addEventListener('change', async () => {
+            try {
+              await API.patch('/profiles/worker/me/cv/visibility', { visibility: visSelect.value });
+              Toast.success('CV privacy updated.');
+            } catch (err) {
+              Toast.error(err.message);
+              visSelect.value = cv.visibility;
+            }
+          });
+        }
+      }
+      wireSummaryActions(cv);
+
+      document.getElementById('cv-upload-btn').addEventListener('click', async () => {
+        const file = await Upload.pickFile({ accept: '.pdf,.doc,.docx,image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        if (!file) return;
+        const btn = document.getElementById('cv-upload-btn');
+        FormHelpers.setLoading(btn, true);
+        try {
+          const uploaded = await Upload.uploadCv(file);
+          await API.put('/profiles/worker/me/cv', {
+            cvType: 'uploaded_file',
+            storagePath: uploaded.storagePath,
+            fileName: uploaded.fileName,
+            mimeType: uploaded.mimeType,
+            fileSize: uploaded.sizeBytes,
+          });
+          Toast.success('CV uploaded.');
+          refresh();
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
+        }
+      });
+
+      document.getElementById('cv-build-btn').addEventListener('click', async () => {
+        const btn = document.getElementById('cv-build-btn');
+        FormHelpers.setLoading(btn, true);
+        try {
+          await API.put('/profiles/worker/me/cv', { cvType: 'built' });
+          Toast.success('CV built from your profile.');
+          refresh();
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          FormHelpers.setLoading(btn, false);
         }
       });
     };

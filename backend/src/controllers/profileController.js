@@ -1,6 +1,20 @@
 const profileService = require('../services/profileService');
 const asyncHandler = require('../utils/asyncHandler');
-const { toSnakeCaseProfileInput } = require('../validators/profileValidators');
+const { toSnakeCaseProfileInput, normalizeGenderInput } = require('../validators/profileValidators');
+
+/**
+ * `SELECT wp.*`/`SELECT hp.*` in profileService pulls back every
+ * column, including gender/gender_custom — correct for the owner's
+ * own read, wrong for anyone else's, since gender_visibility is a
+ * per-field opt-in, not something `profile_visibility`'s public/
+ * private split already covers. Strips it before a non-owner ever
+ * sees the response.
+ */
+function redactGenderForViewer(profile, isOwner) {
+  if (!profile || isOwner || profile.gender_visibility === 'public') return profile;
+  const { gender, gender_custom, ...rest } = profile;
+  return rest;
+}
 
 /**
  * GET /api/profiles/worker/:userId — public profile view.
@@ -18,7 +32,7 @@ const getWorkerProfile = asyncHandler(async (req, res) => {
     (profile.profile_visibility === 'private' && !isOwner);
 
   if (isHidden) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
-  res.status(200).json({ profile });
+  res.status(200).json({ profile: redactGenderForViewer(profile, isOwner) });
 });
 
 /** GET /api/profiles/worker/search — public browse/search */
@@ -41,7 +55,7 @@ const getOwnWorkerProfile = asyncHandler(async (req, res) => {
  * else's profile through this endpoint.
  */
 const updateOwnWorkerProfile = asyncHandler(async (req, res) => {
-  const input = toSnakeCaseProfileInput(req.body);
+  const input = normalizeGenderInput(toSnakeCaseProfileInput(req.body));
   const profile = await profileService.updateWorkerProfile(req.user.id, input);
   res.status(200).json({ profile });
 });
@@ -49,7 +63,8 @@ const updateOwnWorkerProfile = asyncHandler(async (req, res) => {
 const getHirerProfile = asyncHandler(async (req, res) => {
   const profile = await profileService.getHirerProfile(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
-  res.status(200).json({ profile });
+  const isOwner = req.user?.id === req.params.userId;
+  res.status(200).json({ profile: redactGenderForViewer(profile, isOwner) });
 });
 
 const getOwnHirerProfile = asyncHandler(async (req, res) => {
@@ -58,7 +73,7 @@ const getOwnHirerProfile = asyncHandler(async (req, res) => {
 });
 
 const updateOwnHirerProfile = asyncHandler(async (req, res) => {
-  const input = toSnakeCaseProfileInput(req.body);
+  const input = normalizeGenderInput(toSnakeCaseProfileInput(req.body));
   const profile = await profileService.updateHirerProfile(req.user.id, input);
   res.status(200).json({ profile });
 });

@@ -944,22 +944,30 @@
 /* A floating light-surface card, even when its trigger button sits in
    the navy header — re-anchor the shared tokens to their light-theme
    values explicitly so it doesn't inherit .site-header's light-on-navy
-   overrides just because it happens to be nested inside it in the DOM. */
+   overrides just because it happens to be nested inside it in the DOM.
+
+   `position: fixed` with `left`/`top`/`width` set in JS (see
+   notificationBell.js's positionDropdown()) — a viewport-relative fix
+   is the only way this stays fully on-screen regardless of where the
+   bell itself ends up (the site header pins it to the far right edge,
+   but the dashboard topbar can wrap it anywhere). The 340px/right:0
+   values below are only a pre-JS fallback for the instant between
+   `hidden` being removed and the script running. */
 .notif-dropdown {
   --text-primary: var(--text-popover-primary);
   --text-secondary: var(--text-popover-secondary);
   --border-subtle: var(--border-popover);
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  width: 340px;
-  max-height: 420px;
+  position: fixed;
+  top: 64px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 88px));
   background: var(--bg-popover);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-elevated);
-  z-index: 200;
+  z-index: 500;
   display: flex;
   flex-direction: column;
 }
@@ -970,9 +978,10 @@
   align-items: center;
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
-.notif-dropdown-body { overflow-y: auto; max-height: 360px; }
+.notif-dropdown-body { overflow-y: auto; }
 
 .notif-row {
   padding: var(--space-3) var(--space-4);
@@ -983,17 +992,18 @@
 .notif-row:last-child { border-bottom: none; }
 .notif-row:hover { background: rgba(11, 31, 58, 0.04); }
 .notif-row.is-unread { background: rgba(201, 162, 39, 0.08); }
-.notif-row.is-unread::before { content: ''; display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--accent); margin-right: var(--space-2); }
+.notif-row.is-unread::before { content: ''; display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--accent); margin-right: var(--space-2); flex-shrink: 0; }
 
-.notif-row-title { font-size: var(--text-sm); font-weight: 600; }
-.notif-row-body { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); }
+/* Long titles/messages (a verbose job title, a long name) must wrap
+   inside the panel's fixed width instead of forcing it wider than the
+   viewport — the panel's own width is capped above, but text nodes
+   don't respect a parent's max-width unless told to break. */
+.notif-row-title { font-size: var(--text-sm); font-weight: 600; display: flex; align-items: flex-start; gap: var(--space-2); overflow-wrap: anywhere; }
+.notif-row-icon { flex-shrink: 0; line-height: 1.3; }
+.notif-row-body { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); overflow-wrap: anywhere; }
 .notif-row-time { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); }
 
 .notif-empty { padding: var(--space-6) var(--space-4); text-align: center; }
-
-@media (max-width: 480px) {
-  .notif-dropdown { width: 280px; right: -60px; }
-}
 
 /* ============================================================
    Reusable "More actions" overflow menu — opacity+transform only,

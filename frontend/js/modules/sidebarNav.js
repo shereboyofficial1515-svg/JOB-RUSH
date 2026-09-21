@@ -92,6 +92,7 @@ const SidebarNav = (function () {
     }
 
     function openDrawer() {
+      document.dispatchEvent(new CustomEvent('jr:dropdown-opening', { detail: { mount: sidebar } }));
       sidebar.classList.add('is-open');
       backdrop.classList.add('is-open');
       toggle.setAttribute('aria-expanded', 'true');

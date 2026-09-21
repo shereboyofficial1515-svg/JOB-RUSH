@@ -92,6 +92,22 @@ const uploadVerificationDocument = asyncHandler(async (req, res) => {
   res.status(201).json({ ...result, documentType });
 });
 
+/**
+ * POST /api/storage/cv — worker only
+ * Returns only `storagePath` (private bucket) — the caller must still
+ * PUT /api/profiles/worker/me/cv with it to actually attach it as the
+ * worker's current CV; this endpoint alone doesn't change anything a
+ * viewer could see.
+ */
+const uploadCv = asyncHandler(async (req, res) => {
+  const result = await storageService.uploadCvDocument(req.user.id, fileFromRequest(req));
+  res.status(201).json({
+    ...result,
+    fileName: req.file.originalname,
+    mimeType: req.file.mimetype,
+  });
+});
+
 /** POST /api/storage/chat/:mediaCategory — any authenticated user, category in {image,video,document,voice_note} */
 const uploadChatMedia = asyncHandler(async (req, res) => {
   const category = req.params.mediaCategory;
@@ -117,6 +133,7 @@ module.exports = {
   uploadPortfolioVideo,
   uploadProfilePicture,
   uploadVerificationDocument,
+  uploadCv,
   uploadChatMedia,
   uploadDisputeEvidence,
 };

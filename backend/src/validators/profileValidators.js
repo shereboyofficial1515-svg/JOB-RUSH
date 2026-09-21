@@ -2,6 +2,14 @@ const { z } = require('zod');
 
 const uuid = z.string().uuid();
 
+// Shared across worker/hirer — gender is optional and, when set to
+// 'custom', requires the self-described value; any other value must
+// NOT carry one (enforced in the controller, which nulls it out —
+// see profileExtrasController/profileController).
+const genderSchema = z.enum(['male', 'female', 'non_binary', 'prefer_not_to_say', 'custom']).nullable().optional();
+const genderCustomSchema = z.string().trim().min(1).max(60).nullable().optional();
+const visibilitySchema = z.enum(['public', 'private']).optional();
+
 const updateWorkerProfileSchema = z.object({
   professionalTitle: z.string().trim().max(150).optional(),
   bio: z.string().trim().max(2000).optional(),
@@ -20,6 +28,9 @@ const updateWorkerProfileSchema = z.object({
   priceCurrency: z.enum(['NGN', 'USD']).optional(),
   workingDays: z.string().trim().max(100).optional(),
   workingHours: z.string().trim().max(100).optional(),
+  gender: genderSchema,
+  genderCustom: genderCustomSchema,
+  genderVisibility: visibilitySchema,
 });
 
 const updateHirerProfileSchema = z.object({
@@ -30,6 +41,9 @@ const updateHirerProfileSchema = z.object({
   lgaId: uuid.optional(),
   areaId: uuid.optional(),
   profilePictureUrl: z.string().url().optional(),
+  gender: genderSchema,
+  genderCustom: genderCustomSchema,
+  genderVisibility: visibilitySchema,
 });
 
 // Only http(s) links are ever rendered as a real clickable external
@@ -97,6 +111,39 @@ const createWorkExperienceSchema = z.object({
 });
 const updateWorkExperienceSchema = createWorkExperienceSchema.partial();
 const reorderWorkExperienceSchema = z.object({ orderedIds: z.array(uuid).min(1).max(50) });
+
+const educationTypeSchema = z.enum([
+  'university', 'college', 'polytechnic', 'secondary_school',
+  'vocational_training', 'professional_training', 'certification', 'online',
+]);
+
+const createEducationSchema = z.object({
+  institution: z.string().trim().min(2).max(200),
+  educationType: educationTypeSchema.optional(),
+  degree: z.string().trim().max(150).optional(),
+  fieldOfStudy: z.string().trim().max(150).optional(),
+  location: z.string().trim().max(255).optional(),
+  description: z.string().trim().max(2000).optional(),
+  startDate: z.string().date().optional(),
+  endDate: z.string().date().optional(),
+  isCurrent: z.boolean().optional(),
+  visibility: visibilitySchema,
+});
+const updateEducationSchema = createEducationSchema.partial();
+const reorderEducationSchema = z.object({ orderedIds: z.array(uuid).min(1).max(50) });
+
+const updateCvVisibilitySchema = z.object({
+  visibility: z.enum(['public', 'private', 'verified_hirers_only']),
+});
+
+const updateCvSchema = z.object({
+  cvType: z.enum(['uploaded_file', 'built']).optional(),
+  storagePath: z.string().trim().min(1).max(500).optional(),
+  fileName: z.string().trim().max(255).optional(),
+  mimeType: z.string().trim().max(100).optional(),
+  fileSize: z.number().int().positive().max(15 * 1024 * 1024).optional(),
+  visibility: z.enum(['public', 'private', 'verified_hirers_only']).optional(),
+});
 
 const upsertBusinessProfileSchema = z.object({
   businessName: z.string().trim().min(2).max(150),
@@ -171,12 +218,37 @@ function toSnakeCaseProfileInput(body) {
     priceCurrency: 'price_currency',
     durationEstimate: 'duration_estimate',
     isActive: 'is_active',
+    gender: 'gender',
+    genderCustom: 'gender_custom',
+    genderVisibility: 'gender_visibility',
+    institution: 'institution',
+    educationType: 'education_type',
+    fieldOfStudy: 'field_of_study',
+    visibility: 'visibility',
+    cvType: 'cv_type',
+    storagePath: 'storage_path',
+    fileName: 'file_name',
+    mimeType: 'mime_type',
+    fileSize: 'file_size',
   };
   const out = {};
   for (const [key, value] of Object.entries(body)) {
     out[map[key] || key] = value;
   }
   return out;
+}
+
+/**
+ * gender_custom only means anything alongside gender='custom' — if the
+ * request sets gender to anything else (or clears it), any custom text
+ * that slipped through must not be silently kept around from a
+ * previous save.
+ */
+function normalizeGenderInput(input) {
+  if ('gender' in input && input.gender !== 'custom') {
+    input.gender_custom = null;
+  }
+  return input;
 }
 
 function validateBody(schema) {
@@ -205,11 +277,17 @@ module.exports = {
   createWorkExperienceSchema,
   updateWorkExperienceSchema,
   reorderWorkExperienceSchema,
+  createEducationSchema,
+  updateEducationSchema,
+  reorderEducationSchema,
+  updateCvSchema,
+  updateCvVisibilitySchema,
   upsertBusinessProfileSchema,
   addBusinessMediaSchema,
   createProfessionalServiceSchema,
   updateProfessionalServiceSchema,
   reportProfileSchema,
   toSnakeCaseProfileInput,
+  normalizeGenderInput,
   validateBody,
 };

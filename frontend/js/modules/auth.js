@@ -49,6 +49,7 @@ const Auth = (function () {
       `,
       onMount: () => {
         document.getElementById('confirm-logout-btn').addEventListener('click', async () => {
+          document.dispatchEvent(new CustomEvent('jr:auth-logout'));
           try {
             await logout();
           } catch {

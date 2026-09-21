@@ -43,6 +43,15 @@ router.post(
 );
 
 router.post(
+  '/cv',
+  authenticate,
+  requireRole('worker'),
+  uploadLimiter,
+  singleFile('file'),
+  controller.uploadCv
+);
+
+router.post(
   '/chat/:mediaCategory',
   authenticate,
   uploadLimiter,
