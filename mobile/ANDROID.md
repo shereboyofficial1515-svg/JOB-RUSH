@@ -57,7 +57,7 @@ npx cap sync android
 
 Then open `mobile/android` in Android Studio (File → Open), or build from the command line — see § Build.
 
-You need a JDK (17+) and the Android SDK installed to actually build; neither is required just to read/edit this project. This repo's own dev sandbox has neither installed, so **the build commands below have not been run to completion in this environment** — the project was assembled directly from Capacitor's own generator (`npx cap add android`, which *did* run successfully here and produced the standard project layout) plus hand-written native source, not guessed from memory. Building it for real is the first thing to do in an environment with Android Studio.
+You need a JDK (17+) and the Android SDK installed to actually build; neither is required just to read/edit this project. **`./gradlew :app:assembleDebug` has been run to completion and verified successful** (real APK produced at `app/build/outputs/apk/debug/app-debug.apk`), using Android Studio's own bundled JBR as `JAVA_HOME` and the Android SDK at its default install location. See § Build for the exact commands and the Gradle version note below.
 
 ## 4. Production URL — the ONE place it's configured
 
@@ -198,7 +198,17 @@ cd mobile/android
 # → app/build/outputs/bundle/release/app-release.aab
 ```
 
-On Windows, use `gradlew.bat` instead of `./gradlew`. **Not run in this environment** — no JDK/Android SDK is installed here (verified: `java -version` fails, `ANDROID_HOME` is unset). The project structure and Gradle files are exactly what `npx cap add android` generated (that command *did* run successfully here) plus the hand-written native sources documented above; running the build is the natural next step in an environment that has Android Studio.
+On Windows, use `gradlew.bat` instead of `./gradlew`. **`assembleDebug` has been run and verified successful** — a real `app-debug.apk` was produced.
+
+### Gradle version note
+
+The wrapper is pinned to **Gradle 9.5.0**, not the 8.14.3 Capacitor's generator originally wrote. That's a deliberate, tested choice, not a random bump — don't "fix" it back without re-verifying the build:
+
+- Android Studio's own bundled JBR (JetBrains Runtime) is JDK 25. Gradle 8.14.3's bundled Groovy can't even parse *its own build scripts* on a JDK that new (`Unsupported class file major version 69`) — this affects every `.gradle` file in the project, not anything specific to this app.
+- Gradle 9.7.1 (the latest release at time of writing) parses fine on JDK 25, but AGP 8.13.0 (this project's Android Gradle Plugin version) explicitly refuses to run on Gradle ≥9.6 — it depends on an internal Gradle API removed in 9.6 (`InternalProblems`), and says so directly in its own error message, which also names **9.5** as a working version.
+- Gradle 9.5.0 is the newest release compatible with both JDK 25 and AGP 8.13.0 — confirmed by actually running `assembleDebug` to completion with it, not inferred from a compatibility table.
+
+If you later bump `com.android.tools.build:gradle` in `android/build.gradle` to a newer AGP release, re-check whether a newer Gradle version is required/allowed at the same time — AGP and Gradle version ranges are coupled, and this project now has zero slack in that range on this particular JDK.
 
 ### Signing (release APK/AAB)
 
@@ -230,8 +240,8 @@ Documented, not claimed as done — none of this can be completed without your P
 
 ## 18. Known limitations (stated plainly, not glossed over)
 
-- **Not built or run on a device in this environment** — no Android SDK/JDK here. The project is structurally complete and was generated using Capacitor's own tooling plus carefully-checked native source (constructor signatures, API availability, and default behaviors were verified against the actual `@capacitor/android` library source in `node_modules`, not assumed from memory) — but "compiles cleanly in Android Studio" has not been verified by actually invoking a compiler.
-- **Firebase is not yet configured** — `google-services.json` and `FIREBASE_SERVICE_ACCOUNT_JSON` are both placeholders/absent by design (see § Firebase setup); background push and native incoming-call handling only activate once you provide them.
+- **Not run on a physical device or emulator** — `assembleDebug` producing a real APK proves the code compiles and packages correctly; installing and exercising it on an actual device (the incoming-call UI, camera/file pickers, OAuth Custom Tab handoff, etc.) still hasn't been done and should be the next step.
+- **`google-services.json` is still not present in this repo** (confirmed by searching the whole project, not assumed) — the Gradle config now correctly *skips* the Google Services plugin when it's missing (see § Gradle version below) rather than erroring, so the project still builds, but FCM/push won't actually initialize until the real file is placed at `mobile/android/app/google-services.json`. `FIREBASE_SERVICE_ACCOUNT_JSON` (the server-side half) is likewise still a placeholder; see § Firebase setup.
 - **Android 14+ full-screen intent restriction**: Android 14 (API 34) tightened `USE_FULL_SCREEN_INTENT` to apps the system already trusts for calling (default dialer/assistant) — a third-party app like this may need the user to manually grant it via Settings → Apps → Job Rush → Full screen intent, or the incoming-call screen falls back to a normal high-priority heads-up notification instead of taking over the lock screen. This is a real, documented Android platform restriction, not something a wrapper app can bypass.
 - **OAuth + 2FA together on Android** isn't wired through the Custom Tab hand-off (see § Authentication's Known gap) — password-based 2FA is unaffected.
 - **Notification icons are placeholders** (`android.R.drawable.ic_dialog_info` / `sym_call_incoming`) — Android requires a notification's small icon to be a simple white-on-transparent silhouette, which can't be reliably auto-generated from the existing full-color logo PNG (no source vector art, no alpha channel to threshold). Replace `JobRushFirebaseMessagingService`/`IncomingCallService`'s `setSmallIcon(...)` calls with a real monochrome icon before release.
