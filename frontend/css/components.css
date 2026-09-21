@@ -768,9 +768,27 @@
   flex-shrink: 0;
 }
 
-.dashboard-sidebar .brand { margin-bottom: var(--space-7); padding: 0 var(--space-2); }
+.dashboard-sidebar .brand { margin-bottom: var(--space-7); padding: 0 var(--space-2); flex-shrink: 0; }
 
-.sidebar-nav { display: flex; flex-direction: column; gap: var(--space-1); flex: 1; }
+/* min-height: 0 is what actually lets a flex child scroll internally
+   instead of growing to fit its content and pushing the sidebar's own
+   height past the viewport — without it, overflow-y here would never
+   trigger and Log out (a sibling, not part of this list) would be the
+   thing pushed off-screen on a short phone or a long nav list. The
+   scrollbar-hiding rules below don't turn off scrolling, just its
+   visible track/thumb — swipe/drag still scrolls this list normally
+   in Chrome Android, WebView, Safari and Firefox alike. */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
+}
+.sidebar-nav::-webkit-scrollbar { display: none; } /* Chrome, Android WebView, Safari */
 .sidebar-nav a {
   display: flex;
   align-items: center;
