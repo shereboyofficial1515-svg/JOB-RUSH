@@ -63,11 +63,17 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
+// Applies the Google Services plugin only when google-services.json is
+// actually present, so this project still configures/builds even
+// before that file is dropped in (see ANDROID.md). `.exists()` never
+// throws for a missing file -- unlike the previous version of this
+// check, which called `.text` (an actual file read that throws
+// FileNotFoundException) inside a bare `catch(Exception e)`, tripping
+// Android Studio's Groovy inspections ("Cannot resolve symbol
+// 'Exception'" / "Unused catch parameter") for no functional reason.
+// No try/catch needed at all once the check itself can't throw.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
