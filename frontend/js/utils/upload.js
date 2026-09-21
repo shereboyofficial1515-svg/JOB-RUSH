@@ -43,6 +43,12 @@ const Upload = (function () {
     return API.upload('/storage/verification-document', formData);
   }
 
+  async function uploadCv(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return API.upload('/storage/cv', formData);
+  }
+
   async function uploadChatMedia(file) {
     let category = 'document';
     if (file.type.startsWith('image/')) category = 'image';
@@ -68,6 +74,7 @@ const Upload = (function () {
     uploadPortfolioMedia,
     uploadProfilePicture,
     uploadVerificationDocument,
+    uploadCv,
     uploadChatMedia,
     uploadDisputeEvidence,
   };

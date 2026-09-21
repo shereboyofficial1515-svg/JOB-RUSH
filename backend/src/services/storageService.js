@@ -36,6 +36,7 @@ const BUCKETS = {
   VERIFICATION_DOCUMENTS: { name: 'verification-documents', public: false },
   CHAT_MEDIA: { name: 'chat-media', public: false },
   DISPUTE_EVIDENCE: { name: 'dispute-evidence', public: false },
+  CV_DOCUMENTS: { name: 'cv-documents', public: false },
 };
 
 const LIMITS = {
@@ -217,6 +218,25 @@ async function uploadVerificationDocument(workerUserId, file) {
 }
 
 /**
+ * A worker's CV/résumé — private bucket, same access pattern as
+ * verification documents (only `storagePath` is returned, never a
+ * public URL; access is a signed URL issued after the visibility/
+ * ownership check in cvService). Accepts the same document types as
+ * verification (PDF/DOC/DOCX) plus images, since a scanned/photographed
+ * CV is an explicitly supported upload option.
+ */
+async function uploadCvDocument(workerUserId, file) {
+  const result = await uploadToBucket({
+    bucket: BUCKETS.CV_DOCUMENTS,
+    ownerUserId: workerUserId,
+    buffer: file.buffer,
+    mimeType: file.mimeType,
+    limitProfile: file.mimeType.startsWith('image/') ? 'image' : 'document',
+  });
+  return { storagePath: result.storagePath, sizeBytes: result.sizeBytes };
+}
+
+/**
  * Chat media (images, video, documents, voice notes) — private
  * bucket, same as verification documents. Only participants in the
  * conversation the message belongs to may ever resolve a signed URL
@@ -337,6 +357,7 @@ module.exports = {
   uploadPortfolioVideoThumbnail,
   uploadProfilePicture,
   uploadVerificationDocument,
+  uploadCvDocument,
   uploadChatMedia,
   uploadDisputeEvidence,
   getSignedUrl,

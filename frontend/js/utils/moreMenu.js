@@ -47,6 +47,7 @@ const MoreMenu = (function () {
 
     function open() {
       closeActive();
+      document.dispatchEvent(new CustomEvent('jr:dropdown-opening', { detail: { mount } }));
       const panel = document.createElement('div');
       panel.className = 'more-menu-panel dropdown-panel';
       panel.setAttribute('role', 'menu');
@@ -76,6 +77,13 @@ const MoreMenu = (function () {
       e.stopPropagation();
       if (mount.querySelector('.more-menu-panel')) close();
       else open();
+    });
+
+    // Another dropdown (the notification bell, another More-actions
+    // menu) opening should close this one — see the matching dispatch
+    // in notificationBell.js.
+    document.addEventListener('jr:dropdown-opening', (e) => {
+      if (e.detail?.mount !== mount && mount.querySelector('.more-menu-panel')) close();
     });
   }
 

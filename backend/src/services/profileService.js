@@ -24,6 +24,9 @@ const WORKER_EDITABLE_FIELDS = [
   'price_currency',
   'working_days',
   'working_hours',
+  'gender',
+  'gender_custom',
+  'gender_visibility',
 ];
 
 const HIRER_EDITABLE_FIELDS = [
@@ -34,6 +37,9 @@ const HIRER_EDITABLE_FIELDS = [
   'lga_id',
   'area_id',
   'profile_picture_url',
+  'gender',
+  'gender_custom',
+  'gender_visibility',
 ];
 
 function pickAllowed(input, allowedFields) {

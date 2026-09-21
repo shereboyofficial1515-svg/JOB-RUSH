@@ -104,6 +104,62 @@
     `;
     }
 
+    const GENDER_LABELS = { male: 'Male', female: 'Female', non_binary: 'Non-binary', prefer_not_to_say: 'Prefer not to say' };
+
+    // Server already omits gender/gender_custom entirely when it's not
+    // public (see profileController.redactGenderForViewer) — this only
+    // ever renders when the worker chose to show it. Its own small
+    // section rather than squeezed into the header's meta row, which
+    // is already dense with rating/location/availability.
+    function genderHtml(profile) {
+      if (!profile.gender || profile.gender_visibility !== 'public') return '';
+      const label = profile.gender === 'custom' ? profile.gender_custom : GENDER_LABELS[profile.gender];
+      if (!label) return '';
+      return `
+      <div class="wp-section">
+        <h2>Personal information</h2>
+        <div class="text-secondary text-sm">Gender: ${esc(label)}</div>
+      </div>`;
+    }
+
+    function educationHtml(entries) {
+      if (!entries || entries.length === 0) return '';
+      const EDUCATION_TYPE_LABELS = {
+        university: 'University', college: 'College', polytechnic: 'Polytechnic',
+        secondary_school: 'Secondary School', vocational_training: 'Vocational Training',
+        professional_training: 'Professional Training', certification: 'Certification', online: 'Online Education',
+      };
+      const rangeFor = (e) => [
+        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
+        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
+      ].filter(Boolean).join(' — ');
+      return `
+      <div class="wp-section">
+        <h2>Education</h2>
+        ${entries.map((e) => `
+          <div style="margin-bottom: var(--space-4);">
+            <strong>${esc(e.institution)}</strong>
+            <div class="text-secondary text-sm">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
+            <div class="text-secondary text-xs">${EDUCATION_TYPE_LABELS[e.education_type] || e.education_type}${rangeFor(e) ? ` · ${esc(rangeFor(e))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}</div>
+            ${e.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(e.description)}</p>` : ''}
+          </div>`).join('')}
+      </div>`;
+    }
+
+    // The API already returns `cv: null` for a private CV or one that
+    // doesn't exist (see cvService.getForViewer) — this section simply
+    // doesn't render rather than a visitor ever seeing "CV is private."
+    function cvSectionHtml(cv) {
+      if (!cv) return '';
+      return `
+      <div class="wp-section">
+        <h2>Resume / CV</h2>
+        ${cv.cvType === 'uploaded_file' && cv.signedUrl
+          ? `<a class="btn btn-secondary btn-sm" href="${cv.signedUrl}" target="_blank" rel="noopener">View / Download CV</a>`
+          : `<p class="text-secondary text-sm">CV available — see the Experience, Education and Portfolio sections above.</p>`}
+      </div>`;
+    }
+
     function skillsHtml(skills) {
       if (!skills || skills.length === 0) return '';
       return `
@@ -417,11 +473,13 @@
       }
 
       try {
-        const [{ profile }, portfolioResult, reviewsResult, experienceResult, servicesResult, businessResult] = await Promise.all([
+        const [{ profile }, portfolioResult, reviewsResult, experienceResult, educationResult, cvResult, servicesResult, businessResult] = await Promise.all([
           API.get(`/profiles/worker/${workerId}`),
           API.get(`/portfolio/worker/${workerId}`).catch(() => ({ portfolios: [] })),
           API.get(`/reviews/worker/${workerId}`).catch(() => ({ reviews: [] })),
           API.get(`/profiles/worker/${workerId}/experience`).catch(() => ({ entries: [] })),
+          API.get(`/profiles/worker/${workerId}/education`).catch(() => ({ entries: [] })),
+          API.get(`/profiles/worker/${workerId}/cv`).catch(() => ({ cv: null })),
           API.get(`/profiles/worker/${workerId}/services`).catch(() => ({ services: [] })),
           API.get(`/profiles/worker/${workerId}/business`).catch(() => ({ profile: null })),
         ]);
@@ -430,11 +488,14 @@
 
         content.innerHTML =
           headerHtml(profile, isOwner) +
+          genderHtml(profile) +
           aboutHtml(profile) +
           servicesHtml(servicesResult.services || []) +
           skillsHtml(profile.skills) +
           businessHtml(businessResult.profile) +
           experienceHtml(experienceResult.entries || []) +
+          educationHtml(educationResult.entries || []) +
+          cvSectionHtml(cvResult.cv) +
           portfolioHtml(portfolioResult.portfolios || []);
 
         content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));

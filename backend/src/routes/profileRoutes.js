@@ -10,6 +10,11 @@ const {
   createWorkExperienceSchema,
   updateWorkExperienceSchema,
   reorderWorkExperienceSchema,
+  createEducationSchema,
+  updateEducationSchema,
+  reorderEducationSchema,
+  updateCvSchema,
+  updateCvVisibilitySchema,
   upsertBusinessProfileSchema,
   addBusinessMediaSchema,
   createProfessionalServiceSchema,
@@ -62,6 +67,37 @@ router.patch(
 );
 router.delete('/worker/me/experience/:id', authenticate, requireRole('worker'), extras.deleteExperience);
 
+// ---------- Education (own, worker-only) ----------
+router.get('/worker/me/education', authenticate, requireRole('worker'), extras.listOwnEducation);
+router.post(
+  '/worker/me/education',
+  authenticate,
+  requireRole('worker'),
+  validateBody(createEducationSchema),
+  extras.createEducation
+);
+router.post('/worker/me/education/reorder', authenticate, requireRole('worker'), validateBody(reorderEducationSchema), extras.reorderEducation);
+router.patch(
+  '/worker/me/education/:id',
+  authenticate,
+  requireRole('worker'),
+  validateBody(updateEducationSchema),
+  extras.updateEducation
+);
+router.delete('/worker/me/education/:id', authenticate, requireRole('worker'), extras.deleteEducation);
+
+// ---------- CV / résumé (own, worker-only) ----------
+router.get('/worker/me/cv', authenticate, requireRole('worker'), extras.getOwnCv);
+router.put('/worker/me/cv', authenticate, requireRole('worker'), validateBody(updateCvSchema), extras.upsertCv);
+router.patch(
+  '/worker/me/cv/visibility',
+  authenticate,
+  requireRole('worker'),
+  validateBody(updateCvVisibilitySchema),
+  extras.updateCvVisibility
+);
+router.delete('/worker/me/cv', authenticate, requireRole('worker'), extras.deleteCv);
+
 // ---------- Business profile (own, worker-only) ----------
 router.get('/worker/me/business', authenticate, requireRole('worker'), extras.getOwnBusinessProfile);
 router.put(
@@ -99,8 +135,10 @@ router.patch(
 );
 router.delete('/worker/me/services/:id', authenticate, requireRole('worker'), extras.deleteService);
 
-// ---------- Public reads for another worker's experience/business/services ----------
+// ---------- Public reads for another worker's experience/education/cv/business/services ----------
 router.get('/worker/:userId/experience', extras.listExperienceForWorker);
+router.get('/worker/:userId/education', extras.listEducationForWorker);
+router.get('/worker/:userId/cv', attachUserIfPresent, extras.getCvForWorker);
 router.get('/worker/:userId/business', extras.getBusinessProfileForWorker);
 router.get('/worker/:userId/services', extras.listServicesForWorker);
 
@@ -108,6 +146,6 @@ router.get('/worker/:userId/services', extras.listServicesForWorker);
 router.post('/:userId/report', authenticate, validateBody(reportProfileSchema), extras.reportProfile);
 
 router.get('/worker/:userId', attachUserIfPresent, controller.getWorkerProfile);
-router.get('/hirer/:userId', controller.getHirerProfile);
+router.get('/hirer/:userId', attachUserIfPresent, controller.getHirerProfile);
 
 module.exports = router;
