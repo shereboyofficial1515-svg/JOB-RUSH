@@ -61,13 +61,29 @@ const Auth = (function () {
     });
   }
 
+  /**
+   * A NETWORK_ERROR (status 0 — request never reached the server: a
+   * cold Render dyno waking up, the WebView's network stack not ready
+   * yet a beat after app launch, a dropped connection) is not the same
+   * fact as "no session." Treating them identically was logging out
+   * users with a perfectly valid cookie whenever the first request
+   * after opening the app happened to fail transiently. Retry briefly
+   * before giving up, and only a real answer from the server (200 with
+   * a user, or an actual 401/etc "unauthenticated") is trusted.
+   */
   async function getCurrentUser() {
-    try {
-      const result = await API.get('/auth/me');
-      return result.user;
-    } catch {
-      return null;
+    const attempts = 3;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const result = await API.get('/auth/me');
+        return result.user;
+      } catch (err) {
+        const isNetworkError = err instanceof API.ApiError && err.status === 0;
+        if (!isNetworkError) return null; // a real "unauthenticated" answer from the server
+        if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 600 * (i + 1)));
+      }
     }
+    return null; // exhausted retries — genuinely unreachable, not treated as a false logout by callers
   }
 
   async function requestPasswordReset(email) {
