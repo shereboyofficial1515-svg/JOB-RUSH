@@ -148,6 +148,28 @@ const Chrome = (function () {
       // icon stays correct without this module needing its own listener.
       new MutationObserver(syncIcon).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
     }
+
+    // Android's WebView (like desktop Chrome) can restore this exact
+    // page from its back-forward cache on a history navigation —
+    // hardware back, or the on-screen back arrow — without re-running
+    // this script. That restores whatever the header looked like the
+    // moment the page was left, which goes stale the instant the
+    // session changes in between (log out on another page, log in as
+    // someone else, a session expiring). `pageshow` fires again on a
+    // bfcache restore with `event.persisted === true` — a plain fresh
+    // load also fires it, but with `persisted` false, so this only
+    // ever does extra work on the restore case, never on a normal
+    // load (which already rendered with a correct `user` a moment
+    // ago). One listener per mount, not per render, since this
+    // function re-renders itself into the same mount below.
+    if (!mount.dataset.bfcacheGuard) {
+      mount.dataset.bfcacheGuard = 'true';
+      window.addEventListener('pageshow', async (event) => {
+        if (!event.persisted) return;
+        const freshUser = await Auth.getCurrentUser();
+        renderHeader(mount, { activeLink, user: freshUser });
+      });
+    }
   }
 
   function renderFooter(mount) {
