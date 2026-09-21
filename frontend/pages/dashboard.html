@@ -11,9 +11,20 @@
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
   <link rel="stylesheet" href="../css/animations.css" />
+  <style>
+    /* Hidden until init() below confirms a valid session and finishes
+       loading this user's role-specific dashboard content — otherwise
+       every load flashes an empty/skeleton dashboard shell before
+       either the real data fills in or an invalid session redirects
+       away to login. */
+    body.auth-pending .dashboard-shell { visibility: hidden; }
+    #auth-boot-gate { position: fixed; inset: 0; background: #01225E; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    body:not(.auth-pending) #auth-boot-gate { display: none; }
+  </style>
 </head>
 
-<body>
+<body class="auth-pending">
+  <div id="auth-boot-gate"><img src="../assets/images/logo-96.png" alt="" width="72" height="72" /></div>
   <div class="dashboard-shell">
     <aside class="dashboard-sidebar">
       <a href="../index.html" class="brand">
@@ -232,19 +243,27 @@
 
     (async function init() {
       const user = await Auth.requireSession('login.html');
-      if (!user) return;
-      NotificationBell.render(document.getElementById('notif-bell-mount'));
-      IncomingCallWatcher.start();
-      PushNotifications.registerIfAlreadySubscribed();
-      document.getElementById('referral-feedback-btn').addEventListener('click', openReferralFeedbackModal);
-      checkReferralFeedbackPrompt();
+      if (!user) return; // requireSession is already navigating to login — stay hidden
 
-      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+      try {
+        NotificationBell.render(document.getElementById('notif-bell-mount'));
+        IncomingCallWatcher.start();
+        PushNotifications.registerIfAlreadySubscribed();
+        document.getElementById('referral-feedback-btn').addEventListener('click', openReferralFeedbackModal);
+        checkReferralFeedbackPrompt();
 
-      if (user.role === 'hirer') {
-        await loadHirerDashboard(user);
-      } else {
-        await loadWorkerDashboard(user);
+        document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+        if (user.role === 'hirer') {
+          await loadHirerDashboard(user);
+        } else {
+          await loadWorkerDashboard(user);
+        }
+      } finally {
+        // Reveal even if a widget above threw — a dashboard with one
+        // broken section is still usable; a boot screen stuck forever
+        // because of it is not.
+        document.body.classList.remove('auth-pending');
       }
 
       // Dashboard is the one page every signup path (password+OTP,

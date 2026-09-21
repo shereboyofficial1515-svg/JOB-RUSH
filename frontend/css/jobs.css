@@ -47,6 +47,10 @@
   padding-bottom: var(--space-9);
   align-items: start;
 }
+/* The back button is a 3rd grid child (before the content+sidebar
+   pair) — span both columns so it sits as its own full-width row
+   instead of squeezing into one grid cell. */
+.job-detail-layout .page-back-btn { grid-column: 1 / -1; margin-top: 0; }
 
 @media (max-width: 860px) {
   .job-detail-layout { grid-template-columns: 1fr; }

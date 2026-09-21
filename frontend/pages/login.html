@@ -9,8 +9,18 @@
 <link rel="stylesheet" href="../css/base.css" />
 <link rel="stylesheet" href="../css/components.css" />
 <link rel="stylesheet" href="../css/animations.css" />
+<style>
+  /* Hidden until init() below knows whether this is an active session
+     (redirect straight to the dashboard) or not (show this form) —
+     without this, every page load flashes the login form for a beat
+     even when the visitor is about to be bounced to the dashboard. */
+  body.auth-pending .auth-shell { visibility: hidden; }
+  #auth-boot-gate { position: fixed; inset: 0; background: #01225E; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  body:not(.auth-pending) #auth-boot-gate { display: none; }
+</style>
 </head>
-<body>
+<body class="auth-pending">
+<div id="auth-boot-gate"><img src="../assets/images/logo-96.png" alt="" width="72" height="72" /></div>
 <div class="auth-shell">
   <div class="auth-visual" aria-hidden="true">
     <img src="../assets/images/logo-256.png" alt="" width="140" height="140" style="margin-bottom: 32px;" />
@@ -151,6 +161,7 @@
     const oauthChallenge = params.get('twoFactorChallenge');
     if (oauthChallenge) {
       showTwoFactorStep(oauthChallenge, returnTo);
+      document.body.classList.remove('auth-pending');
       return;
     }
 
@@ -160,7 +171,8 @@
     }
 
     const existing = await Auth.getCurrentUser();
-    if (existing) { window.location.href = 'dashboard.html'; return; }
+    if (existing) { window.location.href = 'dashboard.html'; return; } // stay hidden — navigating away
+    document.body.classList.remove('auth-pending');
 
     // Every OAuth button is a full-page navigation (not a fetch), so
     // there's no in-page "request" to cancel on a double click — the

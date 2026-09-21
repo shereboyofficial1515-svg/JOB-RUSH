@@ -299,6 +299,20 @@
       }
     }
 
+    // Opening a conversation only toggles CSS classes (no real page
+    // navigation), so the Android hardware back button had nothing to
+    // catch and would leave this page entirely instead of just closing
+    // the thread pane. Pushing a real history entry when the thread
+    // opens, and closing it on `popstate`, makes the hardware back
+    // button and the on-screen back-to-list arrow behave identically.
+    function closeThreadOnMobile() {
+      document.getElementById('conversation-list').classList.remove('is-hidden-on-mobile');
+      document.getElementById('thread-panel').classList.remove('is-open-on-mobile');
+    }
+    window.addEventListener('popstate', (e) => {
+      if (e.state?.view !== 'thread') closeThreadOnMobile();
+    });
+
     async function openConversation(conversationId) {
       activeConversationId = conversationId;
       renderedMessageIds = new Set(); // a fresh thread, not "already seen"
@@ -307,6 +321,12 @@
       // Mobile shows one pane at a time — switch to the thread view.
       document.getElementById('conversation-list').classList.add('is-hidden-on-mobile');
       document.getElementById('thread-panel').classList.add('is-open-on-mobile');
+
+      if (window.history.state?.view === 'thread') {
+        window.history.replaceState({ view: 'thread', conversationId }, '');
+      } else {
+        window.history.pushState({ view: 'thread', conversationId }, '');
+      }
 
       const conversation = conversationsById.get(conversationId);
       const otherName = esc(conversation?.other_full_name) || 'Unknown user';
@@ -343,8 +363,8 @@
       document.getElementById('audio-call-btn').addEventListener('click', () => startCall(conversationId, 'audio'));
       document.getElementById('video-call-btn').addEventListener('click', () => startCall(conversationId, 'video'));
       document.getElementById('back-to-list-btn').addEventListener('click', () => {
-        document.getElementById('conversation-list').classList.remove('is-hidden-on-mobile');
-        document.getElementById('thread-panel').classList.remove('is-open-on-mobile');
+        if (window.history.state?.view === 'thread') window.history.back();
+        else closeThreadOnMobile();
       });
       document.getElementById('call-history-btn').addEventListener('click', () => {
         const historyPanel = document.getElementById('call-history-panel');

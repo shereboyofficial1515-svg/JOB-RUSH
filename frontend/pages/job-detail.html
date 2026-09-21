@@ -16,6 +16,10 @@
 <div id="header-mount"></div>
 
 <main id="main" class="container job-detail-layout">
+  <button type="button" class="page-back-btn" id="page-back-btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    Back
+  </button>
   <div id="job-detail-content">
     <div class="skeleton" style="height: 32px; width: 60%; margin-bottom: 16px;"></div>
     <div class="skeleton" style="height: 16px; width: 90%; margin-bottom: 8px;"></div>
@@ -150,6 +154,11 @@
   }
 
   (async function init() {
+    document.getElementById('page-back-btn').addEventListener('click', () => {
+      if (window.history.length > 1) window.history.back();
+      else window.location.href = 'search.html';
+    });
+
     const params = new URLSearchParams(window.location.search);
     const jobId = params.get('id');
     const user = await Auth.getCurrentUser();

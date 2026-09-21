@@ -1,5 +1,29 @@
 /* JOB RUSH — Components */
 
+/* ---------- Back navigation ---------- */
+/* Visible back control for drill-down detail pages (job detail, a
+   worker's profile, a portfolio item) reached via a link from a
+   listing — sits inside the page's own .container so it never
+   overlaps the fixed site header or page text, and never touches the
+   screen edge. Android's hardware back button already works correctly
+   on these pages via the WebView's own history; this is the on-screen
+   affordance for people who don't know/use that gesture. */
+.page-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-5) 0 var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.page-back-btn:hover { color: var(--text-primary); border-color: var(--border-gold); }
+.page-back-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
 /* ---------- Buttons ---------- */
 .btn {
   display: inline-flex;
@@ -720,6 +744,7 @@
   color: var(--text-primary);
   border-right: 1px solid var(--border-subtle);
   padding: var(--space-5);
+  padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   /* Stays in view (with its own scroll) while dashboard-main scrolls,
@@ -730,6 +755,17 @@
   top: 0;
   height: 100vh;
   overflow-y: auto;
+}
+
+/* Separates Log out from ordinary navigation so it doesn't read as
+   just another nav item, and keeps it clear of a phone's gesture-nav
+   bar (the drawer's own padding-bottom above only guarantees spacing
+   from the drawer's edge, not from the on-screen home indicator). */
+.dashboard-sidebar #logout-btn {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
 .dashboard-sidebar .brand { margin-bottom: var(--space-7); padding: 0 var(--space-2); }
