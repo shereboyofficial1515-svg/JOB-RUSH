@@ -53,5 +53,6 @@ mobile/android/**/*.jks
 mobile/android/**/*.keystore
 mobile/android/.gradle/
 mobile/android/captures/
+mobile/android/app/google-services.json
 *.apk
 *.aab
