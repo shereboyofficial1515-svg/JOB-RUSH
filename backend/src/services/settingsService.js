@@ -15,6 +15,7 @@ const EDITABLE_FIELDS = [
   'chat_message_previews',
   'media_auto_download',
   'call_ringtone_enabled',
+  'call_ringtone_id',
   'text_size',
   'high_contrast',
   'reduced_motion',

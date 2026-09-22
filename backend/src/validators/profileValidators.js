@@ -23,6 +23,7 @@ const updateWorkerProfileSchema = z.object({
   landmark: z.string().trim().max(255).optional(),
   serviceRadiusKm: z.number().int().min(0).max(500).optional(),
   profilePictureUrl: z.string().url().optional(),
+  coverPhotoUrl: z.string().url().nullable().optional(),
   skillIds: z.array(uuid).max(30).optional(),
   startingPrice: z.number().nonnegative().max(100000000).optional(),
   priceCurrency: z.enum(['NGN', 'USD']).optional(),
@@ -207,6 +208,7 @@ function toSnakeCaseProfileInput(body) {
     landmark: 'landmark',
     serviceRadiusKm: 'service_radius_km',
     profilePictureUrl: 'profile_picture_url',
+    coverPhotoUrl: 'cover_photo_url',
     skillIds: 'skillIds', // handled specially in profileService, not a column
     startingPrice: 'starting_price',
     priceCurrency: 'price_currency',

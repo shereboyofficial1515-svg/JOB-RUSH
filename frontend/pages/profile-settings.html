@@ -51,6 +51,7 @@
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/avatarBadge.js"></script>
   <script src="../js/utils/upload.js"></script>
+  <script src="../js/utils/icons.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
@@ -2158,6 +2159,47 @@
       });
     }
 
+    // Genuine photography (Unsplash License — free to use, no
+    // attribution required; credited here anyway for a clear source
+    // trail). Never AI-generated, never illustrations/avatars. Each
+    // has its own [data-chat-wallpaper] CSS rule in dashboard-pages.css
+    // that layers a translucent tint over the photo so message bubbles
+    // stay readable (see Part 27 of the redesign spec).
+    const CHAT_WALLPAPER_PHOTOS = [
+      { id: 'workspace', label: 'Workspace', credit: 'Unsplash — photo-1611072337226-1140ab367200' },
+      { id: 'nature', label: 'Nature', credit: 'Unsplash — photo-1533038023143-de7a62a9d779' },
+      { id: 'city', label: 'City', credit: 'Unsplash — photo-1569706971306-de5d78f6418e' },
+      { id: 'professional', label: 'Professional', credit: 'Unsplash — photo-1758876202610-bae5608f5051' },
+      { id: 'pattern', label: 'Pattern', credit: 'Unsplash — photo-1593803926640-0c663fabfaf5' },
+    ];
+    const CHAT_WALLPAPER_CSS_OPTIONS = [
+      { id: 'default', label: 'Default' },
+      { id: 'solid', label: 'Solid' },
+      { id: 'geometric', label: 'Geometric' },
+    ];
+
+    const RINGTONE_OPTIONS = [
+      { id: 'classic', label: 'Classic' },
+      { id: 'chime', label: 'Chime' },
+      { id: 'pulse', label: 'Pulse' },
+    ];
+
+    function wallpaperSwatchHtml(id, label, current, thumbUrl) {
+      const isSelected = current === id;
+      const style = thumbUrl
+        ? `background-image:url('${thumbUrl}'); background-size:cover; background-position:center;`
+        : id === 'geometric'
+          ? `background-image: repeating-linear-gradient(135deg, var(--border-subtle) 0, var(--border-subtle) 1px, transparent 1px, transparent 8px); background-color: var(--bg-elevated);`
+          : id === 'solid'
+            ? `background: linear-gradient(180deg, rgba(201,162,39,0.15), rgba(201,162,39,0));`
+            : `background: var(--bg-elevated);`;
+      return `
+      <button type="button" class="wallpaper-swatch${isSelected ? ' is-selected' : ''}" data-wallpaper-id="${id}" title="${esc(label)}" style="${style}">
+        ${isSelected ? `<span class="wallpaper-swatch-check">${Icons.checkShield}</span>` : ''}
+        <span class="wallpaper-swatch-label">${esc(label)}</span>
+      </button>`;
+    }
+
     TAB_LOADERS.chat = async function loadChatTab(content) {
       const settings = await ensureSettingsLoaded();
       content.innerHTML = `
@@ -2167,14 +2209,16 @@
           <select id="chat-theme-select">
             <option value="dark" ${settings.chat_theme === 'dark' ? 'selected' : ''}>Dark</option>
             <option value="light" ${settings.chat_theme === 'light' ? 'selected' : ''}>Light</option>
-            <option value="system" ${settings.chat_theme === 'system' ? 'selected' : ''}>Match system</option>
+            <option value="system" ${settings.chat_theme === 'system' ? 'selected' : ''}>Default (match system)</option>
           </select>`)}
-        ${settingsRowHtml('Chat wallpaper', 'Background shown behind your conversations.', `
-          <select id="chat-wallpaper-select">
-            <option value="default" ${settings.chat_wallpaper === 'default' ? 'selected' : ''}>Default</option>
-            <option value="solid" ${settings.chat_wallpaper === 'solid' ? 'selected' : ''}>Solid</option>
-            <option value="geometric" ${settings.chat_wallpaper === 'geometric' ? 'selected' : ''}>Geometric</option>
-          </select>`)}
+        <div class="field" style="margin-top: var(--space-4);">
+          <label>Chat wallpaper</label>
+          <div class="field-hint" style="margin-bottom: var(--space-3);">Background shown behind your conversations. Real photography — not AI-generated. Tap one to apply it, or Default to remove it.</div>
+          <div class="wallpaper-grid" id="wallpaper-grid">
+            ${CHAT_WALLPAPER_CSS_OPTIONS.map((o) => wallpaperSwatchHtml(o.id, o.label, settings.chat_wallpaper)).join('')}
+            ${CHAT_WALLPAPER_PHOTOS.map((p) => wallpaperSwatchHtml(p.id, p.label, settings.chat_wallpaper, `../assets/images/wallpapers/thumbs/wallpaper-${p.id}-thumb.jpg`)).join('')}
+          </div>
+        </div>
         ${settingsRowHtml('Message text size', '', `
           <select id="chat-font-size-select">
             <option value="small" ${settings.chat_font_size === 'small' ? 'selected' : ''}>Small</option>
@@ -2195,6 +2239,17 @@
             <option value="always" ${settings.media_auto_download === 'always' ? 'selected' : ''}>Always</option>
           </select>`)}
         ${settingsRowHtml('Call ringtone', 'Play a ringtone for incoming calls. Turning this off only silences call audio -- other notifications are unaffected.', toggleHtml('call-ringtone-toggle', settings.call_ringtone_enabled))}
+        <div class="field" style="margin-top: var(--space-4);" id="ringtone-picker-field" ${settings.call_ringtone_enabled ? '' : 'hidden'}>
+          <label>Ringtone</label>
+          <div class="ringtone-picker" id="ringtone-picker">
+            ${RINGTONE_OPTIONS.map((r) => `
+              <label class="ringtone-option ${settings.call_ringtone_id === r.id ? 'is-selected' : ''}">
+                <input type="radio" name="ringtoneId" value="${r.id}" style="width:auto;" ${settings.call_ringtone_id === r.id ? 'checked' : ''} />
+                ${esc(r.label)}
+                <button type="button" class="btn btn-sm btn-ghost ringtone-preview-btn" data-ringtone-id="${r.id}">Preview</button>
+              </label>`).join('')}
+          </div>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom: var(--space-5);">
@@ -2216,11 +2271,34 @@
 
       wirePushNotificationsButton();
       document.getElementById('chat-theme-select').addEventListener('change', (e) => patchSettings({ chatTheme: e.target.value }, 'Chat theme updated.'));
-      document.getElementById('chat-wallpaper-select').addEventListener('change', (e) => patchSettings({ chatWallpaper: e.target.value }, 'Wallpaper updated.'));
+      document.getElementById('wallpaper-grid').addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-wallpaper-id]');
+        if (!btn) return;
+        await patchSettings({ chatWallpaper: btn.dataset.wallpaperId }, 'Wallpaper updated.');
+        document.querySelectorAll('#wallpaper-grid .wallpaper-swatch').forEach((el) => {
+          const selected = el === btn;
+          el.classList.toggle('is-selected', selected);
+          el.querySelector('.wallpaper-swatch-check')?.remove();
+          if (selected) el.insertAdjacentHTML('afterbegin', `<span class="wallpaper-swatch-check">${Icons.checkShield}</span>`);
+        });
+      });
       document.getElementById('chat-font-size-select').addEventListener('change', (e) => patchSettings({ chatFontSize: e.target.value }, 'Message text size updated.'));
       document.getElementById('chat-previews-toggle').addEventListener('change', (e) => patchSettings({ chatMessagePreviews: e.target.checked }, 'Preference updated.'));
       document.getElementById('media-auto-download-select').addEventListener('change', (e) => patchSettings({ mediaAutoDownload: e.target.value }, 'Preference updated.'));
-      document.getElementById('call-ringtone-toggle').addEventListener('change', (e) => patchSettings({ callRingtoneEnabled: e.target.checked }, 'Preference updated.'));
+      document.getElementById('call-ringtone-toggle').addEventListener('change', (e) => {
+        document.getElementById('ringtone-picker-field').hidden = !e.target.checked;
+        patchSettings({ callRingtoneEnabled: e.target.checked }, 'Preference updated.');
+      });
+      document.getElementById('ringtone-picker').addEventListener('change', (e) => {
+        if (e.target.name !== 'ringtoneId') return;
+        document.querySelectorAll('.ringtone-option').forEach((el) => el.classList.toggle('is-selected', el.contains(e.target) && e.target.checked));
+        patchSettings({ callRingtoneId: e.target.value }, 'Ringtone updated.');
+      });
+      document.getElementById('ringtone-picker').addEventListener('click', (e) => {
+        const btn = e.target.closest('.ringtone-preview-btn');
+        if (!btn) return;
+        RingtoneManager.preview(btn.dataset.ringtoneId);
+      });
 
       loadBlockedUsers();
       loadArchivedChats();

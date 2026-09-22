@@ -145,30 +145,85 @@
    Public worker profile page
    ============================================================ */
 
-.wp-header {
+/* ---------- Profile hero / cover ---------- */
+.wp-hero { margin-bottom: var(--space-7); }
+.wp-hero-cover {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  border-radius: var(--radius-lg, 14px);
+  background: linear-gradient(135deg, var(--color-primary-navy), var(--color-secondary-navy));
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.wp-hero-cover::after {
+  /* readability/finish layer so a bright real photo never fights the
+     avatar + edit button sitting on top of it */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(7, 22, 42, 0.55), rgba(7, 22, 42, 0) 55%);
+}
+.wp-hero-edit-cover-btn {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: rgba(7, 22, 42, 0.55);
+  color: var(--text-on-navy);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  transition: background var(--transition-fast, 150ms) var(--ease-standard, ease);
+}
+.wp-hero-edit-cover-btn:hover { background: rgba(7, 22, 42, 0.75); }
+.wp-hero-edit-cover-btn svg { width: 16px; height: 16px; }
+
+.wp-hero-body {
   display: flex;
-  gap: var(--space-6);
+  gap: var(--space-5);
   align-items: flex-start;
-  padding: var(--space-6) 0;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: var(--space-6);
+  padding: var(--space-4) var(--space-2) 0;
+  position: relative;
+  z-index: 1;
 }
 
 .wp-avatar {
-  width: 120px;
-  height: 120px;
+  width: 112px;
+  height: 112px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--border-gold);
+  border: 4px solid var(--bg-page);
+  background: var(--bg-surface);
   flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(11, 31, 58, 0.18);
 }
 
-.wp-identity { flex: 1; min-width: 0; }
+/* Only the avatar (or its AvatarBadge.wrap() span, for a verified/PRO
+   member) pokes up into the cover — shifted by its own negative
+   margin rather than dragging the whole flex row (and the name/meta
+   text with it) up into the cover image. */
+.wp-hero-body > img.wp-avatar,
+.wp-hero-body > .avatar-badge-wrap {
+  margin-top: -72px;
+}
+
+.wp-identity { flex: 1; min-width: 0; padding-bottom: var(--space-1); }
 .wp-name-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .wp-name { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 700; }
-.wp-title { color: var(--text-secondary); margin-top: var(--space-1); }
-.wp-meta-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary); }
-.wp-meta-item { display: flex; align-items: center; gap: var(--space-2); }
+.wp-title { color: var(--text-secondary); margin-top: var(--space-1); font-weight: 500; }
+
+.wp-info-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary); }
+.wp-info-item { display: flex; align-items: center; gap: var(--space-2); }
+.wp-info-item svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
+
 .wp-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
 
 .wp-price { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--accent-text); }
@@ -177,19 +232,152 @@
 .wp-availability-dot.busy { background: var(--status-warning); }
 .wp-availability-dot.unavailable { background: var(--status-danger); }
 
-.wp-section { margin-bottom: var(--space-7); }
-.wp-section h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
-
-.wp-skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.wp-skill-chip {
-  background: rgba(11, 31, 58, 0.06);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: var(--space-1) var(--space-3);
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
+@media (max-width: 680px) {
+  .wp-hero-cover { height: 140px; }
+  .wp-hero-body { flex-direction: column; align-items: center; text-align: center; }
+  .wp-avatar { width: 96px; height: 96px; }
+  .wp-hero-body > img.wp-avatar,
+  .wp-hero-body > .avatar-badge-wrap {
+    margin-top: -48px;
+  }
+  .wp-info-row { justify-content: center; }
+  .wp-actions { justify-content: center; width: 100%; }
+  .wp-actions .btn { flex: 1; }
 }
 
+/* ---------- Shared section header ---------- */
+.wp-section { margin-bottom: var(--space-7); }
+.wp-section-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
+.wp-section-header svg { width: 20px; height: 20px; color: var(--accent-text); flex-shrink: 0; }
+.wp-section-header h2 { font-size: var(--text-lg); margin: 0; }
+.wp-section h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
+
+/* About */
+.wp-about-text { line-height: 1.7; max-width: 68ch; white-space: pre-wrap; }
+.wp-about-text.is-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.wp-read-more-btn { margin-top: var(--space-2); background: none; border: none; padding: 0; color: var(--accent-text); font-weight: 600; font-size: var(--text-sm); cursor: pointer; }
+
+/* ---------- Skills ---------- */
+.wp-skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.wp-skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.wp-skill-chip svg { width: 14px; height: 14px; color: var(--accent-text); }
+
+/* ---------- Services ---------- */
+.wp-service-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+.wp-service-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
+.wp-service-name { font-weight: 600; font-size: var(--text-base); }
+.wp-service-price-block { text-align: right; flex-shrink: 0; }
+.wp-service-price-label { font-size: var(--text-xs); color: var(--text-secondary); }
+.wp-service-price { font-family: var(--font-display); font-weight: 700; color: var(--accent-text); font-size: var(--text-lg); line-height: 1.2; }
+.wp-service-price-unit { font-size: var(--text-xs); color: var(--text-secondary); }
+.wp-service-desc { margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); max-width: none; }
+.wp-service-duration { margin-top: var(--space-2); display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ---------- Experience timeline ---------- */
+.wp-timeline { position: relative; }
+.wp-timeline-item { position: relative; padding-left: var(--space-6); padding-bottom: var(--space-5); border-left: 2px solid var(--border-subtle); margin-left: 6px; }
+.wp-timeline-item:last-child { border-left-color: transparent; padding-bottom: 0; }
+.wp-timeline-dot {
+  position: absolute;
+  left: -7px;
+  top: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-page);
+}
+.wp-timeline-role { font-weight: 600; }
+.wp-timeline-company { color: var(--text-secondary); }
+.wp-timeline-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
+.wp-timeline-desc { margin-top: var(--space-2); font-size: var(--text-sm); max-width: none; }
+
+/* ---------- Education ---------- */
+.wp-education-card { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
+.wp-education-card:last-child { margin-bottom: 0; }
+.wp-education-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--bg-elevated);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent-text);
+}
+.wp-education-icon svg { width: 18px; height: 18px; }
+.wp-education-institution { font-weight: 600; }
+.wp-education-degree { color: var(--text-secondary); font-size: var(--text-sm); }
+.wp-education-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
+.wp-education-desc { margin-top: var(--space-2); font-size: var(--text-sm); max-width: none; }
+
+/* ---------- CV card ---------- */
+.wp-cv-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  flex-wrap: wrap;
+}
+.wp-cv-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+.wp-cv-icon svg { width: 22px; height: 22px; }
+.wp-cv-title { font-weight: 600; }
+.wp-cv-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
+.wp-cv-actions { margin-left: auto; display: flex; gap: var(--space-2); }
+
+/* ---------- Business card ---------- */
+.wp-business-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg, 12px); overflow: hidden; }
+.wp-business-cover { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; display: block; background: var(--bg-elevated); }
+.wp-business-body { padding: var(--space-4) var(--space-5); }
+.wp-business-name { font-weight: 700; font-size: var(--text-lg); }
+.wp-business-desc { margin-top: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); max-width: none; }
+.wp-business-info { margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+
+/* ---------- Social cards ---------- */
+.wp-social-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.wp-social-card {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  transition: transform var(--transition-fast, 150ms) var(--ease-standard, ease), box-shadow var(--transition-fast, 150ms) var(--ease-standard, ease);
+}
+.wp-social-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(11, 31, 58, 0.12); }
+.wp-social-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* ---------- Portfolio gallery ---------- */
 .wp-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
 .wp-gallery-item { border-radius: var(--radius-md); overflow: hidden; background: var(--bg-elevated); position: relative; }
 .wp-gallery-item img { width: 100%; height: 160px; object-fit: cover; display: block; }
@@ -198,16 +386,56 @@
   background: rgba(0,0,0,0.7); color: var(--text-primary); font-size: var(--text-xs);
   padding: 2px 6px; border-radius: var(--radius-sm);
 }
+@media (max-width: 560px) {
+  .wp-gallery { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
+}
+@media (max-width: 380px) {
+  .wp-gallery { grid-template-columns: 1fr; }
+}
 
+/* ---------- Reviews ---------- */
 .wp-review { padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
 .wp-review:last-child { border-bottom: none; }
 .wp-review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
 
+/* ---------- Empty states (owner-facing setup prompts) ---------- */
+.wp-empty-state {
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--text-secondary);
+}
+.wp-empty-state h3 { color: var(--text-primary); font-size: var(--text-base); margin-bottom: var(--space-2); }
+.wp-empty-state p { max-width: 40ch; margin: 0 auto var(--space-4); font-size: var(--text-sm); }
+
+/* ---------- Sticky mobile contact bar ----------
+   position: fixed (not sticky) and lifted out of .wp-hero's normal
+   flow via the page's own body-level placement, so it stays pinned to
+   the viewport bottom for the WHOLE profile page scroll, not just
+   while its immediate parent is on screen. */
+.wp-sticky-actions {
+  display: none;
+}
 @media (max-width: 680px) {
-  .wp-header { flex-direction: column; align-items: center; text-align: center; }
-  .wp-meta-row { justify-content: center; }
-  .wp-actions { justify-content: center; width: 100%; }
-  .wp-actions .btn { flex: 1; }
+  body:has(.wp-sticky-actions) { padding-bottom: 72px; }
+  .wp-sticky-actions {
+    display: flex;
+    gap: var(--space-3);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
+  }
+  .wp-sticky-actions .btn { flex: 1; }
+  /* The inline header actions are replaced by the sticky bar on
+     mobile so the primary action isn't duplicated on screen twice. */
+  .wp-header-actions-desktop-only { display: none; }
 }
 
 /* ============================================================

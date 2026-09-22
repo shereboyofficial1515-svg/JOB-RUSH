@@ -95,6 +95,7 @@ const Accessibility = (function () {
       // (incomingCallWatcher.js) can read it via getPrefs() instead
       // of fetching /settings a second time.
       callRingtoneEnabled: settings.call_ringtone_enabled,
+      callRingtoneId: settings.call_ringtone_id,
     };
   }
 
