@@ -34,6 +34,14 @@ router.post(
 );
 
 router.post(
+  '/storefront-photo',
+  authenticate,
+  uploadLimiter,
+  singleFile('file'),
+  controller.uploadStorefrontPhoto
+);
+
+router.post(
   '/verification-document',
   authenticate,
   requireRole('worker'),

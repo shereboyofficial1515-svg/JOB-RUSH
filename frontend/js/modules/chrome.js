@@ -182,7 +182,7 @@ const Chrome = (function () {
                 <img src="${ASSETS.logo48}" alt="JOB RUSH" width="36" height="36" />
                 <span>JOB RUSH</span>
               </div>
-              <p class="text-secondary text-sm">Find the right professional, or get found by the right customer — starting in Delta State.</p>
+              <p class="text-secondary text-sm">Find the right professional, or get found by the right customer — across Nigeria.</p>
             </div>
             <div class="footer-col">
               <h4>For Workers</h4>
@@ -218,7 +218,7 @@ const Chrome = (function () {
           </div>
           <div class="footer-bottom">
             <span>&copy; ${new Date().getFullYear()} JOB RUSH. All rights reserved.</span>
-            <span>Delta State, Nigeria</span>
+            <span>Nigeria</span>
           </div>
         </div>
       </footer>

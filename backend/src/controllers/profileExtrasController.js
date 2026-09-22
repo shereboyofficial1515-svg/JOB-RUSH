@@ -2,6 +2,7 @@ const workExperienceService = require('../services/workExperienceService');
 const educationService = require('../services/educationService');
 const cvService = require('../services/cvService');
 const businessProfileService = require('../services/businessProfileService');
+const socialLinksService = require('../services/socialLinksService');
 const professionalServiceService = require('../services/professionalServiceService');
 const profileReportService = require('../services/profileReportService');
 const asyncHandler = require('../utils/asyncHandler');
@@ -81,30 +82,79 @@ const deleteCv = asyncHandler(async (req, res) => {
   res.status(200).json({ message: 'CV removed.' });
 });
 
-// ---------- Business profile ----------
-const getOwnBusinessProfile = asyncHandler(async (req, res) => {
-  const profile = await businessProfileService.getOwn(req.user.id);
-  res.status(200).json({ profile });
-});
-const getBusinessProfileForWorker = asyncHandler(async (req, res) => {
-  const profile = await businessProfileService.getPublic(req.params.userId);
+// ---------- Business profile (worker OR hirer — a business can belong to either) ----------
+// req.user.role can be 'both', which is not a valid business-profile owner
+// role, so each route pair hardcodes which owner column it operates as
+// (mirroring profileController's separate getWorkerProfile/getHirerProfile),
+// rather than trusting req.user.role directly.
+function makeGetOwnBusinessProfile(role) {
+  return asyncHandler(async (req, res) => {
+    const profile = await businessProfileService.getOwn(role, req.user.id);
+    res.status(200).json({ profile });
+  });
+}
+function makeUpsertBusinessProfile(role) {
+  return asyncHandler(async (req, res) => {
+    const profile = await businessProfileService.upsert(role, req.user.id, toSnakeCaseProfileInput(req.body));
+    res.status(200).json({ profile });
+  });
+}
+function makeDeleteBusinessProfile(role) {
+  return asyncHandler(async (req, res) => {
+    await businessProfileService.remove(role, req.user.id);
+    res.status(200).json({ message: 'Business profile removed.' });
+  });
+}
+function makeAddBusinessMedia(role) {
+  return asyncHandler(async (req, res) => {
+    const media = await businessProfileService.addMedia(role, req.user.id, req.body.mediaUrl);
+    res.status(201).json({ media });
+  });
+}
+function makeRemoveBusinessMedia(role) {
+  return asyncHandler(async (req, res) => {
+    await businessProfileService.removeMedia(req.params.id, role, req.user.id);
+    res.status(200).json({ message: 'Removed.' });
+  });
+}
+
+const getOwnBusinessProfile = makeGetOwnBusinessProfile('worker');
+const upsertBusinessProfile = makeUpsertBusinessProfile('worker');
+const deleteBusinessProfile = makeDeleteBusinessProfile('worker');
+const addBusinessMedia = makeAddBusinessMedia('worker');
+const removeBusinessMedia = makeRemoveBusinessMedia('worker');
+
+const getOwnHirerBusinessProfile = makeGetOwnBusinessProfile('hirer');
+const upsertHirerBusinessProfile = makeUpsertBusinessProfile('hirer');
+const deleteHirerBusinessProfile = makeDeleteBusinessProfile('hirer');
+const addHirerBusinessMedia = makeAddBusinessMedia('hirer');
+const removeHirerBusinessMedia = makeRemoveBusinessMedia('hirer');
+
+const getBusinessProfileForUser = asyncHandler(async (req, res) => {
+  const profile = await businessProfileService.getPublicByUserId(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Business profile not found.', code: 'NOT_FOUND' });
   res.status(200).json({ profile });
 });
-const upsertBusinessProfile = asyncHandler(async (req, res) => {
-  const profile = await businessProfileService.upsert(req.user.id, toSnakeCaseProfileInput(req.body));
-  res.status(200).json({ profile });
+
+// ---------- Social links (worker-only) ----------
+const listOwnSocialLinks = asyncHandler(async (req, res) => {
+  const links = await socialLinksService.listForWorker(req.user.id);
+  res.status(200).json({ links });
 });
-const deleteBusinessProfile = asyncHandler(async (req, res) => {
-  await businessProfileService.remove(req.user.id);
-  res.status(200).json({ message: 'Business profile removed.' });
+const listSocialLinksForWorker = asyncHandler(async (req, res) => {
+  const links = await socialLinksService.listPublicForWorker(req.params.userId);
+  res.status(200).json({ links });
 });
-const addBusinessMedia = asyncHandler(async (req, res) => {
-  const media = await businessProfileService.addMedia(req.user.id, req.body.mediaUrl);
-  res.status(201).json({ media });
+const upsertSocialLink = asyncHandler(async (req, res) => {
+  const link = await socialLinksService.upsert(req.user.id, req.params.platform, req.body);
+  res.status(200).json({ link });
 });
-const removeBusinessMedia = asyncHandler(async (req, res) => {
-  await businessProfileService.removeMedia(req.params.id, req.user.id);
+const setSocialLinkEnabled = asyncHandler(async (req, res) => {
+  const link = await socialLinksService.setEnabled(req.user.id, req.params.platform, req.body.isEnabled);
+  res.status(200).json({ link });
+});
+const deleteSocialLink = asyncHandler(async (req, res) => {
+  await socialLinksService.remove(req.user.id, req.params.platform);
   res.status(200).json({ message: 'Removed.' });
 });
 
@@ -155,11 +205,21 @@ module.exports = {
   updateCvVisibility,
   deleteCv,
   getOwnBusinessProfile,
-  getBusinessProfileForWorker,
   upsertBusinessProfile,
   deleteBusinessProfile,
   addBusinessMedia,
   removeBusinessMedia,
+  getOwnHirerBusinessProfile,
+  upsertHirerBusinessProfile,
+  deleteHirerBusinessProfile,
+  addHirerBusinessMedia,
+  removeHirerBusinessMedia,
+  getBusinessProfileForUser,
+  listOwnSocialLinks,
+  listSocialLinksForWorker,
+  upsertSocialLink,
+  setSocialLinkEnabled,
+  deleteSocialLink,
   listOwnServices,
   listServicesForWorker,
   createService,

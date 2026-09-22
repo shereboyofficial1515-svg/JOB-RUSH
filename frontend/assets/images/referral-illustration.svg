@@ -1,0 +1,45 @@
+<svg width="320" height="240" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Two Nigerian professionals, one sharing a referral link with the other on a phone">
+  <defs>
+    <clipPath id="rc-card"><rect x="0" y="0" width="320" height="240" rx="16" /></clipPath>
+  </defs>
+  <g clip-path="url(#rc-card)">
+    <rect width="320" height="240" fill="#0F2A4A" />
+    <circle cx="270" cy="30" r="70" fill="#C9A227" opacity="0.10" />
+    <circle cx="20" cy="220" r="90" fill="#C9A227" opacity="0.08" />
+
+    <!-- ground -->
+    <rect x="0" y="205" width="320" height="35" fill="#0B2039" />
+
+    <!-- Person A (left) -->
+    <g>
+      <rect x="58" y="120" width="70" height="90" rx="18" fill="#B98A5E" />
+      <path d="M58 150 Q40 150 40 175 L40 200 Q40 208 48 208 L60 208 L60 150 Z" fill="#B98A5E" />
+      <circle cx="93" cy="88" r="30" fill="#7A4A2B" />
+      <path d="M63 82 a30 30 0 0 1 60 0 q0 -18 -30 -20 q-30 2 -30 20 Z" fill="#241108" />
+      <rect x="70" y="150" width="46" height="60" rx="10" fill="#C9A227" />
+      <rect x="70" y="150" width="46" height="14" fill="#E7C766" opacity="0.7" />
+    </g>
+
+    <!-- phone linking the two -->
+    <g>
+      <rect x="140" y="145" width="40" height="70" rx="8" fill="#F4F1EA" />
+      <rect x="146" y="153" width="28" height="48" rx="2" fill="#0F2A4A" />
+      <circle cx="160" cy="206" r="3" fill="#0F2A4A" />
+      <path d="M150 172 l7 8 l13 -16" stroke="#C9A227" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+
+    <!-- Person B (right) -->
+    <g>
+      <rect x="192" y="120" width="70" height="90" rx="18" fill="#8A5A34" />
+      <path d="M262 150 Q280 150 280 175 L280 200 Q280 208 272 208 L260 208 L260 150 Z" fill="#8A5A34" />
+      <circle cx="227" cy="88" r="30" fill="#5C3A22" />
+      <path d="M197 82 a30 30 0 0 1 60 0 q0 -18 -30 -20 q-30 2 -30 20 Z" fill="#1A0D06" />
+      <rect x="204" y="150" width="46" height="60" rx="10" fill="#0F2A4A" stroke="#C9A227" stroke-width="2" />
+    </g>
+
+    <!-- coin / reward accents -->
+    <circle cx="285" cy="70" r="10" fill="#C9A227" />
+    <text x="285" y="74" font-family="Arial, sans-serif" font-size="11" fill="#0F2A4A" text-anchor="middle" font-weight="700">₦</text>
+    <circle cx="35" cy="60" r="7" fill="#C9A227" opacity="0.6" />
+  </g>
+</svg>

@@ -6,7 +6,11 @@
  * (api.js) and esc() (utils/sanitize.js) to already be loaded.
  */
 const LocationSelect = (function () {
-  const DELTA_ONLY_MESSAGE = "Job Rush is currently available only in Delta State. We're working to expand to other states soon.";
+  // Generic on purpose — this reflects whatever the admin currently
+  // has enabled (states.is_active), not a specific state. Job Rush
+  // operates nationwide today, but this message needs to make sense
+  // again if the admin ever narrows availability in the future.
+  const STATE_UNAVAILABLE_MESSAGE = "This location isn't available on Job Rush yet.";
 
   let statesPromise = null;
   function fetchStates() {
@@ -29,12 +33,12 @@ const LocationSelect = (function () {
    * - stateSelect (required), lgaSelect / areaSelect (optional — omit
    *   whichever a given page doesn't need, e.g. a filter bar with only
    *   State + LGA).
-   * - messageEl: element to show the Delta-only message in. Optional.
+   * - messageEl: element to show the state-unavailable message in. Optional.
    * - initial: { stateId, lgaId, areaId } to preselect (editing an
    *   existing profile/job).
    * - restrictToActive: when true (the default — profile/job-posting
    *   forms), picking a state Admin hasn't turned on shows the
-   *   Delta-only message and leaves LGA/Area disabled instead of
+   *   unavailable message and leaves LGA/Area disabled instead of
    *   querying for data that can't exist. Set false for search/filter
    *   contexts, where filtering by any state is harmless.
    */
@@ -84,7 +88,7 @@ const LocationSelect = (function () {
       const isActive = opt ? opt.dataset.active === 'true' : false;
 
       if (stateId && restrictToActive && !isActive) {
-        showMessage(DELTA_ONLY_MESSAGE);
+        showMessage(STATE_UNAVAILABLE_MESSAGE);
         resetLga('Select a state first');
         resetArea('Select an LGA first');
         return;
@@ -117,5 +121,5 @@ const LocationSelect = (function () {
     if (lgaSelect) lgaSelect.addEventListener('change', () => loadAreas(lgaSelect.value));
   }
 
-  return { init, fetchStates, fetchLgas, fetchAreas, DELTA_ONLY_MESSAGE };
+  return { init, fetchStates, fetchLgas, fetchAreas, STATE_UNAVAILABLE_MESSAGE };
 })();
