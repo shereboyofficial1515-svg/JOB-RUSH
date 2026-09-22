@@ -20,6 +20,7 @@ const WORKER_EDITABLE_FIELDS = [
   'landmark',
   'service_radius_km',
   'profile_picture_url',
+  'cover_photo_url',
   'starting_price',
   'price_currency',
   'working_days',

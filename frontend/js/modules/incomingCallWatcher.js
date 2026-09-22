@@ -26,6 +26,14 @@ const IncomingCallWatcher = (function () {
     return prefs.callRingtoneEnabled !== false; // undefined (not yet synced) or true => allowed
   }
 
+  // Reads the user's selected tone fresh (rather than caching it once
+  // at module load) so a change made in Chat Settings takes effect on
+  // the very next call without needing a page reload.
+  function applySelectedTone() {
+    const prefs = typeof Accessibility !== 'undefined' ? Accessibility.getPrefs() : {};
+    RingtoneManager.setTone(prefs.callRingtoneId || 'classic');
+  }
+
   function postStatus(callId, status) {
     return API.post(`/messaging/calls/${callId}/status`, { status }).catch(() => {
       // Best-effort -- the UI-side outcome (stopping the ring, closing
@@ -81,6 +89,7 @@ const IncomingCallWatcher = (function () {
     // marks that this call is genuinely alerting on a device now.
     postStatus(call.id, 'ringing');
 
+    applySelectedTone();
     const started = ringtoneAllowed() ? await RingtoneManager.play('incoming') : false;
 
     const avatar = (call.caller && call.caller.profilePictureUrl) || (typeof ASSETS !== 'undefined' ? ASSETS.defaultAvatar : '');

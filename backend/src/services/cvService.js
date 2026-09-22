@@ -66,6 +66,8 @@ async function getForViewer(workerUserId, viewerUser) {
     cvType: row.cv_type,
     fileName: row.file_name,
     mimeType: row.mime_type,
+    fileSize: row.file_size,
+    updatedAt: row.updated_at,
     visibility: row.visibility,
     signedUrl,
   };

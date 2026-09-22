@@ -19,6 +19,9 @@ const THUMBNAIL_MAX_DIMENSION_PX = 400;
 // profile card, not a small avatar — sized like a portfolio image
 // rather than the tiny AVATAR_MAX_DIMENSION_PX ceiling.
 const STOREFRONT_PHOTO_MAX_DIMENSION_PX = 1600;
+// A profile cover is a wide hero banner behind the avatar — same
+// ceiling as a storefront photo, for the same reason.
+const PROFILE_COVER_MAX_DIMENSION_PX = 1600;
 
 // Supabase's own project-wide storage limit (Settings > Storage),
 // independent of anything this app validates — an upload under our
@@ -42,6 +45,7 @@ const BUCKETS = {
   DISPUTE_EVIDENCE: { name: 'dispute-evidence', public: false },
   CV_DOCUMENTS: { name: 'cv-documents', public: false },
   BUSINESS_PHOTOS: { name: 'business-photos', public: true },
+  PROFILE_COVERS: { name: 'profile-covers', public: true },
 };
 
 const LIMITS = {
@@ -227,6 +231,22 @@ async function uploadStorefrontPhoto(userId, file) {
 }
 
 /**
+ * A worker's profile hero/cover banner — public bucket, sized like a
+ * storefront photo. Distinct from the profile picture (small circular
+ * avatar): this is the wide background behind it in the profile hero.
+ */
+async function uploadProfileCover(userId, file) {
+  const resized = await resizeImage(file.buffer, file.mimeType, PROFILE_COVER_MAX_DIMENSION_PX);
+  return uploadToBucket({
+    bucket: BUCKETS.PROFILE_COVERS,
+    ownerUserId: userId,
+    buffer: resized,
+    mimeType: file.mimeType,
+    limitProfile: 'image',
+  });
+}
+
+/**
  * Verification documents go to a private bucket — the returned value
  * intentionally has no publicUrl. Only `storagePath` is handed back,
  * for the caller to pass into verificationService.submitVerification.
@@ -382,6 +402,7 @@ module.exports = {
   uploadPortfolioVideoThumbnail,
   uploadProfilePicture,
   uploadStorefrontPhoto,
+  uploadProfileCover,
   uploadVerificationDocument,
   uploadCvDocument,
   uploadChatMedia,

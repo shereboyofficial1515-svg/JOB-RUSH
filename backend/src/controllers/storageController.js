@@ -84,6 +84,12 @@ const uploadStorefrontPhoto = asyncHandler(async (req, res) => {
   res.status(201).json(result);
 });
 
+/** POST /api/storage/profile-cover — worker only (profile hero banner) */
+const uploadProfileCover = asyncHandler(async (req, res) => {
+  const result = await storageService.uploadProfileCover(req.user.id, fileFromRequest(req));
+  res.status(201).json(result);
+});
+
 /**
  * POST /api/storage/verification-document — worker only
  * Returns only `storagePath` (private bucket) — no public URL is
@@ -139,6 +145,7 @@ module.exports = {
   uploadPortfolioVideo,
   uploadProfilePicture,
   uploadStorefrontPhoto,
+  uploadProfileCover,
   uploadVerificationDocument,
   uploadCv,
   uploadChatMedia,

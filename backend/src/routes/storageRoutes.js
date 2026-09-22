@@ -42,6 +42,15 @@ router.post(
 );
 
 router.post(
+  '/profile-cover',
+  authenticate,
+  requireRole('worker'),
+  uploadLimiter,
+  singleFile('file'),
+  controller.uploadProfileCover
+);
+
+router.post(
   '/verification-document',
   authenticate,
   requireRole('worker'),

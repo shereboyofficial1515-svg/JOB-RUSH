@@ -45,6 +45,8 @@
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/utils/upload.js"></script>
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
@@ -66,40 +68,49 @@
       return { available: 'Available now', busy: 'Currently busy', unavailable: 'Unavailable' }[status] || status;
     }
 
-    function headerHtml(profile, isOwner) {
+    function heroHtml(profile, isOwner) {
       const location = locationLine(profile);
       const price = formatMoney(profile.starting_price, profile.price_currency);
+      const coverStyle = profile.cover_photo_url ? ` style="background-image:url('${profile.cover_photo_url}');"` : '';
       return `
-      <div class="wp-header">
-        ${AvatarBadge.wrap(
-          `<img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="120" height="120" />`,
-          { verified: profile.verification_status === 'approved', isPro: !!profile.is_pro, size: 'lg' }
-        )}
-        <div class="wp-identity">
-          <div class="wp-name-row">
-            <span class="wp-name">${esc(profile.full_name)}</span>
-            ${profile.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : ''}
-            ${profile.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : ''}
-            ${profile.email_verified_at ? '<span class="badge badge-neutral" title="Email address verified">Email Verified</span>' : ''}
-            ${profile.phone_verified_at ? '<span class="badge badge-neutral" title="Phone number verified">Phone Verified</span>' : ''}
-          </div>
-          <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
-          <div class="wp-meta-row">
-            <span class="wp-meta-item text-gold">${ratingStars(profile.rating_avg)} <span class="text-secondary">(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></span>
-            ${location ? `<span class="wp-meta-item">${esc(location)}</span>` : ''}
-            <span class="wp-meta-item"><span class="wp-availability-dot ${profile.availability_status}"></span> ${availabilityLabel(profile.availability_status)}</span>
-            ${profile.completed_jobs_count ? `<span class="wp-meta-item">${profile.completed_jobs_count} jobs completed</span>` : ''}
-          </div>
-          ${price ? `<div class="wp-price" style="margin-top: var(--space-3);">${price} <span class="text-secondary text-sm" style="font-weight:400;">starting</span></div>` : ''}
-          ${(profile.working_days || profile.working_hours) ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${[profile.working_days, profile.working_hours].filter(Boolean).join(' · ')}</div>` : ''}
-          <div class="wp-actions" id="profile-actions">
-            ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
-              <button class="btn btn-primary" id="contact-btn">Contact</button>
-              <button class="btn btn-secondary" id="hire-btn">Hire</button>
-              <button class="btn btn-ghost btn-sm" id="report-profile-btn" title="Report this profile">Report</button>
-            `}
+      <div class="wp-hero">
+        <div class="wp-hero-cover"${coverStyle}>
+          ${isOwner ? `<button type="button" class="wp-hero-edit-cover-btn" id="edit-cover-btn">${Icons.camera} Edit cover</button>` : ''}
+        </div>
+        <div class="wp-hero-body">
+          ${AvatarBadge.wrap(
+            `<img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="112" height="112" />`,
+            { verified: profile.verification_status === 'approved', isPro: !!profile.is_pro, size: 'lg' }
+          )}
+          <div class="wp-identity">
+            <div class="wp-name-row">
+              <span class="wp-name">${esc(profile.full_name)}</span>
+              ${profile.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : ''}
+              ${profile.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : ''}
+            </div>
+            <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
+            <div class="wp-info-row">
+              <span class="wp-info-item text-gold">${Icons.star} ${ratingStars(profile.rating_avg)} <span class="text-secondary">(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></span>
+              ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}</span>` : ''}
+              <span class="wp-info-item"><span class="wp-availability-dot ${profile.availability_status}"></span> ${availabilityLabel(profile.availability_status)}</span>
+              ${profile.completed_jobs_count ? `<span class="wp-info-item">${Icons.briefcase} ${profile.completed_jobs_count} jobs completed</span>` : ''}
+            </div>
+            ${price ? `<div class="wp-price" style="margin-top: var(--space-3);">${price} <span class="text-secondary text-sm" style="font-weight:400;">starting</span></div>` : ''}
+            ${(profile.working_days || profile.working_hours) ? `<div class="wp-info-item text-secondary text-sm" style="margin-top: var(--space-1);">${Icons.clock} ${[profile.working_days, profile.working_hours].filter(Boolean).join(' · ')}</div>` : ''}
+            <div class="wp-actions wp-header-actions-desktop-only" id="profile-actions">
+              ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
+                <button class="btn btn-primary" id="contact-btn">${Icons.message} Message</button>
+                <button class="btn btn-secondary" id="hire-btn">Hire</button>
+                <button class="btn btn-ghost btn-sm" id="report-profile-btn" title="Report this profile">Report</button>
+              `}
+            </div>
           </div>
         </div>
+        ${!isOwner ? `
+        <div class="wp-sticky-actions" id="sticky-profile-actions">
+          <button class="btn btn-primary" id="contact-btn-sticky">${Icons.message} Message</button>
+          <button class="btn btn-secondary" id="hire-btn-sticky">Hire</button>
+        </div>` : ''}
       </div>
     `;
     }
@@ -117,8 +128,8 @@
       if (!label) return '';
       return `
       <div class="wp-section">
-        <h2>Personal information</h2>
-        <div class="text-secondary text-sm">Gender: ${esc(label)}</div>
+        <div class="wp-section-header">${Icons.gender}<h2>Personal information</h2></div>
+        <div class="wp-info-item text-secondary text-sm">Gender: ${esc(label)}</div>
       </div>`;
     }
 
@@ -135,28 +146,57 @@
       ].filter(Boolean).join(' — ');
       return `
       <div class="wp-section">
-        <h2>Education</h2>
+        <div class="wp-section-header">${Icons.graduationCap}<h2>Education</h2></div>
         ${entries.map((e) => `
-          <div style="margin-bottom: var(--space-4);">
-            <strong>${esc(e.institution)}</strong>
-            <div class="text-secondary text-sm">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
-            <div class="text-secondary text-xs">${EDUCATION_TYPE_LABELS[e.education_type] || e.education_type}${rangeFor(e) ? ` · ${esc(rangeFor(e))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}</div>
-            ${e.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(e.description)}</p>` : ''}
+          <div class="wp-education-card">
+            <span class="wp-education-icon">${Icons.graduationCap}</span>
+            <div>
+              <div class="wp-education-institution">${esc(e.institution)}</div>
+              <div class="wp-education-degree">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
+              <div class="wp-education-meta">${EDUCATION_TYPE_LABELS[e.education_type] || e.education_type}${rangeFor(e) ? ` · ${esc(rangeFor(e))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}</div>
+              ${e.description ? `<p class="wp-education-desc">${esc(e.description)}</p>` : ''}
+            </div>
           </div>`).join('')}
       </div>`;
     }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return null;
+      const mb = bytes / (1024 * 1024);
+      return mb >= 0.1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    }
+
+    const MIME_LABELS = {
+      'application/pdf': 'PDF',
+      'application/msword': 'DOC',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+      'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WEBP',
+    };
 
     // The API already returns `cv: null` for a private CV or one that
     // doesn't exist (see cvService.getForViewer) — this section simply
     // doesn't render rather than a visitor ever seeing "CV is private."
     function cvSectionHtml(cv) {
       if (!cv) return '';
+      const isFile = cv.cvType === 'uploaded_file' && cv.signedUrl;
+      const metaParts = isFile
+        ? [MIME_LABELS[cv.mimeType] || null, formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${new Date(cv.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}` : null].filter(Boolean)
+        : [];
       return `
       <div class="wp-section">
-        <h2>Resume / CV</h2>
-        ${cv.cvType === 'uploaded_file' && cv.signedUrl
-          ? `<a class="btn btn-secondary btn-sm" href="${cv.signedUrl}" target="_blank" rel="noopener">View / Download CV</a>`
-          : `<p class="text-secondary text-sm">CV available — see the Experience, Education and Portfolio sections above.</p>`}
+        <div class="wp-section-header">${Icons.document}<h2>Resume / CV</h2></div>
+        <div class="wp-cv-card">
+          <span class="wp-cv-icon">${Icons.document}</span>
+          <div>
+            <div class="wp-cv-title">${isFile ? 'Professional Resume' : 'Job Rush CV'}</div>
+            <div class="wp-cv-meta">${isFile ? metaParts.join(' • ') : 'Profile-based resume'}</div>
+          </div>
+          <div class="wp-cv-actions">
+            ${isFile
+              ? `<a class="btn btn-secondary btn-sm" href="${cv.signedUrl}" target="_blank" rel="noopener">View CV</a><a class="btn btn-ghost btn-sm" href="${cv.signedUrl}" download>Download</a>`
+              : `<span class="text-secondary text-sm">See Experience, Education &amp; Portfolio above</span>`}
+          </div>
+        </div>
       </div>`;
     }
 
@@ -164,17 +204,31 @@
       if (!skills || skills.length === 0) return '';
       return `
       <div class="wp-section">
-        <h2>Skills</h2>
-        <div class="wp-skills">${skills.map((s) => `<span class="wp-skill-chip">${esc(s.name)}</span>`).join('')}</div>
+        <div class="wp-section-header">${Icons.checkShield}<h2>Skills &amp; Expertise</h2></div>
+        <div class="wp-skills">${skills.map((s) => `<span class="wp-skill-chip">${Icons.checkShield}${esc(s.name)}</span>`).join('')}</div>
       </div>`;
     }
 
     function aboutHtml(profile) {
+      const bio = esc(profile.bio) || 'This professional hasn’t written a bio yet.';
+      const isLong = bio.length > 320;
       return `
       <div class="wp-section">
         <h2>About</h2>
-        <p style="white-space: pre-wrap; max-width: none;">${esc(profile.bio) || 'This professional hasn’t written a bio yet.'}</p>
+        <p class="wp-about-text${isLong ? ' is-clamped' : ''}" id="wp-about-text">${bio}</p>
+        ${isLong ? `<button type="button" class="wp-read-more-btn" id="wp-about-toggle">Read more</button>` : ''}
       </div>`;
+    }
+
+    function wireAboutToggle() {
+      const btn = document.getElementById('wp-about-toggle');
+      const text = document.getElementById('wp-about-text');
+      if (!btn || !text) return;
+      btn.addEventListener('click', () => {
+        const expanded = !text.classList.contains('is-clamped');
+        text.classList.toggle('is-clamped', expanded);
+        btn.textContent = expanded ? 'Read more' : 'Show less';
+      });
     }
 
     // One card per portfolio PROJECT (not per media item) — clicking a
@@ -207,13 +261,16 @@
       if (portfolios.length === 0) {
         return `
         <div class="wp-section">
-          <h2>Portfolio</h2>
-          <p class="text-secondary text-sm">No portfolio items yet.</p>
+          <div class="wp-section-header">${Icons.portfolio}<h2>Portfolio</h2></div>
+          <div class="wp-empty-state">
+            <h3>No portfolio projects yet.</h3>
+            <p>Showcase completed work to help clients understand what you do.</p>
+          </div>
         </div>`;
       }
       return `
       <div class="wp-section">
-        <h2>Portfolio</h2>
+        <div class="wp-section-header">${Icons.portfolio}<h2>Portfolio</h2></div>
         <div class="wp-gallery" id="wp-gallery">${portfolios.map(projectCardHtml).join('')}</div>
       </div>`;
     }
@@ -226,14 +283,17 @@
       ].filter(Boolean).join(' — ');
       return `
       <div class="wp-section">
-        <h2>Experience</h2>
-        ${entries.map((e) => `
-          <div style="margin-bottom: var(--space-4);">
-            <strong>${esc(e.job_title)}</strong>
-            ${e.company_name ? ` <span class="text-secondary">· ${esc(e.company_name)}</span>` : ''}
-            <div class="text-secondary text-xs">${esc(rangeFor(e))}${e.location ? ` · ${esc(e.location)}` : ''}</div>
-            ${e.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(e.description)}</p>` : ''}
-          </div>`).join('')}
+        <div class="wp-section-header">${Icons.briefcase}<h2>Work Experience</h2></div>
+        <div class="wp-timeline">
+          ${entries.map((e) => `
+            <div class="wp-timeline-item">
+              <span class="wp-timeline-dot"></span>
+              <div class="wp-timeline-role">${esc(e.job_title)}</div>
+              ${e.company_name ? `<div class="wp-timeline-company">${esc(e.company_name)}</div>` : ''}
+              <div class="wp-timeline-meta">${esc(rangeFor(e))}${e.location ? ` · ${esc(e.location)}` : ''}</div>
+              ${e.description ? `<p class="wp-timeline-desc">${esc(e.description)}</p>` : ''}
+            </div>`).join('')}
+        </div>
       </div>`;
     }
 
@@ -242,40 +302,58 @@
       const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
       return `
       <div class="wp-section">
-        <h2>Services</h2>
+        <div class="wp-section-header">${Icons.briefcase}<h2>Services &amp; Talents</h2></div>
         <div style="display:grid; gap: var(--space-3);">
           ${services.map((s) => {
-            const priceLabel = s.price !== null
-              ? `${formatMoney(s.price, s.price_currency)} · ${PRICING_LABELS[s.pricing_type] || s.pricing_type}`
-              : (PRICING_LABELS[s.pricing_type] || s.pricing_type);
+            const money = s.price !== null ? formatMoney(s.price, s.price_currency) : null;
+            const unitLabel = PRICING_LABELS[s.pricing_type] || s.pricing_type;
             return `
-            <div class="card" style="padding: var(--space-4);">
-              <div style="display:flex; justify-content:space-between; gap: var(--space-3); flex-wrap:wrap;">
-                <strong>${esc(s.name)}</strong>
-                <span class="text-gold text-sm" style="font-weight:600;">${esc(priceLabel)}</span>
+            <div class="wp-service-card">
+              <div class="wp-service-top">
+                <span class="wp-service-name">${esc(s.name)}</span>
+                <div class="wp-service-price-block">
+                  ${money ? `<div class="wp-service-price-label">Starting from</div><div class="wp-service-price">${esc(money)}</div><div class="wp-service-price-unit">${esc(unitLabel)}</div>` : `<div class="wp-service-price" style="font-size: var(--text-base);">${esc(unitLabel)}</div>`}
+                </div>
               </div>
-              ${s.duration_estimate ? `<div class="text-secondary text-xs" style="margin-top:2px;">${esc(s.duration_estimate)}</div>` : ''}
-              ${s.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(s.description)}</p>` : ''}
+              ${s.duration_estimate ? `<div class="wp-service-duration">${Icons.clock} ${esc(s.duration_estimate)}</div>` : ''}
+              ${s.description ? `<p class="wp-service-desc">${esc(s.description)}</p>` : ''}
             </div>`;
           }).join('')}
         </div>
       </div>`;
     }
 
-    function businessHtml(business) {
-      if (!business) return '';
-      const location = [business.area_name, business.lga_name, business.state_name].filter(Boolean).join(', ');
+    function businessHtml(business, isOwner) {
+      if (!business) {
+        // Only the owner ever sees a setup prompt here — a visitor
+        // simply never sees this section at all when there's nothing
+        // to show (no private "set up" controls leak to other users).
+        if (!isOwner) return '';
+        return `
+        <div class="wp-section">
+          <div class="wp-section-header">${Icons.business}<h2>Business</h2></div>
+          <div class="wp-empty-state">
+            <h3>Business Profile</h3>
+            <p>Showcase your business, storefront and services.</p>
+            <a href="profile-settings.html?tab=business" class="btn btn-secondary btn-sm">Set up Business Profile</a>
+          </div>
+        </div>`;
+      }
+      const location = [business.area_name, business.lga_name, business.state_name, 'Nigeria'].filter(Boolean).join(', ');
       return `
       <div class="wp-section">
-        <h2>Business</h2>
-        <div class="card" style="padding: var(--space-4); display:flex; gap: var(--space-4); flex-wrap:wrap; align-items:flex-start;">
-          ${business.storefront_photo_url ? `<img src="${business.storefront_photo_url}" alt="" loading="lazy" style="width:120px; height:120px; object-fit:cover; border-radius: var(--radius-md); flex-shrink:0;" />` : ''}
-          <div>
-            <strong>${esc(business.business_name)}</strong>
-            ${business.description ? `<p class="text-sm" style="margin-top: var(--space-2); max-width:none;">${esc(business.description)}</p>` : ''}
-            ${location ? `<div class="text-secondary text-sm" style="margin-top: var(--space-2);">${esc(location)}${business.address ? ` — ${esc(business.address)}` : ''}</div>` : ''}
-            ${business.opening_hours ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${esc(business.opening_hours)}</div>` : ''}
-            ${business.contact_phone ? `<div class="text-secondary text-sm" style="margin-top: var(--space-1);">${esc(business.contact_phone)}</div>` : ''}
+        <div class="wp-section-header">${Icons.business}<h2>Business</h2></div>
+        <div class="wp-business-card">
+          ${business.storefront_photo_url ? `<img src="${business.storefront_photo_url}" alt="${esc(business.business_name)} storefront" loading="lazy" class="wp-business-cover" />` : ''}
+          <div class="wp-business-body">
+            <div class="wp-business-name">${esc(business.business_name)}</div>
+            ${business.description ? `<p class="wp-business-desc">${esc(business.description)}</p>` : ''}
+            <div class="wp-business-info">
+              ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}${business.address ? ` — ${esc(business.address)}` : ''}</span>` : ''}
+              ${business.contact_phone ? `<span class="wp-info-item">${Icons.phone} ${esc(business.contact_phone)}</span>` : ''}
+              ${business.contact_email ? `<span class="wp-info-item">${Icons.mail} ${esc(business.contact_email)}</span>` : ''}
+              ${business.opening_hours ? `<span class="wp-info-item">${Icons.clock} ${esc(business.opening_hours)}</span>` : ''}
+            </div>
           </div>
         </div>
       </div>`;
@@ -293,15 +371,15 @@
       if (!links || links.length === 0) return '';
       return `
       <div class="wp-section">
-        <h2>Social</h2>
-        <div style="display:flex; flex-wrap:wrap; gap: var(--space-3);">
+        <div class="wp-section-header">${Icons.globe}<h2>Social</h2></div>
+        <div class="wp-social-row">
           ${links.map((l) => {
         const meta = SOCIAL_ICON_BY_PLATFORM[l.platform];
         if (!meta) return '';
         return `
-            <a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer nofollow" class="card" style="display:flex; align-items:center; gap: var(--space-2); padding: var(--space-2) var(--space-3); text-decoration:none;">
-              <span style="width:32px; height:32px; border-radius:50%; background:${meta.color}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${meta.icon}</span>
-              <span class="text-sm" style="font-weight:600;">${meta.label}</span>
+            <a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer nofollow" class="wp-social-card">
+              <span class="wp-social-icon" style="background:${meta.color};">${meta.icon}</span>
+              ${meta.label}
             </a>`;
       }).join('')}
         </div>
@@ -323,7 +401,7 @@
     function reviewsHtml(reviews) {
       return `
       <div class="wp-section">
-        <h2>Reviews</h2>
+        <div class="wp-section-header">${Icons.star}<h2>Reviews</h2></div>
         <div id="wp-reviews-list">
           ${reviews.length === 0
             ? '<p class="text-secondary text-sm">No reviews yet.</p>'
@@ -446,38 +524,63 @@
     }
 
     async function wireActions(profile, user) {
-      const contactBtn = document.getElementById('contact-btn');
-      const hireBtn = document.getElementById('hire-btn');
+      const contactBtns = [document.getElementById('contact-btn'), document.getElementById('contact-btn-sticky')].filter(Boolean);
+      const hireBtns = [document.getElementById('hire-btn'), document.getElementById('hire-btn-sticky')].filter(Boolean);
       const reportBtn = document.getElementById('report-profile-btn');
-      if (!contactBtn) return;
+      if (contactBtns.length === 0) return;
 
       if (!user) {
         const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-        contactBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
-        hireBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+        contactBtns.forEach((b) => b.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; }));
+        hireBtns.forEach((b) => b.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; }));
         if (reportBtn) reportBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
         return;
       }
 
       if (reportBtn) reportBtn.addEventListener('click', () => openReportModal(profile));
 
-      contactBtn.addEventListener('click', async () => {
-        FormHelpers.setLoading(contactBtn, true);
+      contactBtns.forEach((btn) => btn.addEventListener('click', async () => {
+        FormHelpers.setLoading(btn, true);
         try {
           const { conversation } = await API.post('/messaging/conversations', { otherUserId: profile.user_id });
           window.location.href = `messages.html?conversation=${conversation.id}`;
         } catch (err) {
           Toast.error(err.message);
         } finally {
-          FormHelpers.setLoading(contactBtn, false);
+          FormHelpers.setLoading(btn, false);
         }
-      });
+      }));
 
       if (user.role === 'hirer') {
-        hireBtn.addEventListener('click', () => openHireModal(profile));
+        hireBtns.forEach((btn) => btn.addEventListener('click', () => openHireModal(profile)));
       } else {
-        hireBtn.style.display = 'none';
+        hireBtns.forEach((btn) => { btn.style.display = 'none'; });
       }
+    }
+
+    function wireCoverUpload(profile) {
+      const btn = document.getElementById('edit-cover-btn');
+      if (!btn) return;
+      const cover = document.querySelector('.wp-hero-cover');
+      btn.addEventListener('click', async () => {
+        const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
+        if (!file) return;
+        const originalLabel = btn.innerHTML;
+        btn.disabled = true;
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          const uploaded = await API.upload('/storage/profile-cover', formData);
+          await API.patch('/profiles/worker/me', { coverPhotoUrl: uploaded.publicUrl });
+          cover.style.backgroundImage = `url('${uploaded.publicUrl}')`;
+          Toast.success('Cover photo updated.');
+        } catch (err) {
+          Toast.error(err.message);
+        } finally {
+          btn.innerHTML = originalLabel;
+          btn.disabled = false;
+        }
+      });
     }
 
     (async function init() {
@@ -515,17 +618,17 @@
         const isOwner = user?.id === workerId;
 
         content.innerHTML =
-          headerHtml(profile, isOwner) +
-          genderHtml(profile) +
+          heroHtml(profile, isOwner) +
           aboutHtml(profile) +
           servicesHtml(servicesResult.services || []) +
           skillsHtml(profile.skills) +
-          businessHtml(businessResult.profile) +
-          socialLinksHtml(socialLinksResult.links || []) +
           experienceHtml(experienceResult.entries || []) +
           educationHtml(educationResult.entries || []) +
+          businessHtml(businessResult.profile, isOwner) +
+          portfolioHtml(portfolioResult.portfolios || []) +
           cvSectionHtml(cvResult.cv) +
-          portfolioHtml(portfolioResult.portfolios || []);
+          socialLinksHtml(socialLinksResult.links || []) +
+          genderHtml(profile);
 
         content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));
 
@@ -536,6 +639,8 @@
         if (reviewsList) Animate.stagger(reviewsList, { selector: '.wp-review', stepMs: 40 });
 
         wireActions(profile, user);
+        wireAboutToggle();
+        if (isOwner) wireCoverUpload(profile);
       } catch (err) {
         content.innerHTML = `
           <div class="empty-state">
