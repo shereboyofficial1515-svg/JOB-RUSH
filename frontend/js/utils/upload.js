@@ -36,6 +36,14 @@ const Upload = (function () {
       : API.upload('/storage/profile-picture', formData);
   }
 
+  async function uploadStorefrontPhoto(file, onProgress) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return onProgress
+      ? API.uploadWithProgress('/storage/storefront-photo', formData, onProgress)
+      : API.upload('/storage/storefront-photo', formData);
+  }
+
   async function uploadVerificationDocument(file, documentType) {
     const formData = new FormData();
     formData.append('file', file);
@@ -73,6 +81,7 @@ const Upload = (function () {
     pickFile,
     uploadPortfolioMedia,
     uploadProfilePicture,
+    uploadStorefrontPhoto,
     uploadVerificationDocument,
     uploadCv,
     uploadChatMedia,

@@ -38,6 +38,7 @@
             <a href="documentation.html#referral-program">How does the referral program work?</a>
           </p>
         </div>
+        <img src="../assets/images/referral-illustration.svg" alt="Two Nigerian professionals sharing a Job Rush referral link" loading="lazy" class="referral-hero-illustration" />
       </div>
 
       <div class="referral-link-card card">
@@ -86,7 +87,10 @@
   </div>
 
   <style>
-    .referral-hero-card { background: linear-gradient(135deg, var(--color-primary-navy), var(--color-deep-navy)); color: var(--text-on-navy); margin-bottom: var(--space-5); }
+    .referral-hero-card { background: linear-gradient(135deg, var(--color-primary-navy), var(--color-deep-navy)); color: var(--text-on-navy); margin-bottom: var(--space-5); display:flex; align-items:center; gap: var(--space-5); flex-wrap: wrap; }
+    .referral-hero-copy { flex: 1 1 260px; min-width: 0; }
+    .referral-hero-illustration { width: 200px; max-width: 100%; height: auto; border-radius: var(--radius-lg, 12px); flex-shrink: 0; }
+    @media (max-width: 640px) { .referral-hero-illustration { width: 100%; max-width: 280px; margin: 0 auto; } }
     .referral-hero-card a { color: var(--color-light-gold); font-weight: 600; }
     .referral-hero-card .text-secondary { color: rgba(255,255,255,0.75); }
 

@@ -281,6 +281,33 @@
       </div>`;
     }
 
+    const SOCIAL_ICON_BY_PLATFORM = {
+      facebook: { color: '#1877F2', label: 'Facebook', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"/></svg>' },
+      instagram: { color: '#E1306C', label: 'Instagram', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="#fff" stroke="none"/></svg>' },
+      tiktok: { color: '#000000', label: 'TikTok', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M16.6 3c.4 2.1 1.9 3.7 4 4v3c-1.5 0-2.9-.5-4-1.4v6.2a5.6 5.6 0 1 1-5.6-5.6c.2 0 .5 0 .7.05v3.1a2.5 2.5 0 1 0 1.9 2.45V3h3Z"/></svg>' },
+      youtube: { color: '#FF0000', label: 'YouTube', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M22 12s0-3.1-.4-4.6a3 3 0 0 0-2.1-2.1C17.9 5 12 5 12 5s-5.9 0-7.5.3a3 3 0 0 0-2.1 2.1C2 8.9 2 12 2 12s0 3.1.4 4.6a3 3 0 0 0 2.1 2.1C6.1 19 12 19 12 19s5.9 0 7.5-.3a3 3 0 0 0 2.1-2.1c.4-1.5.4-4.6.4-4.6ZM10 15V9l5 3-5 3Z"/></svg>' },
+      website: { color: '#0F2A4A', label: 'Website', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>' },
+    };
+
+    function socialLinksHtml(links) {
+      if (!links || links.length === 0) return '';
+      return `
+      <div class="wp-section">
+        <h2>Social</h2>
+        <div style="display:flex; flex-wrap:wrap; gap: var(--space-3);">
+          ${links.map((l) => {
+        const meta = SOCIAL_ICON_BY_PLATFORM[l.platform];
+        if (!meta) return '';
+        return `
+            <a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer nofollow" class="card" style="display:flex; align-items:center; gap: var(--space-2); padding: var(--space-2) var(--space-3); text-decoration:none;">
+              <span style="width:32px; height:32px; border-radius:50%; background:${meta.color}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">${meta.icon}</span>
+              <span class="text-sm" style="font-weight:600;">${meta.label}</span>
+            </a>`;
+      }).join('')}
+        </div>
+      </div>`;
+    }
+
     function reviewHtml(r) {
       return `
       <div class="wp-review">
@@ -473,7 +500,7 @@
       }
 
       try {
-        const [{ profile }, portfolioResult, reviewsResult, experienceResult, educationResult, cvResult, servicesResult, businessResult] = await Promise.all([
+        const [{ profile }, portfolioResult, reviewsResult, experienceResult, educationResult, cvResult, servicesResult, businessResult, socialLinksResult] = await Promise.all([
           API.get(`/profiles/worker/${workerId}`),
           API.get(`/portfolio/worker/${workerId}`).catch(() => ({ portfolios: [] })),
           API.get(`/reviews/worker/${workerId}`).catch(() => ({ reviews: [] })),
@@ -482,6 +509,7 @@
           API.get(`/profiles/worker/${workerId}/cv`).catch(() => ({ cv: null })),
           API.get(`/profiles/worker/${workerId}/services`).catch(() => ({ services: [] })),
           API.get(`/profiles/worker/${workerId}/business`).catch(() => ({ profile: null })),
+          API.get(`/profiles/worker/${workerId}/social-links`).catch(() => ({ links: [] })),
         ]);
 
         const isOwner = user?.id === workerId;
@@ -493,6 +521,7 @@
           servicesHtml(servicesResult.services || []) +
           skillsHtml(profile.skills) +
           businessHtml(businessResult.profile) +
+          socialLinksHtml(socialLinksResult.links || []) +
           experienceHtml(experienceResult.entries || []) +
           educationHtml(educationResult.entries || []) +
           cvSectionHtml(cvResult.cv) +

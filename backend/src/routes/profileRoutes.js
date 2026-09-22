@@ -17,6 +17,8 @@ const {
   updateCvVisibilitySchema,
   upsertBusinessProfileSchema,
   addBusinessMediaSchema,
+  upsertSocialLinkSchema,
+  setSocialLinkEnabledSchema,
   createProfessionalServiceSchema,
   updateProfessionalServiceSchema,
   reportProfileSchema,
@@ -117,6 +119,46 @@ router.post(
 );
 router.delete('/worker/me/business/media/:id', authenticate, requireRole('worker'), extras.removeBusinessMedia);
 
+// ---------- Business profile (own, hirer-only) ----------
+router.get('/hirer/me/business', authenticate, requireRole('hirer'), extras.getOwnHirerBusinessProfile);
+router.put(
+  '/hirer/me/business',
+  authenticate,
+  requireRole('hirer'),
+  validateBody(upsertBusinessProfileSchema),
+  extras.upsertHirerBusinessProfile
+);
+router.delete('/hirer/me/business', authenticate, requireRole('hirer'), extras.deleteHirerBusinessProfile);
+router.post(
+  '/hirer/me/business/media',
+  authenticate,
+  requireRole('hirer'),
+  validateBody(addBusinessMediaSchema),
+  extras.addHirerBusinessMedia
+);
+router.delete('/hirer/me/business/media/:id', authenticate, requireRole('hirer'), extras.removeHirerBusinessMedia);
+
+// ---------- Social links (own, worker-only) ----------
+router.get('/worker/me/social-links', authenticate, requireRole('worker'), extras.listOwnSocialLinks);
+router.put(
+  '/worker/me/social-links/:platform',
+  authenticate,
+  requireRole('worker'),
+  validateBody(upsertSocialLinkSchema),
+  extras.upsertSocialLink
+);
+router.patch(
+  '/worker/me/social-links/:platform',
+  authenticate,
+  requireRole('worker'),
+  validateBody(setSocialLinkEnabledSchema),
+  extras.setSocialLinkEnabled
+);
+router.delete('/worker/me/social-links/:platform', authenticate, requireRole('worker'), extras.deleteSocialLink);
+
+// ---------- Public read of a worker's enabled social links ----------
+router.get('/worker/:userId/social-links', extras.listSocialLinksForWorker);
+
 // ---------- Professional services (own, worker-only) ----------
 router.get('/worker/me/services', authenticate, requireRole('worker'), extras.listOwnServices);
 router.post(
@@ -139,8 +181,11 @@ router.delete('/worker/me/services/:id', authenticate, requireRole('worker'), ex
 router.get('/worker/:userId/experience', extras.listExperienceForWorker);
 router.get('/worker/:userId/education', extras.listEducationForWorker);
 router.get('/worker/:userId/cv', attachUserIfPresent, extras.getCvForWorker);
-router.get('/worker/:userId/business', extras.getBusinessProfileForWorker);
+router.get('/worker/:userId/business', extras.getBusinessProfileForUser);
 router.get('/worker/:userId/services', extras.listServicesForWorker);
+
+// ---------- Public read for a hirer's business profile ----------
+router.get('/hirer/:userId/business', extras.getBusinessProfileForUser);
 
 // ---------- Report a profile (any authenticated user) ----------
 router.post('/:userId/report', authenticate, validateBody(reportProfileSchema), extras.reportProfile);

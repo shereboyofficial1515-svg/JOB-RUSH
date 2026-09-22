@@ -146,7 +146,11 @@ const updateCvSchema = z.object({
 });
 
 const upsertBusinessProfileSchema = z.object({
-  businessName: z.string().trim().min(2).max(150),
+  // Required to CREATE a business profile, but a PUT that only touches
+  // one field (e.g. just the storefront photo or isEnabled) on an
+  // already-existing profile shouldn't have to resend it — the service
+  // layer itself enforces "required on first create" (businessProfileService.upsert).
+  businessName: z.string().trim().min(2).max(150).optional(),
   description: z.string().trim().max(2000).optional(),
   stateId: uuid.optional(),
   lgaId: uuid.optional(),
@@ -156,7 +160,7 @@ const upsertBusinessProfileSchema = z.object({
   openingHours: z.string().trim().max(255).optional(),
   contactPhone: z.string().trim().max(30).optional(),
   contactEmail: z.string().trim().email().max(255).optional(),
-  storefrontPhotoUrl: z.string().url().optional(),
+  storefrontPhotoUrl: z.string().url().nullable().optional(),
   isEnabled: z.boolean().optional(),
 });
 const addBusinessMediaSchema = z.object({ mediaUrl: z.string().url() });
@@ -171,6 +175,14 @@ const createProfessionalServiceSchema = z.object({
   isActive: z.boolean().optional(),
 });
 const updateProfessionalServiceSchema = createProfessionalServiceSchema.partial();
+
+const upsertSocialLinkSchema = z.object({
+  url: z.string().trim().min(1).max(2048),
+  isEnabled: z.boolean().optional(),
+});
+const setSocialLinkEnabledSchema = z.object({
+  isEnabled: z.boolean(),
+});
 
 const reportProfileSchema = z.object({
   category: z.enum(['fake_profile', 'fraud_scam', 'inappropriate_content', 'false_information', 'harassment', 'spam', 'other']),
@@ -284,6 +296,8 @@ module.exports = {
   updateCvVisibilitySchema,
   upsertBusinessProfileSchema,
   addBusinessMediaSchema,
+  upsertSocialLinkSchema,
+  setSocialLinkEnabledSchema,
   createProfessionalServiceSchema,
   updateProfessionalServiceSchema,
   reportProfileSchema,

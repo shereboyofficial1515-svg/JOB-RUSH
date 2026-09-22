@@ -15,7 +15,8 @@ const Onboarding = (function () {
   const WELCOME_STEPS = [
     {
       title: 'Welcome to Job Rush',
-      body: `<p>Job Rush connects people looking for work with people looking for skilled professionals — right here in Delta State.</p>
+      body: `<img src="${ASSETS.heroProfessionals}" alt="Nigerian professionals at work" loading="lazy" style="width:100%; max-height:160px; object-fit:cover; object-position:center 30%; border-radius: var(--radius-md, 8px); margin-bottom: var(--space-3);" />
+             <p>Job Rush connects people looking for work with people looking for skilled professionals — right here in Nigeria.</p>
              <p class="text-secondary">This will only take a few seconds.</p>`,
     },
     {

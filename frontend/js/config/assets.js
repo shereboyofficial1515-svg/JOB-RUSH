@@ -18,6 +18,8 @@ const ASSETS = {
   defaultAvatar: 'assets/images/profile-placeholder.svg',
   portfolioPlaceholder: 'assets/images/portfolio-placeholder.svg',
   emptyState: 'assets/images/empty-state.svg',
+
+  heroProfessionals: 'assets/images/hero-professionals-960.jpg',
 };
 
 // Pages live one level deep (pages/login.html) but the site root is

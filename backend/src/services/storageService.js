@@ -15,6 +15,10 @@ const MAX_VIDEO_DURATION_SECONDS = 120;
 const AVATAR_MAX_DIMENSION_PX = 400;
 const PORTFOLIO_IMAGE_MAX_DIMENSION_PX = 1600;
 const THUMBNAIL_MAX_DIMENSION_PX = 400;
+// A storefront photo is a wide banner-style image on the business
+// profile card, not a small avatar — sized like a portfolio image
+// rather than the tiny AVATAR_MAX_DIMENSION_PX ceiling.
+const STOREFRONT_PHOTO_MAX_DIMENSION_PX = 1600;
 
 // Supabase's own project-wide storage limit (Settings > Storage),
 // independent of anything this app validates — an upload under our
@@ -37,6 +41,7 @@ const BUCKETS = {
   CHAT_MEDIA: { name: 'chat-media', public: false },
   DISPUTE_EVIDENCE: { name: 'dispute-evidence', public: false },
   CV_DOCUMENTS: { name: 'cv-documents', public: false },
+  BUSINESS_PHOTOS: { name: 'business-photos', public: true },
 };
 
 const LIMITS = {
@@ -202,6 +207,26 @@ async function uploadProfilePicture(userId, file) {
 }
 
 /**
+ * A business/storefront photo — public bucket (shown on the public
+ * business profile card once the owner enables it), sized like a
+ * portfolio image rather than the tiny profile-picture ceiling since
+ * it's a wide banner, not an avatar. Ownership of the *business
+ * profile row* this gets attached to (worker vs. hirer) is enforced by
+ * businessProfileService, not here — this function only ever writes
+ * under the uploader's own userId prefix.
+ */
+async function uploadStorefrontPhoto(userId, file) {
+  const resized = await resizeImage(file.buffer, file.mimeType, STOREFRONT_PHOTO_MAX_DIMENSION_PX);
+  return uploadToBucket({
+    bucket: BUCKETS.BUSINESS_PHOTOS,
+    ownerUserId: userId,
+    buffer: resized,
+    mimeType: file.mimeType,
+    limitProfile: 'image',
+  });
+}
+
+/**
  * Verification documents go to a private bucket — the returned value
  * intentionally has no publicUrl. Only `storagePath` is handed back,
  * for the caller to pass into verificationService.submitVerification.
@@ -356,6 +381,7 @@ module.exports = {
   uploadProcessedPortfolioVideo,
   uploadPortfolioVideoThumbnail,
   uploadProfilePicture,
+  uploadStorefrontPhoto,
   uploadVerificationDocument,
   uploadCvDocument,
   uploadChatMedia,

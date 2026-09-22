@@ -1,7 +1,7 @@
 {
   "name": "JOB RUSH",
   "short_name": "JOB RUSH",
-  "description": "Find work and find talent across Delta State.",
+  "description": "Find work and find talent across Nigeria.",
   "start_url": "/pages/dashboard.html",
   "scope": "/",
   "display": "standalone",

@@ -137,6 +137,8 @@
   <h1 style="margin-bottom: var(--space-2);">Help Center</h1>
   <p class="text-secondary" style="margin-bottom: var(--space-6);">Everything about how JOB RUSH actually works today — what you can do, what's still coming, and how to get help.</p>
 
+  <img src="../assets/images/hero-professionals-960.jpg" alt="Nigerian professionals collaborating on a laptop" loading="lazy" style="width:100%; max-height:280px; object-fit:cover; object-position:center 30%; border-radius: var(--radius-lg, 12px); margin-bottom: var(--space-6);" />
+
   <button type="button" class="btn btn-secondary docs-mobile-toggle" id="docs-nav-toggle">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     Browse sections
@@ -173,44 +175,47 @@
   const DOCS = [
     // ---------------- Getting Started ----------------
     { id: 'welcome', group: 'Getting Started', title: 'Welcome to Job Rush', html: `
-      <p>JOB RUSH is a marketplace that connects skilled workers with people who need to hire them, currently operating in Delta State, Nigeria. This Help Center explains exactly what the app can do today, honestly — including a few things that are still on the way.</p>` },
+      <p>JOB RUSH is a marketplace that connects skilled workers with people who need to hire them, operating across Nigeria. This Help Center explains exactly what the app can do today, honestly — including a few things that are still on the way.</p>` },
     { id: 'what-is', group: 'Getting Started', title: 'What is Job Rush?', html: `
       <p>It's a two-sided platform: workers build a professional profile and get discovered or apply to jobs; hirers post jobs or search for talent directly. Once connected, both sides can message, call, schedule interviews, and — where a job is agreed — pay through the app's escrow system.</p>` },
     { id: 'who-can-use', group: 'Getting Started', title: 'Who can use Job Rush?', html: `
-      <p>Anyone based in Delta State who wants to find skilled work, or hire someone, can sign up. A single account can act as both a worker and a hirer — registering signs you up as both, and you can focus your profile toward whichever role you use most.</p>` },
+      <p>Anyone based in Nigeria who wants to find skilled work, or hire someone, can sign up. A single account can act as both a worker and a hirer — registering signs you up as both, and you can focus your profile toward whichever role you use most.</p>` },
     { id: 'creating-account', group: 'Getting Started', title: 'Creating an account', html: `
       <p>From the <a href="register.html">registration page</a>, sign up with an email or phone number and a password, or continue with Google, Facebook, or Apple. Email/phone sign-ups verify with a one-time code; signing in with a provider skips that step since the provider has already verified you.</p>` },
     { id: 'logging-in', group: 'Getting Started', title: 'Logging in', html: `
       <p>Use the <a href="login.html">login page</a> with your email/phone and password, or the same provider you registered with. If you've enabled two-factor authentication, you'll also be asked for a 6-digit code from your authenticator app (or a backup code) after your password.</p>` },
     { id: 'managing-profile', group: 'Getting Started', title: 'Managing your profile', html: `
-      <p>All profile editing happens on the <a href="profile-settings.html">Settings</a> page. Workers have dedicated tabs for their main Profile, Experience, Services &amp; Pricing, and Business Profile; hirers edit their display name, company details, and location from the same Profile tab.</p>` },
+      <p>Profile editing has its own <strong>Profile</strong> item in the dashboard sidebar, separate from <strong>Settings</strong>. Workers have dedicated tabs for Overview, Business Profile, Social Links, Experience, Education, CV/Resume, and Services &amp; Pricing; hirers get Overview and Business Profile. <strong>Settings</strong> now focuses purely on account-level controls — password, 2FA, sessions, privacy, notifications, and similar.</p>` },
 
     // ---------------- Your Profile ----------------
     { id: 'creating-professional-profile', group: 'Your Profile', title: 'Creating a professional profile', html: `
-      <p>On the Profile tab of <a href="profile-settings.html">Settings</a>, add a professional title, a bio, your years of experience, availability, working days/hours, languages, and a profile photo. The more of this you fill in, the higher your profile-completion score — shown right on that tab.</p>` },
+      <p>On the Overview tab of <strong>Profile</strong>, add a professional title, a bio, your years of experience, availability, working days/hours, languages, and a profile photo. The more of this you fill in, the higher your profile-completion score — shown right on that tab. Optional sections like Education, Experience, CV, and Social Links don't block you from reaching 100%.</p>` },
     { id: 'adding-skills', group: 'Your Profile', title: 'Adding skills', html: `
-      <p>Skills are picked from JOB RUSH's own managed list on the Profile tab — check every skill that applies. Hirers can filter workers by skill on the <a href="search.html">Find Talent</a> page.</p>` },
+      <p>Skills are picked from JOB RUSH's own managed list on the Profile Overview tab — check every skill that applies. Hirers can filter workers by skill on the <a href="search.html">Find Talent</a> page.</p>` },
     { id: 'adding-services', group: 'Your Profile', title: 'Adding services', html: `
-      <p>The <strong>Services &amp; Pricing</strong> tab in Settings lets you list individual services you offer — each with its own name, description, pricing type, and estimated duration — separate from your overall profile. This is more specific than a single starting price: a plumber, for example, can list "Pipe repair" and "Bathroom installation" as two distinct services with their own prices.</p>` },
+      <p>The <strong>Services &amp; Pricing</strong> tab under <strong>Profile</strong> lets you list individual services you offer — each with its own name, description, pricing type, and estimated duration — separate from your overall profile. This is more specific than a single starting price: a plumber, for example, can list "Pipe repair" and "Bathroom installation" as two distinct services with their own prices.</p>` },
     { id: 'setting-prices', group: 'Your Profile', title: 'Setting prices', html: `
-      <p>Your profile has one overall <strong>starting price</strong> (Profile tab) that gives hirers a quick sense of your rates. For real pricing detail, add services with their own price and pricing type — <em>hourly, daily, per project, fixed, negotiable,</em> or <em>contact for quote</em>. Negotiable and contact-for-quote services intentionally show no number, since the whole point is to discuss it directly.</p>` },
+      <p>Your profile has one overall <strong>starting price</strong> (Profile Overview tab) that gives hirers a quick sense of your rates. For real pricing detail, add services with their own price and pricing type — <em>hourly, daily, per project, fixed, negotiable,</em> or <em>contact for quote</em>. Negotiable and contact-for-quote services intentionally show no number, since the whole point is to discuss it directly.</p>` },
     { id: 'setting-availability', group: 'Your Profile', title: 'Setting availability', html: `
-      <p>Set your status to <em>Available</em>, <em>Busy</em>, or <em>Unavailable</em> on the Profile tab, plus free-text working days and hours (e.g. "Mon–Fri", "8am–6pm"). Hirers can filter search results by availability.</p>` },
+      <p>Set your status to <em>Available</em>, <em>Busy</em>, or <em>Unavailable</em> on the Profile Overview tab, plus free-text working days and hours (e.g. "Mon–Fri", "8am–6pm"). Hirers can filter search results by availability.</p>` },
     { id: 'work-experience', group: 'Your Profile', title: 'Adding work experience', html: `
-      <p>The <strong>Experience</strong> tab in Settings lets you add repeatable work-history entries — job title, company or client, location, start/end dates, and a description — separate from your portfolio (which showcases actual project media, not employment history). These appear on your public profile in chronological order.</p>` },
+      <p>The <strong>Experience</strong> tab under <strong>Profile</strong> lets you add repeatable work-history entries — job title, company or client, location, start/end dates, and a description — separate from your portfolio (which showcases actual project media, not employment history). These appear on your public profile in chronological order. This section is entirely optional and never blocks 100% profile completion.</p>` },
     { id: 'education', group: 'Your Profile', title: 'Education history', html: `
-      <p>The <strong>Education</strong> tab in Settings lets you add multiple education records — school/institution, type (university, polytechnic, secondary school, vocational or professional training, certification, or online), degree, field of study, dates, and a description. Add, edit, or remove entries at any time.</p>
+      <p>The <strong>Education</strong> tab under <strong>Profile</strong> lets you add multiple education records — school/institution, type (university, polytechnic, secondary school, vocational or professional training, certification, or online), degree, field of study, dates, and a description. Add, edit, or remove entries at any time. This section is entirely optional and never blocks 100% profile completion.</p>
       <p>Each entry has its own <strong>"Show on profile"</strong> toggle — on by default, and independent of your overall profile visibility setting. Turn it off for any entry you'd rather keep off your public profile without deleting it.</p>` },
     { id: 'cv-resume', group: 'Your Profile', title: 'CV / Resume', html: `
-      <p>Workers can add a CV in the <strong>CV / Resume</strong> tab in Settings, three ways:</p>
+      <p>Workers can add a CV in the <strong>CV / Resume</strong> tab under <strong>Profile</strong>, two ways:</p>
       <ul>
         <li><strong>Upload a file</strong> — PDF, DOC, DOCX, or an image (JPG/PNG/WEBP), up to 15MB.</li>
         <li><strong>Build one from your profile</strong> — assembled from your existing title, bio, skills, experience, education, and portfolio, so nothing needs to be typed twice.</li>
       </ul>
-      <p>You control who can see it: <strong>Private</strong> (only you), <strong>Verified hirers only</strong>, or <strong>Public</strong> (anyone viewing your profile). It's private by default — uploading a CV never makes it public on its own. Replacing a CV removes the previous file; removing it deletes it entirely.</p>` },
+      <p>You control who can see it: <strong>Private</strong> (only you), <strong>Verified hirers only</strong>, or <strong>Public</strong> (anyone viewing your profile). It's private by default — uploading a CV never makes it public on its own. Replacing a CV removes the previous file; removing it deletes it entirely. This section is entirely optional and never blocks 100% profile completion.</p>` },
     { id: 'gender', group: 'Your Profile', title: 'Gender', html: `
-      <p>Both workers and hirers can optionally set a gender in the <strong>Profile</strong> tab in Settings — male, female, non-binary, prefer not to say, or a self-described option. It's entirely optional and off your public profile by default.</p>
+      <p>Both workers and hirers can optionally set a gender on the <strong>Profile</strong> Overview tab — male, female, non-binary, prefer not to say, or a self-described option. It's entirely optional and off your public profile by default.</p>
       <p>A separate <strong>"Show gender on my public profile"</strong> toggle controls whether it's ever shown to anyone else. Leaving it off means no one but you ever sees it — clearing your gender or leaving the toggle off is always safe.</p>` },
+    { id: 'social-links', group: 'Your Profile', title: 'Social links', html: `
+      <p>Workers can add up to five social links — <strong>Facebook, Instagram, TikTok, YouTube, and Website</strong> — from the <strong>Social Links</strong> tab under <strong>Profile</strong>. Each shows up as a branded, recognizable card rather than a raw URL, and each has its own independent on/off switch that's saved immediately, so you can add a link without it going live, or hide one temporarily without deleting it.</p>
+      <p>Links are checked to make sure they're genuine, safe web addresses — a bare domain like <code>instagram.com/yourhandle</code> is automatically completed to a full <code>https://</code> link. Only links you've switched on ever appear on your public profile, and only for workers — this section doesn't appear on hirer profiles.</p>` },
     { id: 'portfolio-projects', group: 'Your Profile', title: 'Adding portfolio projects', html: `
       <p>On the <a href="portfolio.html">Portfolio</a> page, create a project with a title, description, category, and photos or videos of the actual work. Each project gets its own detail page that clients can open from your profile.</p>` },
     { id: 'uploading-photos', group: 'Your Profile', title: 'Uploading photos', html: `
@@ -258,7 +263,7 @@
     { id: 'reviews-ratings', group: 'Trust, Reviews & Payments', title: 'Reviews and ratings', html: `
       <p>After a contract is marked completed, the hirer can leave a star rating and written review for the worker. Reviews are tied to a real completed contract — you can't review someone you never actually worked with, and each contract can only be reviewed once.</p>` },
     { id: 'verification', group: 'Trust, Reviews & Payments', title: 'Verification', html: `
-      <p>Submit a government ID or similar document from Settings → Profile to request the free <strong>Verified</strong> badge. An admin reviews it manually — this isn't automatic — and will approve, reject, or ask you to resubmit.</p>` },
+      <p>Submit a government ID or similar document from the Profile Overview tab to request the free <strong>Verified</strong> badge. An admin reviews it manually — this isn't automatic — and will approve, reject, or ask you to resubmit.</p>` },
     { id: 'verified-badge', group: 'Trust, Reviews & Payments', title: 'FREE/Verified badge', html: `
       <p>Verified is completely free and doesn't expire once approved. It signals that a real admin has checked your identity documents — it is separate from PRO, which is about visibility, not trust.</p>` },
     { id: 'pro-badge', group: 'Trust, Reviews & Payments', title: 'PRO badge', html: `
@@ -300,15 +305,16 @@
 
     // ---------------- Business Profiles ----------------
     { id: 'business-profiles', group: 'Business Profiles', title: 'Store/business profiles', html: `
-      <p>If you operate from a physical shop or business address, add it under Settings → <strong>Business Profile</strong> — business name, description, address, opening hours, and contact details. This is entirely separate from your personal location, which is never shown publicly. A business profile only appears on your public page once you explicitly turn on "Show my business profile publicly."</p>` },
+      <p>If you operate from a physical shop or business address, add it under the <strong>Business Profile</strong> tab in <strong>Profile</strong> — business name, description, address, opening hours, and contact details. Both workers and hirers can add one, since plenty of hirers are themselves small businesses or companies. This is entirely separate from your personal location, which is never shown publicly. A business profile only appears on your public page once you explicitly turn on "Show my business profile publicly."</p>` },
     { id: 'storefront-images', group: 'Business Profiles', title: 'Storefront images', html: `
-      <p>Add a storefront photo to your business profile so clients recognize your shop before they arrive.</p>` },
+      <p>Add a real photo of your shop, workspace, or business front from the <strong>Business Profile</strong> tab, so clients recognize it before they arrive. It's shown as a wide banner on your business profile card — separate from your profile picture, and never used as a page background.</p>
+      <p>You can replace it at any time (the old photo is discarded once the new one is saved) or remove it entirely, which reverts the card to showing no photo. A business profile must be saved with at least a name before a photo can be attached to it.</p>` },
 
     // ---------------- Location ----------------
     { id: 'location', group: 'Location', title: 'Location', html: `
       <p>Your location is set as State → LGA (Local Government Area) → Area, and shown publicly at that general level — never your exact street address, unless you separately choose to publish one as part of a business profile.</p>` },
-    { id: 'delta-availability', group: 'Location', title: 'Delta State availability', html: `
-      <p>JOB RUSH currently operates only in Delta State. Every Nigerian state appears in the location picker so the app is ready to expand, but choosing anywhere outside Delta State will show a message explaining that it isn't available there yet.</p>` },
+    { id: 'nigeria-availability', group: 'Location', title: 'Where JOB RUSH is available', html: `
+      <p>JOB RUSH operates across Nigeria — every state (and the FCT) appears in the location picker. If the platform administrators ever pause availability in a specific state, choosing it will show a message explaining that it isn't available there for the moment.</p>` },
 
     // ---------------- Privacy & Security ----------------
     { id: 'privacy', group: 'Privacy & Security', title: 'Privacy', html: `
@@ -324,7 +330,7 @@
     { id: 'support', group: 'Settings & Support', title: 'Support', html: `
       <p>Open a support ticket any time from the <a href="support.html">Support</a> page. Describe the issue and category, and our team will respond there.</p>` },
     { id: 'account-settings', group: 'Settings & Support', title: 'Account settings', html: `
-      <p><a href="profile-settings.html">Settings</a> covers your profile, account security, sessions/devices, chat preferences, data export, support, and accessibility — all in one place, organized by tab.</p>` },
+      <p><a href="profile-settings.html?tab=account">Settings</a> covers account security, sessions/devices, chat preferences, data export, support, and accessibility. Profile-building sections (Overview, Business Profile, Social Links, Experience, Education, CV/Resume, Services) live under the separate <a href="profile-settings.html?tab=profile">Profile</a> item in the sidebar.</p>` },
     { id: 'notifications', group: 'Settings & Support', title: 'Notifications', html: `
       <p>See the full breakdown in <a href="#email-sms-push">Email, SMS &amp; Push Notifications</a> below.</p>` },
     { id: 'accessibility', group: 'Settings & Support', title: 'Accessibility', html: `
@@ -362,7 +368,6 @@
         <li>Post reviews for work that never actually happened through the platform</li>
         <li>Message or call someone who has blocked you</li>
         <li>Access another user's private information, payment details, or documents</li>
-        <li>Post or hire outside Delta State (until the platform expands)</li>
         <li>Access admin tools without an authorized admin account</li>
         <li>Share or use another person's account</li>
       </ul>` },
@@ -378,7 +383,7 @@
         <li><strong>Still stuck?</strong> Open a ticket from <a href="support.html">Support</a>.</li>
       </ul>` },
     { id: 'faq', group: 'Rules & Help', title: 'Frequently asked questions', html: `
-      <p><strong>Is Job Rush available outside Delta State?</strong> Not yet — every state can be selected, but only Delta State is currently active.</p>
+      <p><strong>Where is Job Rush available?</strong> Nationwide — every Nigerian state and the FCT can be selected. If a specific location isn't active, the platform administrators have paused it there for the moment.</p>
       <p><strong>Do I have to pay to use Job Rush?</strong> No — creating a profile, applying, messaging, and calling are all free. PRO and payment-processing fees are the only paid parts.</p>
       <p><strong>Can I be both a worker and a hirer?</strong> Yes, one account covers both roles.</p>
       <p><strong>Why can't I see typing indicators or "online" status?</strong> That needs a real-time connection the app doesn't have yet — see <a href="#messaging">Messaging</a>.</p>` },
