@@ -206,6 +206,25 @@ html[data-chat-theme="dark"] .badge-neutral { background: rgba(241, 245, 249, 0.
   html[data-chat-theme="system"] .badge-neutral { background: rgba(241, 245, 249, 0.1); }
 }
 
+/* ---------- Working days/hours picker (Profile > Overview) ----------
+   Structured day-selection instead of free text, per the "user
+   chooses data, doesn't invent a format" rule. */
+.working-days-quick-picks { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.working-days-grid { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.working-day-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  user-select: none;
+}
+.working-day-chip:has(input:checked) { border-color: var(--accent); background: var(--bg-elevated); font-weight: 600; }
+
 /* ---------- Chat wallpaper picker (Settings > Chat) ---------- */
 .wallpaper-grid {
   display: grid;

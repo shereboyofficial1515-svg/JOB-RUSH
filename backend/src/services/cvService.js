@@ -18,14 +18,24 @@ async function getRow(workerUserId) {
   return rows[0] || null;
 }
 
-/** The owner always sees their own CV in full, regardless of its visibility setting, with a signed link if it's an uploaded file. */
+/**
+ * The owner always sees their own CV in full, regardless of its
+ * visibility setting. `signedUrl` opens the document inline (View);
+ * `downloadUrl` is a SEPARATE signed URL forcing an actual download
+ * with the real filename (Download) — two distinct actions, not one
+ * link doing double duty.
+ */
 async function getOwn(workerUserId) {
   const row = await getRow(workerUserId);
   if (!row) return null;
-  const signedUrl = row.cv_type === 'uploaded_file' && row.storage_path
-    ? await storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300)
-    : null;
-  return { ...row, signedUrl };
+  const isFile = row.cv_type === 'uploaded_file' && row.storage_path;
+  const [signedUrl, downloadUrl] = isFile
+    ? await Promise.all([
+      storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300),
+      storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300, row.file_name || 'cv'),
+    ])
+    : [null, null];
+  return { ...row, signedUrl, downloadUrl };
 }
 
 /**
@@ -59,9 +69,13 @@ async function getForViewer(workerUserId, viewerUser) {
     if (!allowed) return null;
   }
 
-  const signedUrl = row.cv_type === 'uploaded_file' && row.storage_path
-    ? await storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300)
-    : null;
+  const isFile = row.cv_type === 'uploaded_file' && row.storage_path;
+  const [signedUrl, downloadUrl] = isFile
+    ? await Promise.all([
+      storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300),
+      storageService.getSignedUrl('CV_DOCUMENTS', row.storage_path, 300, row.file_name || 'cv'),
+    ])
+    : [null, null];
   return {
     cvType: row.cv_type,
     fileName: row.file_name,
@@ -70,6 +84,7 @@ async function getForViewer(workerUserId, viewerUser) {
     updatedAt: row.updated_at,
     visibility: row.visibility,
     signedUrl,
+    downloadUrl,
   };
 }
 

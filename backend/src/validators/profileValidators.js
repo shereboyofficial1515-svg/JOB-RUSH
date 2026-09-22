@@ -2,6 +2,10 @@ const { z } = require('zod');
 
 const uuid = z.string().uuid();
 
+const WEEKDAY_IDS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+// 24-hour HH:MM, matching the value a native <input type="time"> sends.
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a valid 24-hour time (HH:MM).');
+
 // Shared across worker/hirer — gender is optional and, when set to
 // 'custom', requires the self-described value; any other value must
 // NOT carry one (enforced in the controller, which nulls it out —
@@ -27,12 +31,24 @@ const updateWorkerProfileSchema = z.object({
   skillIds: z.array(uuid).max(30).optional(),
   startingPrice: z.number().nonnegative().max(100000000).optional(),
   priceCurrency: z.enum(['NGN', 'USD']).optional(),
-  workingDays: z.string().trim().max(100).optional(),
-  workingHours: z.string().trim().max(100).optional(),
+  workingDaysStructured: z.array(z.enum(WEEKDAY_IDS)).max(7).optional(),
+  workingHoursStart: timeSchema.nullable().optional(),
+  workingHoursEnd: timeSchema.nullable().optional(),
+  workingHoursEndsNextDay: z.boolean().optional(),
   gender: genderSchema,
   genderCustom: genderCustomSchema,
   genderVisibility: visibilitySchema,
-});
+}).refine(
+  (body) => (body.workingHoursStart == null) === (body.workingHoursEnd == null),
+  { message: 'Both a start time and an end time are required.', path: ['workingHoursEnd'] }
+).refine(
+  (body) => {
+    if (!body.workingHoursStart || !body.workingHoursEnd) return true;
+    if (body.workingHoursEndsNextDay) return true; // any end time is valid once it's explicitly next-day
+    return body.workingHoursEnd > body.workingHoursStart;
+  },
+  { message: 'End time must be after start time. Check "Ends next day" for an overnight schedule.', path: ['workingHoursEnd'] }
+);
 
 const updateHirerProfileSchema = z.object({
   displayName: z.string().trim().max(150).optional(),
@@ -212,8 +228,10 @@ function toSnakeCaseProfileInput(body) {
     skillIds: 'skillIds', // handled specially in profileService, not a column
     startingPrice: 'starting_price',
     priceCurrency: 'price_currency',
-    workingDays: 'working_days',
-    workingHours: 'working_hours',
+    workingDaysStructured: 'working_days_structured',
+    workingHoursStart: 'working_hours_start',
+    workingHoursEnd: 'working_hours_end',
+    workingHoursEndsNextDay: 'working_hours_ends_next_day',
     displayName: 'display_name',
     isCompany: 'is_company',
     jobTitle: 'job_title',
