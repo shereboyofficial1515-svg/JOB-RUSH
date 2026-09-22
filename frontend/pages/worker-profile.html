@@ -47,6 +47,9 @@
   <script src="../js/modules/auth.js"></script>
   <script src="../js/utils/icons.js"></script>
   <script src="../js/utils/upload.js"></script>
+  <script src="../js/utils/scheduleFormat.js"></script>
+  <script src="../js/utils/fileFormat.js"></script>
+  <script src="../js/utils/cvViewer.js"></script>
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
@@ -96,7 +99,7 @@
               ${profile.completed_jobs_count ? `<span class="wp-info-item">${Icons.briefcase} ${profile.completed_jobs_count} jobs completed</span>` : ''}
             </div>
             ${price ? `<div class="wp-price" style="margin-top: var(--space-3);">${price} <span class="text-secondary text-sm" style="font-weight:400;">starting</span></div>` : ''}
-            ${(profile.working_days || profile.working_hours) ? `<div class="wp-info-item text-secondary text-sm" style="margin-top: var(--space-1);">${Icons.clock} ${[profile.working_days, profile.working_hours].filter(Boolean).join(' · ')}</div>` : ''}
+            ${ScheduleFormat.scheduleLine(profile) ? `<div class="wp-info-item text-secondary text-sm" style="margin-top: var(--space-1);">${Icons.clock} ${esc(ScheduleFormat.scheduleLine(profile))}</div>` : ''}
             <div class="wp-actions wp-header-actions-desktop-only" id="profile-actions">
               ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
                 <button class="btn btn-primary" id="contact-btn">${Icons.message} Message</button>
@@ -160,19 +163,6 @@
       </div>`;
     }
 
-    function formatFileSize(bytes) {
-      if (!bytes) return null;
-      const mb = bytes / (1024 * 1024);
-      return mb >= 0.1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
-    }
-
-    const MIME_LABELS = {
-      'application/pdf': 'PDF',
-      'application/msword': 'DOC',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
-      'image/jpeg': 'JPG', 'image/png': 'PNG', 'image/webp': 'WEBP',
-    };
-
     // The API already returns `cv: null` for a private CV or one that
     // doesn't exist (see cvService.getForViewer) — this section simply
     // doesn't render rather than a visitor ever seeing "CV is private."
@@ -180,24 +170,34 @@
       if (!cv) return '';
       const isFile = cv.cvType === 'uploaded_file' && cv.signedUrl;
       const metaParts = isFile
-        ? [MIME_LABELS[cv.mimeType] || null, formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${new Date(cv.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}` : null].filter(Boolean)
+        ? [FileFormat.mimeLabel(cv.mimeType), FileFormat.formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${new Date(cv.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}` : null].filter(Boolean)
         : [];
       return `
       <div class="wp-section">
         <div class="wp-section-header">${Icons.document}<h2>Resume / CV</h2></div>
         <div class="wp-cv-card">
-          <span class="wp-cv-icon">${Icons.document}</span>
-          <div>
-            <div class="wp-cv-title">${isFile ? 'Professional Resume' : 'Job Rush CV'}</div>
-            <div class="wp-cv-meta">${isFile ? metaParts.join(' • ') : 'Profile-based resume'}</div>
+          <div class="wp-cv-info-row">
+            <span class="wp-cv-icon">${Icons.document}</span>
+            <div>
+              <div class="wp-cv-title">${isFile ? 'Professional Resume' : 'Job Rush CV'}</div>
+              <div class="wp-cv-meta">${isFile ? metaParts.join(' • ') : 'Profile-based resume'}</div>
+            </div>
           </div>
           <div class="wp-cv-actions">
             ${isFile
-              ? `<a class="btn btn-secondary btn-sm" href="${cv.signedUrl}" target="_blank" rel="noopener">View CV</a><a class="btn btn-ghost btn-sm" href="${cv.signedUrl}" download>Download</a>`
+              ? `<button type="button" class="btn btn-secondary btn-sm" id="cv-view-btn">View CV</button><a class="btn btn-ghost btn-sm" href="${cv.downloadUrl}" download="${esc(cv.fileName || 'cv')}">Download</a>`
               : `<span class="text-secondary text-sm">See Experience, Education &amp; Portfolio above</span>`}
           </div>
         </div>
       </div>`;
+    }
+
+    function wireCvViewer(cv) {
+      const btn = document.getElementById('cv-view-btn');
+      if (!btn || !cv) return;
+      btn.addEventListener('click', () => {
+        CvViewer.open({ mimeType: cv.mimeType, viewUrl: cv.signedUrl, downloadUrl: cv.downloadUrl, fileName: cv.fileName });
+      });
     }
 
     function skillsHtml(skills) {
@@ -640,6 +640,7 @@
 
         wireActions(profile, user);
         wireAboutToggle();
+        wireCvViewer(cvResult.cv);
         if (isOwner) wireCoverUpload(profile);
       } catch (err) {
         content.innerHTML = `

@@ -52,6 +52,9 @@
   <script src="../js/utils/avatarBadge.js"></script>
   <script src="../js/utils/upload.js"></script>
   <script src="../js/utils/icons.js"></script>
+  <script src="../js/utils/scheduleFormat.js"></script>
+  <script src="../js/utils/fileFormat.js"></script>
+  <script src="../js/utils/cvViewer.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
@@ -280,6 +283,118 @@
       };
     }
 
+    // ============================================================
+    // Working days / working hours — structured, not free text.
+    // Users pick days and times; Job Rush controls the display
+    // format (see ScheduleFormat), so nobody types "Mon-Fri" or
+    // "8am-6am" and gets an inconsistent or ambiguous result.
+    // ============================================================
+    function workingScheduleFieldsHtml(profile) {
+      const selectedDays = profile.working_days_structured || [];
+      const hasLegacyOnly = !selectedDays.length && (profile.working_days || profile.working_hours);
+      return `
+      <div class="field">
+        <label>Working days</label>
+        ${hasLegacyOnly ? `<div class="field-hint" style="margin-bottom: var(--space-2);">Previously set as "${esc([profile.working_days, profile.working_hours].filter(Boolean).join(', '))}" — pick your days and hours below to replace it with a structured schedule.</div>` : ''}
+        <div class="working-days-quick-picks">
+          <button type="button" class="btn btn-sm btn-ghost" data-days-preset="weekdays">Weekdays</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-days-preset="weekends">Weekends</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-days-preset="every_day">Every day</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-days-preset="clear">Clear</button>
+        </div>
+        <div class="working-days-grid" id="working-days-grid">
+          ${ScheduleFormat.DAY_ORDER.map((d) => `
+            <label class="working-day-chip">
+              <input type="checkbox" name="workingDay" value="${d}" style="width:auto;" ${selectedDays.includes(d) ? 'checked' : ''} />
+              ${ScheduleFormat.DAY_LABEL[d]}
+            </label>`).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>Working hours</label>
+        <div class="settings-field-grid cols-2">
+          <div class="field">
+            <label for="workingHoursStart" class="text-sm text-secondary">Start time</label>
+            <input type="time" id="workingHoursStart" name="workingHoursStart" value="${esc(profile.working_hours_start ? profile.working_hours_start.slice(0, 5) : '')}" />
+          </div>
+          <div class="field">
+            <label for="workingHoursEnd" class="text-sm text-secondary">End time</label>
+            <input type="time" id="workingHoursEnd" name="workingHoursEnd" value="${esc(profile.working_hours_end ? profile.working_hours_end.slice(0, 5) : '')}" />
+          </div>
+        </div>
+        <label style="display:flex; align-items:center; gap: var(--space-2); margin-top: var(--space-2);">
+          <input type="checkbox" id="workingHoursEndsNextDay" name="workingHoursEndsNextDay" style="width:auto;" ${profile.working_hours_ends_next_day ? 'checked' : ''} />
+          Ends next day (overnight schedule)
+        </label>
+        <div class="field-error" id="working-hours-error" hidden></div>
+        <div class="field-hint" id="working-schedule-preview" style="margin-top: var(--space-2);"></div>
+      </div>
+    `;
+    }
+
+    function wireWorkingScheduleFields(form) {
+      const grid = form.querySelector('#working-days-grid');
+      const dayInputs = () => Array.from(form.querySelectorAll('input[name="workingDay"]'));
+      const startInput = form.querySelector('#workingHoursStart');
+      const endInput = form.querySelector('#workingHoursEnd');
+      const nextDayInput = form.querySelector('#workingHoursEndsNextDay');
+      const preview = form.querySelector('#working-schedule-preview');
+      const error = form.querySelector('#working-hours-error');
+
+      function updatePreview() {
+        const days = dayInputs().filter((i) => i.checked).map((i) => i.value);
+        const daysLabel = ScheduleFormat.formatWorkingDays(days);
+        const hoursLabel = startInput.value && endInput.value
+          ? ScheduleFormat.formatWorkingHours(startInput.value, endInput.value, nextDayInput.checked)
+          : null;
+
+        if (startInput.value && endInput.value && !nextDayInput.checked && endInput.value <= startInput.value) {
+          error.textContent = 'End time must be after start time. Check "Ends next day" for an overnight schedule.';
+          error.hidden = false;
+        } else {
+          error.hidden = true;
+        }
+
+        preview.textContent = [daysLabel, hoursLabel].filter(Boolean).join(' · ') || 'No schedule set yet.';
+      }
+
+      form.querySelectorAll('[data-days-preset]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const preset = btn.dataset.daysPreset;
+          const target = preset === 'weekdays' ? ScheduleFormat.WEEKDAYS
+            : preset === 'weekends' ? ScheduleFormat.WEEKEND
+              : preset === 'every_day' ? ScheduleFormat.DAY_ORDER
+                : [];
+          dayInputs().forEach((i) => { i.checked = target.includes(i.value); });
+          updatePreview();
+        });
+      });
+
+      grid.addEventListener('change', updatePreview);
+      startInput.addEventListener('change', updatePreview);
+      endInput.addEventListener('change', updatePreview);
+      nextDayInput.addEventListener('change', updatePreview);
+      updatePreview();
+    }
+
+    function collectWorkingScheduleFields(form) {
+      const days = Array.from(form.querySelectorAll('input[name="workingDay"]')).filter((i) => i.checked).map((i) => i.value);
+      const start = form.workingHoursStart.value || null;
+      const end = form.workingHoursEnd.value || null;
+      if ((start && !end) || (!start && end)) {
+        throw new Error('Set both a start time and an end time for your working hours, or leave both empty.');
+      }
+      if (start && end && !form.workingHoursEndsNextDay.checked && end <= start) {
+        throw new Error('End time must be after start time. Check "Ends next day" for an overnight schedule.');
+      }
+      return {
+        workingDaysStructured: days,
+        workingHoursStart: start,
+        workingHoursEnd: end,
+        workingHoursEndsNextDay: form.workingHoursEndsNextDay.checked,
+      };
+    }
+
     function workerFormHtml(profile) {
       const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(profile.verification_status);
       return `
@@ -337,16 +452,7 @@
             <option value="unavailable" ${profile.availability_status === 'unavailable' ? 'selected' : ''}>Unavailable</option>
           </select>
         </div>
-        <div class="settings-field-grid cols-2">
-          <div class="field">
-            <label for="workingDays">Working days</label>
-            <input type="text" id="workingDays" name="workingDays" value="${esc(profile.working_days || '')}" placeholder="e.g. Mon–Fri" />
-          </div>
-          <div class="field">
-            <label for="workingHours">Working hours</label>
-            <input type="text" id="workingHours" name="workingHours" value="${esc(profile.working_hours || '')}" placeholder="e.g. 8am–6pm" />
-          </div>
-        </div>
+        ${workingScheduleFieldsHtml(profile)}
         <div class="settings-field-grid cols-2">
           <div class="field">
             <label for="startingPrice">Starting price</label>
@@ -612,6 +718,7 @@
       const form = document.getElementById('profile-form');
       wireProfilePictureUpload();
       wireGenderFields(form);
+      wireWorkingScheduleFields(form);
       populateLocationSelects(form, profile);
 
       form.addEventListener('submit', async (e) => {
@@ -621,13 +728,19 @@
         FormHelpers.setLoading(submitBtn, true);
         try {
           const skillIds = Array.from(form.querySelectorAll('input[name="skillIds"]:checked')).map((el) => el.value);
+          let scheduleFields;
+          try {
+            scheduleFields = collectWorkingScheduleFields(form);
+          } catch (scheduleErr) {
+            Toast.error(scheduleErr.message);
+            return;
+          }
           await API.patch('/profiles/worker/me', {
             professionalTitle: form.professionalTitle.value.trim() || undefined,
             bio: form.bio.value.trim() || undefined,
             experienceYears: form.experienceYears.value ? Number(form.experienceYears.value) : undefined,
             availabilityStatus: form.availabilityStatus.value,
-            workingDays: form.workingDays.value.trim() || undefined,
-            workingHours: form.workingHours.value.trim() || undefined,
+            ...scheduleFields,
             startingPrice: form.startingPrice.value ? Number(form.startingPrice.value) : undefined,
             priceCurrency: form.priceCurrency.value,
             stateId: form.stateId.value || undefined,
@@ -975,23 +1088,26 @@
       if (!cv) {
         return `<p class="text-secondary text-sm">No CV added yet. Upload a file or build one from your profile below.</p>`;
       }
-      const label = cv.cv_type === 'built'
-        ? 'Built from your Job Rush profile'
-        : (cv.file_name || 'Uploaded CV');
+      const isFile = cv.cv_type === 'uploaded_file' && cv.signedUrl;
+      const title = isFile ? (cv.file_name || 'Uploaded CV') : 'Job Rush CV';
+      const metaParts = isFile
+        ? [FileFormat.mimeLabel(cv.mime_type), FileFormat.formatFileSize(cv.file_size), cv.updated_at ? `Updated ${new Date(cv.updated_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}` : null].filter(Boolean)
+        : ['Profile-based resume'];
       return `
-      <div class="card" style="margin-bottom: var(--space-5);">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-3);">
+      <div class="wp-cv-card" style="margin-bottom: var(--space-5);">
+        <div class="wp-cv-info-row">
+          <span class="wp-cv-icon">${Icons.document}</span>
           <div>
-            <strong>${esc(label)}</strong>
-            <div class="text-secondary text-sm" style="margin-top: 2px;">${cvVisibilityLabel(cv.visibility)}</div>
-          </div>
-          <div style="display:flex; gap: var(--space-2); flex-wrap:wrap;">
-            ${cv.cv_type === 'uploaded_file' && cv.signedUrl ? `<a class="btn btn-sm btn-secondary" href="${cv.signedUrl}" target="_blank" rel="noopener">View / Download</a>` : ''}
-            ${cv.cv_type === 'built' ? `<a class="btn btn-sm btn-secondary" href="worker-profile.html?id=${currentUser.id}" target="_blank" rel="noopener">Preview</a>` : ''}
-            <button type="button" class="btn btn-sm btn-ghost" id="cv-remove-btn">Remove</button>
+            <div class="wp-cv-title">${esc(title)}</div>
+            <div class="wp-cv-meta">${metaParts.join(' • ')} · ${cvVisibilityLabel(cv.visibility)}</div>
           </div>
         </div>
-        <div class="field" style="margin-top: var(--space-4); margin-bottom: 0;">
+        <div class="wp-cv-actions">
+          ${isFile ? `<button type="button" class="btn btn-sm btn-secondary" id="cv-view-btn">View CV</button><a class="btn btn-sm btn-ghost" href="${cv.downloadUrl}" download="${esc(cv.file_name || 'cv')}">Download</a>` : ''}
+          ${cv.cv_type === 'built' ? `<a class="btn btn-sm btn-secondary" href="worker-profile.html?id=${currentUser.id}" target="_blank" rel="noopener">Preview</a>` : ''}
+          <button type="button" class="btn btn-sm btn-ghost" id="cv-remove-btn">Remove</button>
+        </div>
+        <div class="field" style="margin-bottom: 0;">
           <label for="cv-visibility-select">Who can see your CV</label>
           <select id="cv-visibility-select">
             <option value="private" ${cv.visibility === 'private' ? 'selected' : ''}>Private — only you</option>
@@ -1023,6 +1139,12 @@
       }
 
       function wireSummaryActions(cv) {
+        const viewBtn = document.getElementById('cv-view-btn');
+        if (viewBtn) {
+          viewBtn.addEventListener('click', () => {
+            CvViewer.open({ mimeType: cv.mime_type, viewUrl: cv.signedUrl, downloadUrl: cv.downloadUrl, fileName: cv.file_name });
+          });
+        }
         const removeBtn = document.getElementById('cv-remove-btn');
         if (removeBtn) {
           removeBtn.addEventListener('click', async () => {

@@ -18,59 +18,74 @@
   <div id="header-mount"></div>
 
   <main id="main">
-    <section class="pro-hero container">
-      <span class="badge badge-pro">JOB RUSH PRO</span>
-      <h1>Get discovered faster. Showcase your work. Reach more customers.</h1>
-      <p class="lede">₦4,000/month. Cancel anytime — you keep PRO until the period you already paid for ends.</p>
-      <button class="btn btn-premium" id="subscribe-btn">Subscribe to PRO</button>
-      <p class="text-xs text-secondary" style="margin-top: var(--space-4);">PRO improves visibility and unlocks premium
-        features. It does not guarantee jobs, customers, employment, or income.</p>
-    </section>
+    <div id="pro-hero-mount"></div>
 
     <section class="container pro-benefits">
       <div class="card">
+        <div class="pro-benefit-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 15 9l7 1-5 5 1.3 7-6.3-3.5L5.7 22 7 15l-5-5 7-1 3-6.5Z"/></svg></div>
         <h3>Priority discovery</h3>
-        <p class="text-secondary text-sm">Increased visibility in relevant searches — without burying more relevant,
-          non-PRO professionals.</p>
+        <p class="text-secondary text-sm">PRO members appear higher in Find Talent search results — without burying more relevant, non-PRO professionals ahead of a better match.</p>
       </div>
       <div class="card">
-        <h3>Featured placement</h3>
-        <p class="text-secondary text-sm">Appear in Featured Professionals, Recommended, and Popular Near You sections.
-        </p>
+        <h3>PRO badge</h3>
+        <p class="text-secondary text-sm">A gold PRO badge shows next to your name on your profile and in search results, signalling you're an active, paying professional on Job Rush.</p>
       </div>
       <div class="card">
-        <h3>Advanced analytics</h3>
-        <p class="text-secondary text-sm">Profile views, search appearances, enquiries, and applications — tracked over
-          time.</p>
-      </div>
-      <div class="card">
-        <h3>Featured portfolio</h3>
-        <p class="text-secondary text-sm">Pin your best work to the top of your profile so it's the first thing hirers
-          see.</p>
-      </div>
-      <div class="card">
-        <h3>Profile customization</h3>
-        <p class="text-secondary text-sm">Highlight a professional headline, a featured certification, and a featured
-          review.</p>
-      </div>
-      <div class="card">
-        <h3>Subscription management</h3>
-        <p class="text-secondary text-sm">See billing history, renewal date, and cancel or restore anytime from your
-          dashboard.</p>
+        <h3>Manage anytime</h3>
+        <p class="text-secondary text-sm">See your billing history and cancel your subscription any time, right from this page — no need to contact support.</p>
       </div>
     </section>
+
+    <section class="container pro-preview-section">
+      <h2>Your profile with PRO</h2>
+      <p class="pro-preview-sub">An example of how the PRO badge and priority placement appear on a profile. This is a sample preview, not real account data.</p>
+      <div class="pro-preview-card">
+        <span class="pro-preview-label">Example PRO profile</span>
+        <div class="pro-preview-header">
+          <img src="../assets/images/profile-placeholder.svg" alt="" width="56" height="56" style="border-radius:50%; object-fit:cover; border: 2px solid var(--border-gold);" />
+          <div>
+            <div class="pro-preview-name">Blessing A.</div>
+            <div class="pro-preview-title">Software Developer</div>
+          </div>
+        </div>
+        <div class="pro-preview-badges">
+          <span class="badge badge-verified">Verified</span>
+          <span class="badge badge-pro">PRO</span>
+          <span class="badge badge-neutral">Available</span>
+        </div>
+        <div class="pro-preview-meta">
+          <span>Warri, Delta State</span>
+          <span class="text-gold">★★★★★ <span class="text-secondary">(32 reviews)</span></span>
+        </div>
+        <div class="pro-preview-services-title">Services &amp; Talents</div>
+        <div class="pro-preview-service-row">
+          <span>Web Development</span>
+          <span class="pro-preview-service-price">from ₦50,000</span>
+        </div>
+        <div class="pro-preview-service-row">
+          <span>UI/UX Design</span>
+          <span class="pro-preview-service-price">from ₦30,000</span>
+        </div>
+        <button type="button" class="btn btn-primary" disabled>Hire</button>
+      </div>
+      <p class="pro-preview-fineprint">The Verified badge is earned separately through admin review — PRO does not verify you automatically.</p>
+    </section>
+
+    <div id="pro-manage-mount"></div>
 
     <section class="container pro-faq">
       <h2>A few things to know</h2>
       <div class="card">
         <h4>Does PRO replace the Verified badge?</h4>
-        <p class="text-secondary text-sm">No. Verified is free and requires admin approval of your identity. PRO is a
-          paid visibility subscription. You can have neither, either, or both.</p>
+        <p class="text-secondary text-sm">No. Verified is free and requires admin approval of your identity documents. PRO is a paid visibility subscription. You can have neither, either, or both — they're independent.</p>
       </div>
       <div class="card">
         <h4>Will PRO guarantee me jobs?</h4>
-        <p class="text-secondary text-sm">No. PRO improves your visibility in relevant searches — it does not override
-          relevance, ratings, or your profile completeness.</p>
+        <p class="text-secondary text-sm">No. PRO improves your visibility in relevant searches — it does not override relevance, ratings, or your profile completeness, and it doesn't guarantee jobs, customers, or income.</p>
+      </div>
+      <div class="card">
+        <h4>Can I cancel anytime?</h4>
+        <p class="text-secondary text-sm">Yes. Cancelling stops future renewals — you keep PRO for the rest of the period you've already paid for, then it won't auto-renew.</p>
       </div>
     </section>
   </main>
@@ -84,27 +99,123 @@
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
   <script src="../js/utils/animate.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/icons.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script>
+    function heroHtml(user, subscription) {
+      const isActivePro = subscription && subscription.status === 'active';
+      if (isActivePro) {
+        return `
+        <section class="pro-hero container">
+          <span class="badge badge-pro">JOB RUSH PRO</span>
+          <h1>You're a JOB RUSH PRO member.</h1>
+          <p class="lede">Your profile gets priority placement and the PRO badge for as long as your subscription is active.</p>
+        </section>`;
+      }
+      return `
+      <section class="pro-hero container">
+        <span class="badge badge-pro">JOB RUSH PRO</span>
+        <h1>Get discovered faster. Showcase your work. Reach more customers.</h1>
+        <p class="lede">₦4,000/month. Cancel anytime — you keep PRO until the period you already paid for ends.</p>
+        <button class="btn btn-premium" id="subscribe-btn">Subscribe to PRO</button>
+        <p class="text-xs text-secondary" style="margin-top: var(--space-4);">PRO improves visibility and unlocks premium
+          features. It does not guarantee jobs, customers, employment, or income.</p>
+      </section>`;
+    }
+
+    function statusLabel(subscription) {
+      return { active: 'Active', cancelled: 'Cancelled', expired: 'Expired', suspended: 'Suspended' }[subscription.status] || subscription.status;
+    }
+
+    function manageSectionHtml(subscription, payments) {
+      if (!subscription) return '';
+      const willRenew = subscription.status === 'active' && subscription.auto_renew && !subscription.cancelled_at;
+      return `
+      <section class="container pro-manage-card">
+        <div class="card">
+          <h3>Manage your subscription</h3>
+          <div class="pro-manage-row">
+            <span class="text-secondary">Status</span>
+            <strong>${esc(statusLabel(subscription))}</strong>
+          </div>
+          ${subscription.expiry_date ? `
+          <div class="pro-manage-row">
+            <span class="text-secondary">${willRenew ? 'Renews on' : 'PRO access until'}</span>
+            <strong>${new Date(subscription.expiry_date).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</strong>
+          </div>` : ''}
+          ${willRenew ? `<button type="button" class="btn btn-ghost btn-sm" id="cancel-sub-btn" style="margin-top: var(--space-3);">Cancel subscription</button>` : ''}
+          ${subscription.cancelled_at ? `<p class="text-secondary text-sm" style="margin-top: var(--space-3);">Cancelled — will not renew.</p>` : ''}
+
+          <div class="pro-billing-history">
+            <h4 style="margin-bottom: var(--space-2);">Billing history</h4>
+            ${payments.length === 0
+          ? `<p class="text-secondary text-sm">No payments yet.</p>`
+          : payments.map((p) => `
+              <div class="pro-billing-row">
+                <span>${new Date(p.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                <span>${p.currency === 'USD' ? '$' : '₦'}${Number(p.amount).toLocaleString()}</span>
+                <span class="text-secondary" style="text-transform:capitalize;">${esc(p.status)}</span>
+              </div>`).join('')}
+          </div>
+        </div>
+      </section>`;
+    }
+
     (async function init() {
       const user = await Auth.getCurrentUser();
       Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'pro', user });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
-      document.getElementById('subscribe-btn').addEventListener('click', async () => {
-        if (!user) { window.location.href = `login.html?returnTo=${encodeURIComponent(window.location.pathname)}`; return; }
-        if (user.role === 'hirer') { Toast.error('PRO is a worker subscription. Switch to a worker account to subscribe.'); return; }
-
+      let subscription = null;
+      let payments = [];
+      if (user && user.role !== 'hirer') {
         try {
-          const result = await API.post('/subscriptions', { callbackUrl: `${window.location.origin}/pages/dashboard.html?subscribed=1` });
-          window.location.href = result.authorizationUrl;
-        } catch (err) {
-          Toast.error(err.message);
+          ({ subscription } = await API.get('/subscriptions/me'));
+          if (subscription) {
+            ({ payments } = await API.get('/subscriptions/me/payments'));
+          }
+        } catch {
+          // Not fatal -- the page still works as a plain subscribe page.
         }
-      });
+      }
+
+      document.getElementById('pro-hero-mount').innerHTML = heroHtml(user, subscription);
+      document.getElementById('pro-manage-mount').innerHTML = manageSectionHtml(subscription, payments);
+
+      const subscribeBtn = document.getElementById('subscribe-btn');
+      if (subscribeBtn) {
+        subscribeBtn.addEventListener('click', async () => {
+          if (!user) { window.location.href = `login.html?returnTo=${encodeURIComponent(window.location.pathname)}`; return; }
+          if (user.role === 'hirer') { Toast.error('PRO is a worker subscription. Switch to a worker account to subscribe.'); return; }
+
+          try {
+            const result = await API.post('/subscriptions', { callbackUrl: `${window.location.origin}/pages/dashboard.html?subscribed=1` });
+            window.location.href = result.authorizationUrl;
+          } catch (err) {
+            Toast.error(err.message);
+          }
+        });
+      }
+
+      const cancelBtn = document.getElementById('cancel-sub-btn');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', async () => {
+          if (!confirm('Cancel your JOB RUSH PRO subscription? You\'ll keep PRO until the period you already paid for ends, then it won\'t renew.')) return;
+          FormHelpers.setLoading(cancelBtn, true);
+          try {
+            await API.post('/subscriptions/me/cancel');
+            Toast.success('Subscription cancelled. You\'ll keep PRO until it expires.');
+            window.location.reload();
+          } catch (err) {
+            Toast.error(err.message);
+            FormHelpers.setLoading(cancelBtn, false);
+          }
+        });
+      }
     })();
   </script>
 </body>

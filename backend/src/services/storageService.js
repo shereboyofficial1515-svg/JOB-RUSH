@@ -314,16 +314,23 @@ async function uploadDisputeEvidence(userId, file, mediaCategory) {
  * Issues a short-lived signed URL for a private object. Callers MUST
  * have already authorized the request (e.g. requireAdmin) before
  * calling this — this function itself does not check who is asking.
+ *
+ * `downloadFilename` forces Content-Disposition: attachment with that
+ * filename (Supabase Storage's own `download` option) — omit it for a
+ * plain inline URL a browser renders directly (a PDF/image opens in
+ * place rather than downloading). VIEW and DOWNLOAD must always use
+ * two separately-generated URLs, never the same one repurposed.
  */
-async function getSignedUrl(bucketKey, storagePath, expiresInSeconds = 300) {
+async function getSignedUrl(bucketKey, storagePath, expiresInSeconds = 300, downloadFilename = undefined) {
   const bucket = BUCKETS[bucketKey];
   if (!bucket || bucket.public) {
     throw new AppError('Signed URLs are only for private buckets.', 400, 'INVALID_BUCKET');
   }
   const supabase = getSupabaseClient();
+  const options = downloadFilename ? { download: downloadFilename } : undefined;
   const { data, error } = await supabase.storage
     .from(bucket.name)
-    .createSignedUrl(storagePath, expiresInSeconds);
+    .createSignedUrl(storagePath, expiresInSeconds, options);
 
   if (error || !data) {
     throw new AppError('Could not generate access link for this file.', 502, 'SIGNED_URL_FAILED');

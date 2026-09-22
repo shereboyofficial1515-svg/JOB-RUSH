@@ -1128,6 +1128,74 @@
    padding still keeps it safe on small screens regardless. */
 .referral-intro-modal { max-width: 560px; }
 
+/* ---------- CV / résumé card ----------
+   Shared by the public worker profile and the owner's Settings > CV
+   tab. Two stacked rows (info, then actions) rather than one wide
+   flex row with `margin-left: auto` on the actions -- that
+   combination let the actions detach and "float" to the right edge
+   on their own line the moment the row wrapped (long filename,
+   narrow viewport), instead of sitting below the info like an
+   ordinary card footer. */
+.wp-cv-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+.wp-cv-info-row { display: flex; align-items: center; gap: var(--space-4); }
+.wp-cv-icon {
+  width: 44px; height: 44px; border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-text);
+  flex-shrink: 0;
+}
+.wp-cv-icon svg { width: 22px; height: 22px; }
+.wp-cv-title { font-weight: 600; }
+.wp-cv-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
+.wp-cv-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* ---------- CV / document viewer modal ----------
+   Reuses .modal/.modal-body as-is (already scroll-capped, Escape-to-
+   close, focus-managed) — just wider, and the iframe/image fills the
+   available body height so a document is actually readable rather
+   than a tiny embedded strip. */
+.modal-cv-viewer { max-width: 760px; width: 95%; }
+.cv-viewer-frame {
+  width: 100%;
+  height: 65vh;
+  min-height: 320px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+.cv-viewer-image-wrap {
+  width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.cv-viewer-image { max-width: 100%; height: auto; display: block; }
+.cv-viewer-unsupported {
+  text-align: center;
+  padding: var(--space-7) var(--space-5);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+}
+.cv-viewer-unsupported svg { width: 40px; height: 40px; color: var(--accent-text); }
+@media (max-width: 560px) {
+  .cv-viewer-frame, .cv-viewer-image-wrap { height: 55vh; }
+}
+
 .onboarding-step p:last-child { margin-bottom: 0; }
 
 .onboarding-dots {
