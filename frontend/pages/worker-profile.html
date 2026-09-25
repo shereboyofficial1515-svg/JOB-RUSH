@@ -551,7 +551,7 @@
         }
       }));
 
-      if (user.role === 'hirer') {
+      if (user.role === 'hirer' || user.role === 'both') {
         hireBtns.forEach((btn) => btn.addEventListener('click', () => openHireModal(profile)));
       } else {
         hireBtns.forEach((btn) => { btn.style.display = 'none'; });

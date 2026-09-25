@@ -70,7 +70,14 @@
     }
 
     function interviewRowHtml(iv) {
-      const isHirer = currentUser.role === 'hirer';
+      // Which side of THIS interview the current account is on --
+      // checked per-record (hirer_user_id/worker_user_id), not by the
+      // account's overall role. A single-role account can only ever
+      // be on one side anyway, so this changes nothing for them; a
+      // 'both'-role account can genuinely be the hirer on one
+      // interview and the worker on another, which `currentUser.role
+      // === 'hirer'` could never distinguish.
+      const isHirer = currentUser.id === iv.hirer_user_id;
       const canRespond = !isHirer && iv.status === 'pending';
       const canJoin = ['scheduled', 'in_progress'].includes(iv.status) && ['video', 'audio'].includes(iv.interview_type);
       const canCancel = ['pending', 'accepted', 'scheduled', 'reschedule_requested'].includes(iv.status);
@@ -259,7 +266,7 @@
       SidebarNav.render(user, 'interviews');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
-      if (user.role === 'hirer') {
+      if (user.role === 'hirer' || user.role === 'both') {
         const scheduleBtn = document.getElementById('schedule-btn');
         scheduleBtn.hidden = false;
         const applicationId = new URLSearchParams(window.location.search).get('scheduleForApplication');
