@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "migrate": "node src/database/runMigrations.js"
+    "migrate": "node src/database/runMigrations.js",
+    "backfill:schedules": "node src/database/backfillStructuredSchedules.js",
+    "test": "node src/utils/legacySchedule.test.js && node src/validators/durationAndHours.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

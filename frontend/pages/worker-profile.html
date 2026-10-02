@@ -306,7 +306,7 @@
 
     function servicesHtml(services) {
       if (!services || services.length === 0) return '';
-      const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
+      const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', weekly: 'Per week', monthly: 'Per month', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
       return `
       <div class="wp-section">
         <div class="wp-section-header">${Icons.briefcase}<h2>Services &amp; Talents</h2></div>
@@ -314,6 +314,7 @@
           ${services.map((s) => {
             const money = s.price !== null ? formatMoney(s.price, s.price_currency) : null;
             const unitLabel = PRICING_LABELS[s.pricing_type] || s.pricing_type;
+            const duration = ScheduleFormat.serviceDuration(s);
             return `
             <div class="wp-service-card">
               <div class="wp-service-top">
@@ -322,7 +323,7 @@
                   ${money ? `<div class="wp-service-price-label">Starting from</div><div class="wp-service-price">${esc(money)}</div><div class="wp-service-price-unit">${esc(unitLabel)}</div>` : `<div class="wp-service-price" style="font-size: var(--text-base);">${esc(unitLabel)}</div>`}
                 </div>
               </div>
-              ${s.duration_estimate ? `<div class="wp-service-duration">${Icons.clock} ${esc(s.duration_estimate)}</div>` : ''}
+              ${duration ? `<div class="wp-service-duration">${Icons.clock}<span class="wp-service-duration-label">${esc(duration.label)}</span><strong>${esc(duration.text)}</strong></div>` : ''}
               ${s.description ? `<p class="wp-service-desc">${esc(s.description)}</p>` : ''}
             </div>`;
           }).join('')}
@@ -347,6 +348,7 @@
         </div>`;
       }
       const location = [business.area_name, business.lga_name, business.state_name, 'Nigeria'].filter(Boolean).join(', ');
+      const hoursRuns = ScheduleFormat.groupBusinessHours(business.opening_hours_structured);
       return `
       <div class="wp-section">
         <div class="wp-section-header">${Icons.business}<h2>Business</h2></div>
@@ -359,8 +361,9 @@
               ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}${business.address ? ` — ${esc(business.address)}` : ''}</span>` : ''}
               ${business.contact_phone ? `<span class="wp-info-item">${Icons.phone} ${esc(business.contact_phone)}</span>` : ''}
               ${business.contact_email ? `<span class="wp-info-item">${Icons.mail} ${esc(business.contact_email)}</span>` : ''}
-              ${business.opening_hours ? `<span class="wp-info-item">${Icons.clock} ${esc(business.opening_hours)}</span>` : ''}
+              ${!hoursRuns.length && business.opening_hours ? `<span class="wp-info-item">${Icons.clock} ${esc(business.opening_hours)}</span>` : ''}
             </div>
+            ${hoursRuns.length ? `<div class="wp-hours"><div class="wp-hours-title">${Icons.clock} Opening hours</div><dl class="wp-hours-list">${hoursRuns.map((r) => `<div><dt>${esc(r.days)}</dt><dd>${esc(r.text)}</dd></div>`).join('')}</dl></div>` : ''}
           </div>
         </div>
       </div>`;

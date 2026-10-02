@@ -1636,7 +1636,10 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 .app-lock {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  /* Above every other layer, including a page's own boot gate (the
+     dashboard's #auth-boot-gate is 9999) — a lock screen that can sit
+     underneath something is not a lock screen. */
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1647,7 +1650,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
   color: var(--text-on-navy);
   text-align: center;
 }
-.app-lock img { width: 72px; height: 72px; }
+.app-lock img { width: 72px; height: 72px; border-radius: 18px; }
 .app-lock h1 { margin: 0; color: var(--text-on-navy); font-size: var(--type-page-title); }
 .app-lock p { max-width: 32ch; margin: 0; color: rgba(255, 255, 255, 0.75); font-size: var(--type-body); }
 .app-lock-unlock {
@@ -1688,3 +1691,28 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 .page-title--with-sub { margin-bottom: var(--space-1); }
 
 .notif-row-icon svg { width: 16px; height: 16px; }
+
+/* ---------- Service editor: amount + unit, and per-day opening hours ---------- */
+.duration-input { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-2); }
+.duration-input input, .duration-input select { min-height: 44px; }
+
+.service-entry-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.service-entry-main { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
+.service-entry-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.hours-editor { border: 0; padding: 0; margin: var(--space-4) 0 0; min-width: 0; }
+.hours-editor legend { font-weight: 600; font-size: var(--text-sm); padding: 0; margin-bottom: var(--space-2); }
+.hours-presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.hours-rows { display: grid; gap: var(--space-2); }
+.hours-row { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--space-2) var(--space-3); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle, var(--border-default, rgba(128,128,128,.2))); }
+.hours-day { font-weight: 500; font-size: var(--text-sm); }
+.hours-row select, .hours-row input[type="time"] { min-height: 44px; min-width: 0; width: 100%; }
+.hours-times { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: var(--space-2); align-items: center; }
+.hours-times[hidden] { display: none; }
+.hours-to { color: var(--text-secondary); font-size: var(--text-sm); }
+.hours-next { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); min-height: 44px; }
+@media (max-width: 360px) {
+  .hours-row { grid-template-columns: 1fr; }
+}
+.hours-presets .btn, .service-entry-actions .btn { min-height: 44px; }
+#service-submit, #service-edit-submit { min-height: 44px; }

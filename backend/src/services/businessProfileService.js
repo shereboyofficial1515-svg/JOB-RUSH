@@ -11,17 +11,36 @@ const EDITABLE_FIELDS = [
   'area_id',
   'address',
   'landmark',
-  'opening_hours',
+  'opening_hours_structured',
   'contact_phone',
   'contact_email',
   'storefront_photo_url',
   'is_enabled',
 ];
 
+/**
+ * Canonical stored shape for one day: closed days carry no times, 24-hour
+ * days carry none either, and unknown keys are dropped.
+ */
+function normalizeOpeningHours(days) {
+  return days.map((d) => {
+    if (!d.open) return { day: d.day, open: false };
+    if (d.is24h) return { day: d.day, open: true, is24h: true };
+    return { day: d.day, open: true, is24h: false, opens: d.opens, closes: d.closes, endsNextDay: !!d.endsNextDay };
+  });
+}
+
 function pickAllowed(input) {
   const out = {};
   for (const field of EDITABLE_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(input, field)) out[field] = input[field];
+  }
+  if (out.opening_hours_structured) {
+    // Stored as JSONB (the driver would otherwise send a JS array as a
+    // Postgres array), and the old free-text value is retired so the profile
+    // never carries two conflicting sets of hours.
+    out.opening_hours_structured = JSON.stringify(normalizeOpeningHours(out.opening_hours_structured));
+    out.opening_hours = null;
   }
   return out;
 }
