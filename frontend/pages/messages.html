@@ -57,6 +57,8 @@
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
@@ -107,6 +109,9 @@
       try {
         const { conversations } = await API.get('/messaging/conversations');
         conversationsById = new Map(conversations.map((c) => [c.id, c]));
+        // Same inbox the badge counts (non-archived chats): keep the
+        // bottom-nav Messages badge in step without another request.
+        SidebarNav.setUnread('messages', conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0));
         if (conversations.length === 0) {
           if (!isBackgroundRefresh) {
             list.innerHTML = `<div class="empty-state" style="padding: var(--space-5);"><p class="text-secondary text-sm">No conversations yet. Message a hirer or worker from their profile or a job application to start one.</p></div>`;
@@ -124,6 +129,7 @@
           item.addEventListener('click', () => openConversation(item.dataset.conversationId));
         });
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         if (!isBackgroundRefresh) list.innerHTML = `<p class="text-secondary" style="padding: var(--space-4);">${err.message}</p>`;
       }
     }
@@ -471,6 +477,15 @@
 
       SidebarNav.render(user, 'messages');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      // Refreshes the conversation list only. Pulling inside an open
+      // chat is already ignored (the thread scrolls on its own), and
+      // while a conversation is open on a phone the list isn't what's
+      // on screen, so don't refresh behind it either.
+      PullToRefresh.init({
+        enabled: () => !document.getElementById('thread-panel').classList.contains('is-open-on-mobile'),
+        onRefresh: () => loadConversations(false),
+      });
 
       await loadConversations();
       listPollTimer = setInterval(() => loadConversations(true), 12000);

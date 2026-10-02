@@ -56,6 +56,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
   <script>
     function formatBudget(job) {
@@ -225,6 +227,7 @@
           });
         });
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -240,6 +243,8 @@
       SidebarNav.render(user, 'my-jobs');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
       document.getElementById('post-job-btn').addEventListener('click', openPostJobModal);
+
+      PullToRefresh.init({ onRefresh: () => loadJobs() });
 
       loadJobs();
     })();

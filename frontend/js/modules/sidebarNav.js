@@ -52,6 +52,100 @@ const SidebarNav = (function () {
   }
 
   /**
+   * Mobile bottom navigation: quick access to the five destinations
+   * used most, shown only below 900px (components.css). It reads href
+   * and active state from the same ITEMS above rather than redefining
+   * routes, so it can't drift from the drawer — the drawer remains the
+   * full menu and still lists all of these too. Notifications has no
+   * drawer entry (desktop reaches it through the bell), so it's the one
+   * item defined here.
+   */
+  const BOTTOM_ITEMS = [
+    { key: 'overview', label: 'Home', icon: 'home' },
+    { key: 'profile', label: 'Profile', icon: 'user' },
+    { key: 'messages', label: 'Messages', icon: 'message', badge: 'messages' },
+    { key: 'notifications', label: 'Alerts', fullLabel: 'Notifications', icon: 'bell', href: 'notifications.html', badge: 'notifications' },
+    { key: 'settings', label: 'Settings', icon: 'settings' },
+  ];
+
+  const unreadCounts = { messages: 0, notifications: 0 };
+
+  function paintBadge(name) {
+    const el = document.querySelector(`.bottom-nav [data-badge="${name}"]`);
+    if (!el) return;
+    const count = unreadCounts[name];
+    el.textContent = count > 9 ? '9+' : String(count);
+    el.hidden = count <= 0;
+    const link = el.closest('a');
+    if (link) {
+      const base = link.dataset.label;
+      link.setAttribute('aria-label', count > 0 ? `${base}, ${count} unread` : base);
+    }
+  }
+
+  function setUnread(name, count) {
+    unreadCounts[name] = Math.max(0, Number(count) || 0);
+    paintBadge(name);
+  }
+
+  async function refreshMessageUnread() {
+    try {
+      const { count } = await API.get('/messaging/conversations/unread-count');
+      setUnread('messages', count);
+    } catch {
+      // Non-critical: the badge just keeps its last known value.
+    }
+  }
+
+  let bottomNavPollTimer = null;
+
+  function renderBottomNav(items, activeKey) {
+    let nav = document.querySelector('.bottom-nav');
+    if (!nav) {
+      nav = document.createElement('nav');
+      nav.className = 'bottom-nav';
+      nav.setAttribute('aria-label', 'Quick navigation');
+      document.body.appendChild(nav);
+      document.body.classList.add('has-bottom-nav');
+
+      // A fixed bar rides up above the on-screen keyboard and would sit
+      // on top of whatever field is being typed into, so it steps aside
+      // while any text field has focus.
+      const isField = (el) => el && el.matches && el.matches('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]), textarea, select, [contenteditable="true"]');
+      document.addEventListener('focusin', (e) => { if (isField(e.target)) document.body.classList.add('is-typing'); });
+      document.addEventListener('focusout', (e) => {
+        if (!isField(e.relatedTarget)) document.body.classList.remove('is-typing');
+      });
+
+      // The shared bell already polls notification count; reuse its
+      // result instead of making a second identical request.
+      document.addEventListener('jr:unread-notifications', (e) => setUnread('notifications', e.detail.count));
+      document.addEventListener('jr:unread-messages', (e) => setUnread('messages', e.detail.count));
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMessageUnread(); });
+    }
+
+    nav.innerHTML = BOTTOM_ITEMS.map((b) => {
+      const source = items.find((i) => i.key === b.key);
+      const href = b.href || (source && source.href);
+      if (!href) return '';
+      const icon = (typeof Icons !== 'undefined' && Icons[b.icon]) || '';
+      const isActive = b.key === activeKey;
+      const name = b.fullLabel || b.label;
+      return `<a href="${href}" class="bottom-nav-item${isActive ? ' is-active' : ''}" data-label="${name}" aria-label="${name}"${isActive ? ' aria-current="page"' : ''}>
+        <span class="bottom-nav-icon">${icon}${b.badge ? `<span class="bottom-nav-badge" data-badge="${b.badge}" hidden>0</span>` : ''}</span>
+        <span class="bottom-nav-label">${b.label}</span>
+      </a>`;
+    }).join('');
+
+    paintBadge('messages');
+    paintBadge('notifications');
+    if (!bottomNavPollTimer) {
+      refreshMessageUnread();
+      bottomNavPollTimer = setInterval(() => { if (!document.hidden) refreshMessageUnread(); }, 30000);
+    }
+  }
+
+  /**
    * @param {{ role: string }} user
    * @param {string} [activeKey] defaults to inferring from the current filename
    */
@@ -68,6 +162,7 @@ const SidebarNav = (function () {
       .join('');
 
     setupMobileDrawer();
+    renderBottomNav(items, resolvedActive);
   }
 
   /**
@@ -134,5 +229,5 @@ const SidebarNav = (function () {
     });
   }
 
-  return { render, itemsForRole };
+  return { render, itemsForRole, setUnread, refreshMessageUnread };
 })();

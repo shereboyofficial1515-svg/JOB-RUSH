@@ -20,6 +20,7 @@ router.use(authenticate);
 
 // Conversations
 router.get('/conversations', conversationController.listConversations);
+router.get('/conversations/unread-count', conversationController.unreadCount);
 router.post('/conversations', validateBody(startConversationSchema), conversationController.startConversation);
 router.post('/conversations/:id/read', conversationController.markRead);
 router.post('/conversations/:id/clear', conversationController.clearChat);

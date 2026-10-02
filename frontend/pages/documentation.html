@@ -137,7 +137,7 @@
   <h1 style="margin-bottom: var(--space-2);">Help Center</h1>
   <p class="text-secondary" style="margin-bottom: var(--space-6);">Everything about how JOB RUSH actually works today — what you can do, what's still coming, and how to get help.</p>
 
-  <img src="../assets/images/hero-professionals-960.jpg" alt="Nigerian professionals collaborating on a laptop" loading="lazy" style="width:100%; max-height:280px; object-fit:cover; object-position:center 30%; border-radius: var(--radius-lg, 12px); margin-bottom: var(--space-6);" />
+  <div id="docs-photo-card" style="margin-bottom: var(--space-6);"></div>
 
   <button type="button" class="btn btn-secondary docs-mobile-toggle" id="docs-nav-toggle">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -165,9 +165,20 @@
 <script src="../js/config/api.js"></script>
 <script src="../js/modules/accessibility.js"></script>
 <script src="../js/utils/sanitize.js"></script>
+<script src="../js/utils/photoCard.js"></script>
 <script src="../js/modules/notificationBell.js"></script>
 <script src="../js/modules/chrome.js"></script>
 <script src="../js/modules/auth.js"></script>
+<script>
+  PhotoCard.mount(document.getElementById('docs-photo-card'), {
+    photo: 'collaboration',
+    layout: 'split',
+    badge: 'Help Center',
+    title: 'Working together, made simple',
+    description: 'Whether you are hiring or offering your skills, these guides walk you through every step, from your first search to getting paid.',
+    actions: [{ label: 'Contact support', href: 'support.html', variant: 'secondary' }],
+  });
+</script>
 <script>
   // Each entry: id (anchor + search target), title, group (sidebar heading), html (body).
   // Every link inside `html` points to a real, existing JOB RUSH page/route —

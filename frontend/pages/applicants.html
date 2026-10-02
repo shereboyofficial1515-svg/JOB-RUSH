@@ -56,6 +56,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
@@ -108,6 +110,7 @@
         Animate.stagger(list, { stepMs: 30 });
         wireActions(jobId);
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -198,6 +201,8 @@
         document.getElementById('applicants-list').innerHTML = '<p class="text-secondary">No job selected. Go to My Jobs and choose "View applicants".</p>';
         return;
       }
+      PullToRefresh.init({ onRefresh: () => loadApplicants(jobId) });
+
       loadApplicants(jobId);
     })();
   </script>

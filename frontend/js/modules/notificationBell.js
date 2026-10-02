@@ -83,6 +83,7 @@ const NotificationBell = (function () {
       const { count } = await API.get('/notifications/unread-count');
       badgeEl.textContent = count > 9 ? '9+' : String(count);
       badgeEl.hidden = count === 0;
+      document.dispatchEvent(new CustomEvent('jr:unread-notifications', { detail: { count } }));
 
       // A restrained pop only when the count actually climbed (a new
       // notification arrived) — never on every poll, and never when
@@ -114,6 +115,7 @@ const NotificationBell = (function () {
             <button class="btn btn-ghost btn-sm" id="notif-mark-all">Mark all read</button>
           </div>
           <div class="notif-dropdown-body" id="notif-dropdown-body"></div>
+          <a class="notif-dropdown-footer" href="${window.location.pathname.includes('/pages/') ? '' : 'pages/'}notifications.html">View all notifications</a>
         </div>
       </div>
     `;
@@ -219,5 +221,5 @@ const NotificationBell = (function () {
     pollTimer = setInterval(refreshBadge, 30000);
   }
 
-  return { render };
+  return { render, refresh: refreshBadge, rowHtml: notificationRowHtml };
 })();

@@ -73,6 +73,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     const BANKS = [
       { code: '058', name: 'GTBank' },
@@ -120,6 +122,7 @@
         const { wallet } = await API.get('/wallet');
         document.getElementById('wallet-balance').textContent = formatNaira(wallet.available_balance);
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         Toast.error('Could not load wallet balance.');
       }
     }
@@ -135,6 +138,7 @@
           list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No transactions yet</h3></div>`;
         }
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -150,6 +154,7 @@
           list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No withdrawal requests yet</h3></div>`;
         }
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -242,6 +247,8 @@
           document.getElementById('tab-withdrawals').hidden = tab.dataset.tab !== 'withdrawals';
         });
       });
+
+      PullToRefresh.init({ onRefresh: () => Promise.all([loadWallet(), loadTransactions(), loadWithdrawals()]) });
 
       loadWallet();
       loadTransactions();

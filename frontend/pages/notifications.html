@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notifications — JOB RUSH</title>
+  <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
+  <link rel="manifest" href="../manifest.json" />
+  <link rel="stylesheet" href="../css/tokens.css" />
+  <link rel="stylesheet" href="../css/base.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/animations.css" />
+  <link rel="stylesheet" href="../css/dashboard-pages.css" />
+</head>
+
+<body>
+  <div class="dashboard-shell">
+    <aside class="dashboard-sidebar">
+      <a href="../index.html" class="brand">
+        <img src="../assets/images/logo-48.png" alt="JOB RUSH" width="36" height="36" />
+        <span>JOB RUSH</span>
+      </a>
+      <nav class="sidebar-nav" id="sidebar-nav" aria-label="Dashboard"></nav>
+      <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
+    </aside>
+
+    <div class="dashboard-main">
+      <div class="dashboard-topbar">
+        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Notifications</h1>
+        <div style="display:flex; align-items:center; gap: var(--space-3);">
+          <div id="notif-bell-mount"></div>
+          <button class="btn btn-secondary btn-sm" id="mark-all-btn" type="button">Mark all read</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding: 0;">
+        <div id="notifications-list" aria-live="polite">
+          <div class="skeleton" style="height:64px; margin:12px;"></div>
+          <div class="skeleton" style="height:64px; margin:12px;"></div>
+          <div class="skeleton" style="height:64px; margin:12px;"></div>
+        </div>
+      </div>
+      <div style="text-align:center; margin-top: var(--space-4);">
+        <button class="btn btn-secondary" id="load-more-btn" type="button" hidden>Load more</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/config/assets.js"></script>
+  <script src="../js/config/env.js"></script>
+  <script src="../js/config/api.js"></script>
+  <script src="../js/modules/accessibility.js"></script>
+  <script src="../js/utils/sanitize.js"></script>
+  <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/animate.js"></script>
+  <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/notificationBell.js"></script>
+  <script src="../js/modules/ringtoneManager.js"></script>
+  <script src="../js/modules/incomingCallWatcher.js"></script>
+  <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/modules/auth.js"></script>
+  <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
+  <script>
+    const PAGE_SIZE = 20;
+    let nextPage = 1;
+    let loading = false;
+
+    function wireRows(root) {
+      root.querySelectorAll('.notif-row.is-unread').forEach((row) => {
+        row.addEventListener('click', async () => {
+          row.classList.remove('is-unread');
+          try {
+            await API.post(`/notifications/${row.dataset.notifId}/read`);
+            NotificationBell.refresh();
+          } catch {
+            // The row already looks read; the next refresh reconciles if the write failed.
+          }
+        }, { once: true });
+      });
+    }
+
+    // reset=true replaces the list with page 1 (first load, pull-to-
+    // refresh); otherwise appends the next page. Throws on a failed
+    // request so a refresh can report it instead of silently showing
+    // stale data.
+    async function loadNotifications(reset) {
+      if (loading) return;
+      loading = true;
+      const list = document.getElementById('notifications-list');
+      const moreBtn = document.getElementById('load-more-btn');
+      try {
+        const page = reset ? 1 : nextPage;
+        const { notifications } = await API.get(`/notifications?page=${page}&pageSize=${PAGE_SIZE}`);
+        if (reset) list.innerHTML = '';
+        if (reset && notifications.length === 0) {
+          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>You're all caught up</h3><p>New messages, applications, interviews and payments will appear here.</p></div>`;
+        } else {
+          const holder = document.createElement('div');
+          holder.innerHTML = notifications.map(NotificationBell.rowHtml).join('');
+          wireRows(holder);
+          while (holder.firstChild) list.appendChild(holder.firstChild);
+        }
+        nextPage = page + 1;
+        moreBtn.hidden = notifications.length < PAGE_SIZE;
+        NotificationBell.refresh();
+      } catch (err) {
+        if (reset && !list.querySelector('.notif-row')) {
+          list.innerHTML = `<div class="notif-empty text-secondary text-sm"><p>${esc(err.message)}</p><button type="button" class="btn btn-ghost btn-sm" id="retry-btn">Retry</button></div>`;
+          document.getElementById('retry-btn').addEventListener('click', () => loadNotifications(true).catch(() => {}));
+        }
+        throw err;
+      } finally {
+        loading = false;
+      }
+    }
+
+    (async function init() {
+      const user = await Auth.requireSession('login.html');
+      if (!user) return;
+      NotificationBell.render(document.getElementById('notif-bell-mount'));
+      IncomingCallWatcher.start();
+      PushNotifications.registerIfAlreadySubscribed();
+      SidebarNav.render(user, 'notifications');
+      document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.getElementById('mark-all-btn').addEventListener('click', async () => {
+        try {
+          await API.post('/notifications/read-all');
+          document.querySelectorAll('#notifications-list .notif-row').forEach((r) => r.classList.remove('is-unread'));
+          NotificationBell.refresh();
+        } catch (err) { Toast.error(err.message); }
+      });
+      document.getElementById('load-more-btn').addEventListener('click', () => loadNotifications(false).catch((err) => Toast.error(err.message)));
+
+      PullToRefresh.init({ onRefresh: () => loadNotifications(true) });
+
+      loadNotifications(true).catch(() => {});
+    })();
+  </script>
+</body>
+
+</html>

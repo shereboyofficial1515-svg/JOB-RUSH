@@ -61,6 +61,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     let currentUser = null;
 
@@ -116,6 +118,7 @@
         Animate.stagger(list, { stepMs: 30 });
         wireActions(tab);
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -280,6 +283,10 @@
           tab.classList.add('is-active');
           loadInterviews(tab.dataset.tab);
         });
+      });
+
+      PullToRefresh.init({
+        onRefresh: () => loadInterviews(document.querySelector('.wallet-tab.is-active')?.dataset.tab || 'upcoming'),
       });
 
       loadInterviews('upcoming');

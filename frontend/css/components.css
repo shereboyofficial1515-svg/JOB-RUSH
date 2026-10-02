@@ -196,6 +196,9 @@
 .settings-row:last-child { border-bottom: none; }
 .settings-row-text { flex: 1; min-width: 0; }
 .settings-row-title { font-weight: 600; font-size: var(--text-sm); margin-bottom: var(--space-1); }
+/* anywhere (not break-word): a long unbreakable value such as an email
+   address must wrap inside the row instead of widening the whole page. */
+.settings-row-title, .settings-row-desc { overflow-wrap: anywhere; }
 .settings-row-desc { font-size: var(--text-xs); color: var(--text-secondary); }
 .settings-row-control { flex-shrink: 0; display: flex; align-items: center; padding-top: var(--space-1); }
 .settings-row-control select { min-width: 160px; }
@@ -1269,3 +1272,204 @@
 }
 .star-btn:hover { transform: scale(1.1); }
 .star-btn.is-filled { color: var(--accent); }
+
+/* ============================================================
+   Professional photo card (js/utils/photoCard.js)
+   A real photo and its description as one content unit: stacked on
+   phones (photo on top, copy directly beneath), side-by-side from
+   720px when `.photo-card--split` is set. The photo is a fixed-ratio
+   crop (object-fit: cover, focal point set per photo in PHOTOS) so it
+   is never stretched and never leaves empty space around itself.
+   ============================================================ */
+.photo-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.photo-card-media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  max-height: 360px;
+  background: var(--bg-elevated); /* shows while the photo loads */
+  overflow: hidden;
+}
+.photo-card-media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.photo-card-badge {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(11, 31, 58, 0.85);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.photo-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-5);
+}
+.photo-card-title { margin: 0; font-size: var(--text-xl); line-height: 1.25; overflow-wrap: break-word; }
+.photo-card-text { margin: 0; max-width: none; color: var(--text-secondary); overflow-wrap: break-word; }
+.photo-card-text a { color: var(--accent-text); font-weight: 600; text-decoration: underline; }
+.photo-card-support { margin: 0; max-width: none; font-size: var(--text-sm); color: var(--text-secondary); }
+.photo-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-2); }
+
+@media (max-width: 480px) {
+  .photo-card-body { padding: var(--space-4); }
+  .photo-card-actions .btn { flex: 1 1 100%; }
+}
+@media (min-width: 720px) {
+  .photo-card--split { flex-direction: row; }
+  .photo-card--split .photo-card-media { flex: 0 0 46%; aspect-ratio: auto; max-height: none; min-height: 300px; }
+  .photo-card--split .photo-card-body { flex: 1; justify-content: center; padding: var(--space-6); }
+}
+
+/* ============================================================
+   Mobile bottom navigation (rendered by SidebarNav, sidebarNav.js)
+   Phones/small tablets only — desktop keeps the sidebar. The drawer
+   stays the full menu; this is quick access to five destinations.
+   ============================================================ */
+:root { --bottom-nav-h: 60px; }
+.bottom-nav { display: none; }
+
+@media (max-width: 900px) {
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 250; /* under the drawer backdrop (290) and modals (1000) */
+    box-sizing: content-box;
+    height: var(--bottom-nav-h);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
+    box-shadow: 0 -2px 12px rgba(11, 31, 58, 0.07);
+  }
+  /* Last content must clear the bar (plus the home-indicator inset). */
+  body.has-bottom-nav .dashboard-main {
+    padding-bottom: calc(var(--space-5) + var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+  /* Step aside while typing (on-screen keyboard) and inside an open
+     chat, where the composer owns the bottom edge. */
+  body.is-typing .bottom-nav,
+  body:has(.thread-panel.is-open-on-mobile) .bottom-nav { display: none; }
+}
+
+.bottom-nav-item {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.1;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--duration-micro) var(--ease-standard);
+}
+.bottom-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: var(--radius-md); }
+.bottom-nav-icon { position: relative; display: inline-flex; }
+.bottom-nav-icon svg { width: 22px; height: 22px; }
+.bottom-nav-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.bottom-nav-item.is-active { color: var(--accent-text); font-weight: 700; }
+.bottom-nav-item.is-active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 25%;
+  right: 25%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+}
+.bottom-nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger, #c0392b);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.bottom-nav-badge[hidden] { display: none; }
+
+/* ---------- Notification bell: "view all" link ---------- */
+.notif-dropdown-footer {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* ============================================================
+   Pull-to-refresh indicator (js/modules/pullToRefresh.js)
+   ============================================================ */
+/* Turns off the browser's own pull-to-refresh/overscroll glow on pages
+   that opted in, so only one refresh gesture can fire. */
+html.ptr-enabled { overscroll-behavior-y: contain; }
+
+.ptr-indicator {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-elevated);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -70px);
+  will-change: transform, opacity;
+}
+.ptr-indicator.is-animating { transition: transform 0.22s var(--ease-standard), opacity 0.22s var(--ease-standard); }
+.ptr-indicator.has-action { pointer-events: auto; }
+.ptr-icon { display: inline-flex; transition: transform 0.12s linear; }
+.ptr-icon svg { width: 18px; height: 18px; }
+.ptr-spin { animation: ptr-rotate 0.8s linear infinite; }
+.ptr-indicator[data-state="done"] .ptr-icon { color: var(--status-success); }
+.ptr-indicator[data-state="error"] .ptr-icon { color: var(--status-danger); }
+@keyframes ptr-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .ptr-spin { animation: none; }
+  .ptr-indicator.is-animating, .ptr-icon { transition: none; }
+}
+
+/* Keyboard/screen-reader route to the same refresh action. */
+.ptr-a11y-btn { position: fixed; left: -9999px; top: 8px; z-index: 600; }
+.ptr-a11y-btn:focus { left: 8px; }
