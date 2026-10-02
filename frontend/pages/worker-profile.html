@@ -93,17 +93,24 @@
             </div>
             <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
             <div class="wp-info-row">
-              <span class="wp-info-item text-gold">${Icons.star} ${ratingStars(profile.rating_avg)} <span class="text-secondary">(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></span>
+              ${profile.rating_count > 0
+                ? `<span class="wp-info-item text-gold">${ratingStars(profile.rating_avg)} <span class="text-secondary"><strong>${Number(profile.rating_avg).toFixed(1)}</strong> · ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}</span></span>`
+                : `<span class="wp-info-item text-secondary">${Icons.star} No reviews yet</span>`}
               ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}</span>` : ''}
               <span class="wp-info-item"><span class="wp-availability-dot ${profile.availability_status}"></span> ${availabilityLabel(profile.availability_status)}</span>
-              ${profile.completed_jobs_count ? `<span class="wp-info-item">${Icons.briefcase} ${profile.completed_jobs_count} jobs completed</span>` : ''}
+              ${profile.experience_years ? `<span class="wp-info-item">${Icons.clock} ${profile.experience_years} year${profile.experience_years === 1 ? '' : 's'} of experience</span>` : ''}
+              ${profile.completed_jobs_count ? `<span class="wp-info-item">${Icons.briefcase} ${profile.completed_jobs_count} job${profile.completed_jobs_count === 1 ? '' : 's'} completed</span>` : ''}
             </div>
-            ${price ? `<div class="wp-price" style="margin-top: var(--space-3);">${price} <span class="text-secondary text-sm" style="font-weight:400;">starting</span></div>` : ''}
+            ${price ? `<div class="wp-price" style="margin-top: var(--space-3);"><span class="text-secondary text-sm" style="font-weight:400;">Starting from</span> ${price}</div>` : ''}
             ${ScheduleFormat.scheduleLine(profile) ? `<div class="wp-info-item text-secondary text-sm" style="margin-top: var(--space-1);">${Icons.clock} ${esc(ScheduleFormat.scheduleLine(profile))}</div>` : ''}
             <div class="wp-actions wp-header-actions-desktop-only" id="profile-actions">
-              ${isOwner ? `<a href="portfolio.html" class="btn btn-secondary">Manage my profile</a>` : `
+              ${isOwner ? `
+                <a href="profile-settings.html?tab=profile" class="btn btn-primary">${Icons.pencil} Edit profile</a>
+                <button type="button" class="btn btn-secondary" id="share-profile-btn">${Icons.link} Share</button>
+              ` : `
                 <button class="btn btn-primary" id="contact-btn">${Icons.message} Message</button>
                 <button class="btn btn-secondary" id="hire-btn">Hire</button>
+                <button type="button" class="btn btn-secondary" id="share-profile-btn" aria-label="Share this profile">${Icons.link} Share</button>
                 <button class="btn btn-ghost btn-sm" id="report-profile-btn" title="Report this profile">Report</button>
               `}
             </div>
@@ -523,6 +530,25 @@
       });
     }
 
+    function wireShare(profile) {
+      const btn = document.getElementById('share-profile-btn');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        const url = window.location.href;
+        const data = { title: `${profile.full_name} on Job Rush`, text: `View ${profile.full_name}${profile.professional_title ? `, ${profile.professional_title},` : ''} on Job Rush`, url };
+        if (navigator.share) {
+          try { await navigator.share(data); } catch { /* the user closed the share sheet */ }
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          Toast.success('Profile link copied.');
+        } catch {
+          Toast.error('Couldn’t copy the link. Copy it from the address bar instead.');
+        }
+      });
+    }
+
     async function wireActions(profile, user) {
       const contactBtns = [document.getElementById('contact-btn'), document.getElementById('contact-btn-sticky')].filter(Boolean);
       const hireBtns = [document.getElementById('hire-btn'), document.getElementById('hire-btn-sticky')].filter(Boolean);
@@ -638,6 +664,7 @@
         const reviewsList = document.getElementById('wp-reviews-list');
         if (reviewsList) Animate.stagger(reviewsList, { selector: '.wp-review', stepMs: 40 });
 
+        wireShare(profile);
         wireActions(profile, user);
         wireAboutToggle();
         wireCvViewer(cvResult.cv);

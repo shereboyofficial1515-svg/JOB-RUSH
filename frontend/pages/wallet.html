@@ -27,34 +27,47 @@
 
     <div class="dashboard-main">
       <div class="dashboard-topbar">
-        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Wallet</h1>
+        <h1 class="page-title">Wallet</h1>
         <div id="notif-bell-mount"></div>
       </div>
 
-      <div class="card wallet-balance-card">
-        <div class="wallet-balance-label">Available balance</div>
-        <div class="wallet-balance-value" id="wallet-balance">₦—</div>
-        <button class="btn btn-primary" id="withdraw-btn">Withdraw funds</button>
+      <section class="wallet-hero" aria-labelledby="wallet-hero-label">
+        <div class="wallet-hero-label" id="wallet-hero-label">Available balance</div>
+        <div class="wallet-hero-amount" id="wallet-balance" aria-live="polite">₦—</div>
+        <div class="wallet-hero-meta" id="wallet-balance-meta">Loading your balance…</div>
+        <button class="btn btn-secondary wallet-hero-cta" id="withdraw-btn" type="button">Withdraw funds</button>
+      </section>
+
+      <div class="wallet-actions" role="group" aria-label="Wallet shortcuts">
+        <button type="button" class="wallet-action" id="qa-transactions">
+          <span class="wallet-action-icon" id="qa-icon-transactions"></span>
+          <span>Transactions</span>
+        </button>
+        <button type="button" class="wallet-action" id="qa-withdrawals">
+          <span class="wallet-action-icon" id="qa-icon-withdrawals"></span>
+          <span>Withdrawals</span>
+        </button>
+        <a class="wallet-action" href="jobs.html">
+          <span class="wallet-action-icon" id="qa-icon-jobs"></span>
+          <span>Find jobs</span>
+        </a>
       </div>
 
-      <div class="wallet-tabs">
-        <button class="wallet-tab is-active" data-tab="transactions">Transaction history</button>
-        <button class="wallet-tab" data-tab="withdrawals">Withdrawal requests</button>
-      </div>
-
-      <div class="card" id="tab-transactions">
-        <div id="transactions-list">
-          <div class="skeleton" style="height:16px; width:70%; margin-bottom:12px;"></div>
-          <div class="skeleton" style="height:16px; width:50%;"></div>
+      <section class="wallet-section" id="transactions-section" aria-labelledby="transactions-heading">
+        <div class="wallet-section-head">
+          <h2 id="transactions-heading">Recent transactions</h2>
+          <button type="button" class="btn btn-ghost btn-sm" id="view-all-tx-btn" hidden>View all</button>
         </div>
-      </div>
+        <div class="list-group" id="transactions-list" aria-live="polite"></div>
+      </section>
 
-      <div class="card" id="tab-withdrawals" hidden>
-        <div id="withdrawals-list">
-          <div class="skeleton" style="height:16px; width:70%; margin-bottom:12px;"></div>
-          <div class="skeleton" style="height:16px; width:50%;"></div>
+      <section class="wallet-section" id="withdrawals-section" aria-labelledby="withdrawals-heading">
+        <div class="wallet-section-head">
+          <h2 id="withdrawals-heading">Withdrawal requests</h2>
         </div>
-      </div>
+        <div class="list-group" id="withdrawals-list" aria-live="polite"></div>
+        <p class="wallet-footnote">Withdrawals are reviewed before they are paid to your bank account. Funds are held in your wallet request until then, and returned to your balance if a request isn’t approved.</p>
+      </section>
     </div>
   </div>
 
@@ -67,6 +80,7 @@
   <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
@@ -89,86 +103,286 @@
       { code: '999992', name: 'Opay' },
       { code: '999991', name: 'PalmPay' },
     ];
+    const MINIMUM_WITHDRAWAL = 1000; // mirrors the server's rule; the server still enforces it
+    const RECENT_COUNT = 5;
 
-    function formatNaira(n) { return `₦${Number(n).toLocaleString()}`; }
+    let currentUser = null;
+    let balance = null;          // number once loaded; never guessed client-side
+    let balanceFetchedAt = null; // when the server last told us
+    let balanceFailed = false;
+    let transactions = [];
+    let withdrawals = [];
+    let showAllTransactions = false;
+    let transactionsLoaded = false;
 
-    function ledgerRowHtml(tx) {
-      const sign = tx.type === 'credit' ? '+' : '\u2212';
-      return `
-      <div class="ledger-row">
-        <div>
-          <div>${esc(tx.description) || tx.category.replace(/_/g, ' ')}</div>
-          <div class="text-xs text-secondary">${new Date(tx.created_at).toLocaleString()}</div>
-        </div>
-        <div class="ledger-amount ${tx.type}">${sign}${formatNaira(tx.amount)}</div>
-      </div>
-    `;
+    // ---------- Formatting ----------
+    const naira = (n) => `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const fmtTime = (d) => new Date(d).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const bankName = (code) => (BANKS.find((b) => b.code === code) || {}).name || 'Bank account';
+    // A short, readable reference; the full id is copyable from the detail sheet.
+    const shortRef = (id) => (id ? `JR-${String(id).replace(/-/g, '').slice(0, 8).toUpperCase()}` : '—');
+    const stripIds = (text) => String(text || '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '').replace(/\s{2,}/g, ' ').trim();
+
+    const WITHDRAWAL_STATUS = {
+      pending: { label: 'Under review', tone: 'warn', note: 'We’re reviewing this request. The amount is held until it’s approved or returned.' },
+      processing: { label: 'Being paid out', tone: 'warn', note: 'Approved. The transfer to your bank account is in progress.' },
+      paid: { label: 'Paid', tone: 'on', note: 'The money has been sent to your bank account.' },
+      rejected: { label: 'Not approved', tone: 'off', note: 'This request wasn’t approved. The amount was returned to your wallet.' },
+      failed: { label: 'Transfer failed', tone: 'off', note: 'The bank transfer didn’t go through. The amount was returned to your wallet.' },
+    };
+    const statusPill = (s) => {
+      const info = WITHDRAWAL_STATUS[s] || { label: s, tone: 'off' };
+      return `<span class="status-pill status-pill--${info.tone}">${esc(info.label)}</span>`;
+    };
+
+    /**
+     * Turns a raw ledger row into words a person understands. The ledger
+     * stores a category and a developer-oriented description (with a contract
+     * id inside it), so the id never leads and the category decides the title.
+     */
+    function describeTransaction(tx) {
+      const withdrawal = tx.source_id ? withdrawals.find((w) => w.id === tx.source_id) : null;
+      switch (tx.category) {
+        case 'escrow_release':
+          return { title: 'Payment received', sub: 'Job payment released from escrow', pill: '<span class="status-pill status-pill--on">Completed</span>', kind: 'Payment received', detail: 'Payment released from escrow for a completed contract.' };
+        case 'withdrawal_hold':
+          return {
+            title: 'Withdrawal requested',
+            sub: withdrawal ? `To ${bankName(withdrawal.bank_code)} ••••${withdrawal.bank_account_number_last4}` : 'Held while it’s reviewed',
+            pill: statusPill(withdrawal ? withdrawal.status : 'pending'),
+            kind: 'Withdrawal',
+            detail: 'This amount is held while your withdrawal request is reviewed.',
+          };
+        case 'withdrawal_reversed':
+          return { title: 'Withdrawal returned', sub: 'Funds returned to your wallet', pill: '<span class="status-pill status-pill--on">Returned</span>', kind: 'Withdrawal returned', detail: 'Returned to your wallet because the withdrawal wasn’t completed.' };
+        default: {
+          const fallback = String(tx.category || 'transaction').replace(/_/g, ' ');
+          return { title: fallback.charAt(0).toUpperCase() + fallback.slice(1), sub: stripIds(tx.description), pill: '', kind: 'Transaction' };
+        }
+      }
     }
 
-    function withdrawalRowHtml(w) {
-      return `
-      <div class="ledger-row">
-        <div>
-          <div>${formatNaira(w.amount)} to ${esc(w.bank_account_name)} (\u2022\u2022\u2022\u2022${w.bank_account_number_last4})</div>
-          <div class="text-xs text-secondary">Requested ${new Date(w.requested_at).toLocaleDateString()}</div>
-        </div>
-        <span class="badge badge-neutral">${w.status}</span>
-      </div>
-    `;
+    // ---------- Balance ----------
+    function renderBalance() {
+      const amountEl = document.getElementById('wallet-balance');
+      const metaEl = document.getElementById('wallet-balance-meta');
+      const btn = document.getElementById('withdraw-btn');
+      const offline = typeof Connectivity !== 'undefined' && !Connectivity.isOnline();
+
+      amountEl.textContent = balance === null ? '₦—' : naira(balance);
+      amountEl.classList.toggle('is-stale', balance !== null && (balanceFailed || offline));
+
+      if (balance === null) {
+        metaEl.textContent = balanceFailed ? 'We couldn’t load your balance. Pull down to try again.' : 'Loading your balance…';
+      } else if (offline) {
+        metaEl.textContent = `Offline. Last updated ${fmtTime(balanceFetchedAt)}, so this may be out of date.`;
+      } else if (balanceFailed) {
+        metaEl.textContent = `Couldn’t refresh. Showing the balance from ${fmtTime(balanceFetchedAt)}.`;
+      } else {
+        metaEl.textContent = `Updated ${fmtTime(balanceFetchedAt)}`;
+      }
+      // Never let someone start a money action from a balance we can't vouch for.
+      btn.disabled = balance === null || offline;
     }
 
     async function loadWallet() {
       try {
         const { wallet } = await API.get('/wallet');
-        document.getElementById('wallet-balance').textContent = formatNaira(wallet.available_balance);
+        balance = Number(wallet.available_balance);
+        balanceFetchedAt = new Date();
+        balanceFailed = false;
+        renderBalance();
       } catch (err) {
+        balanceFailed = true;
+        renderBalance();
         if (PullToRefresh.isRefreshing()) throw err;
-        Toast.error('Could not load wallet balance.');
       }
+    }
+
+    // ---------- Transactions ----------
+    function transactionRowHtml(tx) {
+      const d = describeTransaction(tx);
+      const credit = tx.type === 'credit';
+      return `
+        <button type="button" class="tx-row" data-tx-id="${esc(tx.id)}" aria-label="${esc(d.title)}, ${credit ? 'received' : 'sent'} ${naira(tx.amount)}, ${fmtDate(tx.created_at)}. View details">
+          <span class="tx-icon tx-icon--${credit ? 'credit' : 'debit'}" aria-hidden="true">${credit ? Icons.arrowDownLeft : Icons.arrowUpRight}</span>
+          <span class="tx-text">
+            <span class="tx-title">${esc(d.title)}</span>
+            <span class="tx-sub">${fmtDate(tx.created_at)} · ${fmtTime(tx.created_at)}</span>
+            ${d.sub ? `<span class="tx-sub">${esc(d.sub)}</span>` : ''}
+            ${d.pill ? `<span class="tx-pill">${d.pill}</span>` : ''}
+          </span>
+          <span class="tx-amount tx-amount--${credit ? 'credit' : 'debit'}">${credit ? '+' : '−'}${naira(tx.amount)}</span>
+        </button>`;
+    }
+
+    function renderTransactions() {
+      if (!transactionsLoaded) return; // keep the loading skeleton until real data (or an error) arrives
+      const list = document.getElementById('transactions-list');
+      const viewAll = document.getElementById('view-all-tx-btn');
+      if (transactions.length === 0) {
+        StateView.empty(list, {
+          icon: 'wallet',
+          title: 'No transactions yet',
+          message: 'Payments you receive and withdrawals you request will appear here.',
+          action: { label: 'Explore jobs', href: 'jobs.html' },
+        });
+        viewAll.hidden = true;
+        return;
+      }
+      const rows = showAllTransactions ? transactions : transactions.slice(0, RECENT_COUNT);
+      list.innerHTML = rows.map(transactionRowHtml).join('');
+      list.querySelectorAll('[data-tx-id]').forEach((el) => {
+        el.addEventListener('click', () => openTransactionSheet(transactions.find((t) => t.id === el.dataset.txId)));
+      });
+      viewAll.hidden = transactions.length <= RECENT_COUNT;
+      viewAll.textContent = showAllTransactions ? 'Show less' : 'View all';
     }
 
     async function loadTransactions() {
       const list = document.getElementById('transactions-list');
       try {
-        const { transactions } = await API.get('/wallet/transactions');
-        if (transactions.length) {
-          list.innerHTML = transactions.map(ledgerRowHtml).join('');
-          Animate.stagger(list, { stepMs: 25 });
-        } else {
-          list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No transactions yet</h3></div>`;
-        }
+        const { transactions: rows } = await API.get('/wallet/transactions');
+        transactions = rows;
+        transactionsLoaded = true;
+        renderTransactions();
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        StateView.error(list, err, { title: 'Unable to load transactions', retry: () => { StateView.skeleton(list, { rows: 3 }); loadTransactions(); } });
       }
+    }
+
+    // ---------- Withdrawals ----------
+    function withdrawalRowHtml(w) {
+      return `
+        <button type="button" class="list-row list-row--stack-status" data-withdrawal-id="${esc(w.id)}">
+          <span class="list-row-icon" aria-hidden="true">${Icons.bank}</span>
+          <span class="list-row-text">
+            <span class="list-row-title">${naira(w.amount)} to ${esc(w.bank_account_name)}</span>
+            <span class="list-row-desc">${esc(bankName(w.bank_code))} ••••${esc(w.bank_account_number_last4)} · Requested ${fmtDate(w.requested_at)}</span>
+          </span>
+          <span class="list-row-trailing">${statusPill(w.status)}</span>
+        </button>`;
+    }
+
+    function renderWithdrawals() {
+      const list = document.getElementById('withdrawals-list');
+      if (withdrawals.length === 0) {
+        StateView.empty(list, {
+          icon: 'bank',
+          title: 'No withdrawal requests yet',
+          message: 'When you withdraw earnings to your bank account, each request and its status will show here.',
+        });
+        return;
+      }
+      list.innerHTML = withdrawals.map(withdrawalRowHtml).join('');
+      list.querySelectorAll('[data-withdrawal-id]').forEach((el) => {
+        el.addEventListener('click', () => openWithdrawalSheet(withdrawals.find((w) => w.id === el.dataset.withdrawalId)));
+      });
     }
 
     async function loadWithdrawals() {
       const list = document.getElementById('withdrawals-list');
       try {
-        const { withdrawals } = await API.get('/wallet/withdrawals');
-        if (withdrawals.length) {
-          list.innerHTML = withdrawals.map(withdrawalRowHtml).join('');
-          Animate.stagger(list, { stepMs: 25 });
-        } else {
-          list.innerHTML = `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No withdrawal requests yet</h3></div>`;
-        }
+        const { withdrawals: rows } = await API.get('/wallet/withdrawals');
+        withdrawals = rows;
+        renderWithdrawals();
+        renderTransactions(); // transaction status pills depend on withdrawal status
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        StateView.error(list, err, { title: 'Unable to load withdrawals', compact: true, retry: () => { StateView.skeleton(list, { rows: 2 }); loadWithdrawals(); } });
       }
     }
 
-    function openWithdrawModal() {
-      const bankOptions = BANKS.map((b) => `<option value="${b.code}">${b.name}</option>`).join('');
+    // ---------- Detail sheets ----------
+    function detailRow(label, valueHtml, { mono = false } = {}) {
+      return `<div class="detail-list-row"><dt class="detail-list-label">${esc(label)}</dt><dd class="detail-list-value${mono ? ' detail-list-value--mono' : ''}">${valueHtml}</dd></div>`;
+    }
+
+    async function copyReference(fullId, btn) {
+      try {
+        await navigator.clipboard.writeText(fullId);
+        Toast.success('Reference copied.');
+      } catch {
+        Toast.error('Couldn’t copy automatically. Select the reference to copy it.');
+      }
+      if (btn) btn.blur();
+    }
+
+    function openTransactionSheet(tx) {
+      if (!tx) return;
+      const d = describeTransaction(tx);
+      const credit = tx.type === 'credit';
+      const withdrawal = tx.source_id ? withdrawals.find((w) => w.id === tx.source_id) : null;
+      const statusHtml = d.pill || '<span class="status-pill status-pill--on">Completed</span>';
+      const rows = [
+        detailRow('Status', statusHtml),
+        detailRow('Type', credit ? 'Money in' : 'Money out'),
+        detailRow(credit ? 'Amount received' : 'Amount', `<strong class="tx-amount tx-amount--${credit ? 'credit' : 'debit'}">${credit ? '+' : '−'}${naira(tx.amount)}</strong>`),
+        detailRow('Date', fmtDate(tx.created_at)),
+        detailRow('Time', fmtTime(tx.created_at)),
+      ];
+      if (withdrawal) {
+        rows.push(detailRow('Bank', esc(bankName(withdrawal.bank_code))));
+        rows.push(detailRow('Account', `${esc(withdrawal.bank_account_name)} ••••${esc(withdrawal.bank_account_number_last4)}`));
+      }
+      const cleanDescription = d.detail || stripIds(tx.description);
+      if (cleanDescription) rows.push(detailRow('Details', esc(cleanDescription)));
+      rows.push(detailRow('Balance after', naira(tx.balance_after)));
+      rows.push(detailRow('Reference', `${esc(shortRef(tx.source_id || tx.id))}`, { mono: true }));
+
+      Modal.open({
+        title: esc(d.title),
+        bodyHtml: `
+          <dl class="detail-list">${rows.join('')}</dl>
+          <div class="modal-actions modal-actions--stacked">
+            <button type="button" class="btn btn-secondary" id="copy-ref-btn">Copy reference</button>
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+          </div>`,
+        onMount: () => document.getElementById('copy-ref-btn').addEventListener('click', (e) => copyReference(tx.source_id || tx.id, e.currentTarget)),
+      });
+    }
+
+    function openWithdrawalSheet(w) {
+      if (!w) return;
+      const info = WITHDRAWAL_STATUS[w.status] || { note: '' };
+      Modal.open({
+        title: 'Withdrawal request',
+        bodyHtml: `
+          <dl class="detail-list">
+            ${detailRow('Status', statusPill(w.status))}
+            ${detailRow('Amount', `<strong>${naira(w.amount)}</strong>`)}
+            ${detailRow('Bank', esc(bankName(w.bank_code)))}
+            ${detailRow('Account name', esc(w.bank_account_name))}
+            ${detailRow('Account number', `••••${esc(w.bank_account_number_last4)}`)}
+            ${detailRow('Requested', `${fmtDate(w.requested_at)}, ${fmtTime(w.requested_at)}`)}
+            ${detailRow('Reference', esc(shortRef(w.id)), { mono: true })}
+          </dl>
+          ${info.note ? `<p class="text-secondary text-sm" style="margin-top: var(--space-4);">${esc(info.note)}</p>` : ''}
+          <div class="modal-actions modal-actions--stacked">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Close</button>
+          </div>`,
+      });
+    }
+
+    // ---------- Withdraw: form -> review -> (biometric) -> submit ----------
+    function openWithdrawModal(prefill = {}) {
+      if (typeof Connectivity !== 'undefined' && !Connectivity.isOnline()) {
+        Toast.error('You’re offline. Connect to the internet to request a withdrawal.');
+        return;
+      }
+      const bankOptions = BANKS.map((b) => `<option value="${b.code}" ${prefill.bankCode === b.code ? 'selected' : ''}>${b.name}</option>`).join('');
       Modal.open({
         title: 'Withdraw funds',
+        dismissOnBackdrop: false, // a stray tap must not throw away typed bank details
         bodyHtml: `
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Available to withdraw: <strong style="color: var(--text-primary);">${balance === null ? '—' : naira(balance)}</strong></p>
         <form id="withdraw-form" novalidate>
           <div class="field" id="amount-field">
-            <label for="amount">Amount (\u20A6)</label>
-            <input type="number" id="amount" name="amount" min="1000" step="1" required />
-            <div class="field-hint">Minimum withdrawal is \u20A61,000.</div>
+            <label for="amount">Amount (₦)</label>
+            <input type="number" id="amount" name="amount" min="${MINIMUM_WITHDRAWAL}" step="1" inputmode="numeric" value="${prefill.amount || ''}" required />
+            <div class="field-hint">Minimum withdrawal is ${naira(MINIMUM_WITHDRAWAL)}.</div>
             <div class="field-error" hidden></div>
           </div>
           <div class="field" id="bankCode-field">
@@ -178,78 +392,142 @@
           </div>
           <div class="field" id="accountNumber-field">
             <label for="bankAccountNumber">Account number</label>
-            <input type="text" id="bankAccountNumber" name="bankAccountNumber" inputmode="numeric" maxlength="10" required />
+            <input type="text" id="bankAccountNumber" name="bankAccountNumber" inputmode="numeric" maxlength="10" autocomplete="off" value="${esc(prefill.bankAccountNumber || '')}" required />
             <div class="field-error" hidden></div>
           </div>
           <div class="field" id="accountName-field">
             <label for="bankAccountName">Account name</label>
-            <input type="text" id="bankAccountName" name="bankAccountName" required />
+            <input type="text" id="bankAccountName" name="bankAccountName" autocomplete="off" value="${esc(prefill.bankAccountName || '')}" required />
             <div class="field-error" hidden></div>
           </div>
-          <div class="modal-actions">
+          <div class="modal-actions modal-actions--stacked">
+            <button type="submit" class="btn btn-primary" id="withdraw-continue">Review withdrawal</button>
             <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="withdraw-submit">Request withdrawal</button>
           </div>
         </form>
       `,
         onMount: () => {
           const form = document.getElementById('withdraw-form');
-          form.addEventListener('submit', async (e) => {
+          form.addEventListener('submit', (e) => {
             e.preventDefault();
             FormHelpers.clearErrors(form);
+            const values = {
+              amount: Number(form.amount.value),
+              bankAccountNumber: form.bankAccountNumber.value.trim(),
+              bankAccountName: form.bankAccountName.value.trim(),
+              bankCode: form.bankCode.value,
+            };
+            if (!values.amount || values.amount < MINIMUM_WITHDRAWAL) return FormHelpers.showError(document.getElementById('amount-field'), `Enter at least ${naira(MINIMUM_WITHDRAWAL)}.`);
+            if (balance !== null && values.amount > balance) return FormHelpers.showError(document.getElementById('amount-field'), 'That’s more than your available balance.');
+            if (!/^[0-9]{10}$/.test(values.bankAccountNumber)) return FormHelpers.showError(document.getElementById('accountNumber-field'), 'Enter a valid 10-digit account number.');
+            if (!values.bankAccountName) return FormHelpers.showError(document.getElementById('accountName-field'), 'Enter the account name.');
+            openWithdrawReview(values);
+          });
+        },
+      });
+    }
 
-            const amount = Number(form.amount.value);
-            const bankAccountNumber = form.bankAccountNumber.value.trim();
-            const bankAccountName = form.bankAccountName.value.trim();
-            const bankCode = form.bankCode.value;
+    function openWithdrawReview(values) {
+      Modal.open({
+        title: 'Confirm withdrawal',
+        dismissOnBackdrop: false,
+        bodyHtml: `
+          <p class="text-secondary text-sm">Check these details carefully. Once submitted, the amount is taken from your wallet and held while we review the request.</p>
+          <dl class="detail-list" style="margin-top: var(--space-3);">
+            ${detailRow('Amount', `<strong>${naira(values.amount)}</strong>`)}
+            ${detailRow('Bank', esc(bankName(values.bankCode)))}
+            ${detailRow('Account name', esc(values.bankAccountName))}
+            ${detailRow('Account number', esc(values.bankAccountNumber))}
+            ${detailRow('Balance after', balance === null ? '—' : naira(balance - values.amount))}
+          </dl>
+          <div class="field-error" id="review-error" role="alert" hidden style="margin-top: var(--space-3);"></div>
+          <div class="modal-actions modal-actions--stacked">
+            <button type="button" class="btn btn-primary" id="withdraw-confirm">Confirm withdrawal</button>
+            <button type="button" class="btn btn-ghost" id="withdraw-edit">Edit details</button>
+          </div>`,
+        onMount: () => {
+          const confirmBtn = document.getElementById('withdraw-confirm');
+          const errorEl = document.getElementById('review-error');
+          let submitting = false;
+          const showError = (text) => { errorEl.textContent = text; errorEl.hidden = false; };
 
-            if (!amount || amount < 1000) return FormHelpers.showError(document.getElementById('amount-field'), 'Enter at least \u20A61,000.');
-            if (!/^[0-9]{10}$/.test(bankAccountNumber)) return FormHelpers.showError(document.getElementById('accountNumber-field'), 'Enter a valid 10-digit account number.');
-            if (!bankAccountName) return FormHelpers.showError(document.getElementById('accountName-field'), 'Enter the account name.');
+          document.getElementById('withdraw-edit').addEventListener('click', () => openWithdrawModal(values));
 
-            const submitBtn = document.getElementById('withdraw-submit');
-            FormHelpers.setLoading(submitBtn, true);
+          confirmBtn.addEventListener('click', async () => {
+            if (submitting) return; // one request per confirmation, however fast the taps
+            errorEl.hidden = true;
+            if (typeof Connectivity !== 'undefined' && !Connectivity.isOnline()) {
+              showError('You’re offline. Nothing was submitted. Reconnect and try again.');
+              return;
+            }
+            submitting = true;
+            FormHelpers.setLoading(confirmBtn, true);
             try {
-              await API.post('/wallet/withdrawals', { amount, bankAccountNumber, bankAccountName, bankCode });
-              Toast.success('Withdrawal requested \u2014 funds are held pending review.');
+              // Extra local confirmation (fingerprint / face / device PIN) when
+              // the user turned on biometric login in the app. It only decides
+              // whether THIS app proceeds: the server still authorises the
+              // request from the session, checks role, balance and limits, and
+              // an admin reviews the payout. Nothing biometric is sent.
+              if (typeof BiometricService !== 'undefined') {
+                const check = await BiometricService.confirmSensitive(currentUser.id, `Confirm withdrawal of ${naira(values.amount)}`);
+                if (!check.ok) {
+                  showError(check.outcome === 'cancelled' || check.outcome === 'fallback'
+                    ? 'Confirmation cancelled. Nothing was submitted.'
+                    : check.message || 'We couldn’t confirm it’s you. Nothing was submitted.');
+                  return;
+                }
+              }
+              await API.post('/wallet/withdrawals', values);
+              if (typeof Native !== 'undefined') Native.haptic('success');
               Modal.close();
+              Toast.success('Withdrawal requested. We’ll review it shortly.');
               loadWallet();
               loadWithdrawals();
+              loadTransactions();
             } catch (err) {
-              Toast.error(err.message);
+              if (typeof Native !== 'undefined') Native.haptic('error');
+              // The server's message (e.g. insufficient balance) is written for
+              // people; a network failure must NOT be read as success.
+              showError(err.status === 0 ? 'We couldn’t reach the server, so we don’t know if this went through. Check your wallet before trying again.' : StateView.messageFor(err));
             } finally {
-              FormHelpers.setLoading(submitBtn, false);
+              submitting = false;
+              FormHelpers.setLoading(confirmBtn, false);
             }
           });
         },
       });
     }
 
+    // ---------- Init ----------
     (async function init() {
       const user = await Auth.requireSession('login.html');
       if (!user) return;
+      currentUser = user;
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
       if (user.role === 'hirer') { window.location.href = 'dashboard.html'; return; }
 
       SidebarNav.render(user, 'wallet');
-
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
-      document.getElementById('withdraw-btn').addEventListener('click', openWithdrawModal);
+      document.getElementById('qa-icon-transactions').innerHTML = Icons.receipt;
+      document.getElementById('qa-icon-withdrawals').innerHTML = Icons.bank;
+      document.getElementById('qa-icon-jobs').innerHTML = Icons.briefcase;
 
-      document.querySelectorAll('.wallet-tab').forEach((tab) => {
-        tab.addEventListener('click', () => {
-          document.querySelectorAll('.wallet-tab').forEach((t) => t.classList.remove('is-active'));
-          tab.classList.add('is-active');
-          document.getElementById('tab-transactions').hidden = tab.dataset.tab !== 'transactions';
-          document.getElementById('tab-withdrawals').hidden = tab.dataset.tab !== 'withdrawals';
-        });
-      });
+      document.getElementById('withdraw-btn').addEventListener('click', () => openWithdrawModal());
+      document.getElementById('qa-transactions').addEventListener('click', () => document.getElementById('transactions-section').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      document.getElementById('qa-withdrawals').addEventListener('click', () => document.getElementById('withdrawals-section').scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      document.getElementById('view-all-tx-btn').addEventListener('click', () => { showAllTransactions = !showAllTransactions; renderTransactions(); });
+      document.addEventListener('jr:connectivity', renderBalance);
+
+      StateView.skeleton(document.getElementById('transactions-list'), { rows: 3 });
+      StateView.skeleton(document.getElementById('withdrawals-list'), { rows: 2 });
 
       PullToRefresh.init({ onRefresh: () => Promise.all([loadWallet(), loadTransactions(), loadWithdrawals()]) });
 
+      // Withdrawals first so transaction rows render with the right status
+      // the first time; all three run in parallel.
       loadWallet();
       loadTransactions();
       loadWithdrawals();

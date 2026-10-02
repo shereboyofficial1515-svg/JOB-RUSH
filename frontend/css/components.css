@@ -862,7 +862,11 @@
      logo at the drawer's own top-left padding — push the drawer's
      content down to clear it instead of letting them overlap. */
   .dashboard-sidebar { padding-top: calc(var(--space-5) + 56px); }
-  .dashboard-main { padding: var(--space-5); padding-top: calc(var(--space-5) + 56px); }
+  /* App header: the page title sits on the same row as the hamburger
+     (44px toggle + gap reserved on the left) instead of under a blank
+     56px band, with contextual actions (bell, page button) on the right. */
+  .dashboard-main { padding: var(--space-5); padding-top: var(--space-4); }
+  .dashboard-topbar { min-height: var(--touch-target); padding-left: calc(var(--touch-target) + var(--space-3)); margin-bottom: var(--space-5); }
 }
 
 /* Hamburger toggle + backdrop for the dashboard sidebar drawer,
@@ -1473,3 +1477,214 @@ html.ptr-enabled { overscroll-behavior-y: contain; }
 /* Keyboard/screen-reader route to the same refresh action. */
 .ptr-a11y-btn { position: fixed; left: -9999px; top: 8px; z-index: 600; }
 .ptr-a11y-btn:focus { left: 8px; }
+
+/* ============================================================
+   MOBILE DESIGN SYSTEM PRIMITIVES
+   Shared building blocks used by Wallet, Account, Security and the
+   modal system. Everything reads the tokens in tokens.css (type roles,
+   radius roles, shadows, --touch-target); nothing here introduces a
+   one-off size, colour or radius.
+   ============================================================ */
+
+/* ---------- Touch targets ----------
+   Anything tappable is at least 44px on a touch screen; icon-only
+   controls get a 44x44 hit area. Mouse layouts keep their compact size. */
+@media (pointer: coarse) {
+  .btn { min-height: var(--touch-target); }
+  .btn-sm { min-height: 40px; padding-left: var(--space-4); padding-right: var(--space-4); }
+  .modal-close, .notif-bell-btn, .mobile-nav-toggle { min-width: var(--touch-target); min-height: var(--touch-target); }
+  .settings-tab, .wallet-tab { min-height: var(--touch-target); display: inline-flex; align-items: center; }
+  .toggle-switch { min-height: var(--touch-target); }
+}
+.modal-close { display: inline-flex; align-items: center; justify-content: center; }
+
+/* ---------- Bottom-sheet presentation (see js/utils/modal.js) ---------- */
+.modal-handle { width: 40px; height: 4px; margin: 0 auto var(--space-3); border-radius: 4px; background: var(--border-subtle); flex-shrink: 0; }
+.modal-backdrop--sheet { align-items: flex-end; padding: 0; }
+.modal.modal--sheet {
+  width: 100%;
+  max-width: none;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  border-bottom: none;
+  padding: var(--space-3) var(--space-5) calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  max-height: 92vh;
+  max-height: 92dvh;
+  box-shadow: var(--shadow-sheet);
+  transform: translateY(100%);
+  opacity: 1;
+  animation: sheet-in var(--duration-modal) var(--ease-decelerate) forwards;
+}
+@keyframes sheet-in { to { transform: translateY(0); } }
+.modal--sheet .modal-header { margin-bottom: var(--space-4); }
+.modal-message { color: var(--text-secondary); font-size: var(--type-body); }
+.modal-message p { max-width: none; }
+.modal-actions--stacked { flex-direction: column; margin-top: var(--space-5); }
+.modal-actions--stacked .btn { width: 100%; min-height: 48px; }
+
+/* ---------- Grouped list rows (account center, security, settings) ----------
+   Icon, title, one-line explanation, optional status, chevron. */
+.list-group-title {
+  margin: var(--space-5) var(--space-1) var(--space-2);
+  font-size: var(--type-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.list-group-title:first-child { margin-top: 0; }
+.list-group {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: 64px;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-align: left;
+  text-decoration: none;
+  font: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--duration-micro) var(--ease-standard);
+}
+.list-row:last-child { border-bottom: 0; }
+a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
+.list-row:active { background: rgba(11, 31, 58, 0.06); }
+.list-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.list-row.is-static { cursor: default; }
+.list-row-icon {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  background: var(--bg-elevated);
+  color: var(--color-primary-navy);
+}
+.list-row-icon svg { width: 20px; height: 20px; }
+.list-row-text { flex: 1; min-width: 0; }
+.list-row-title, .list-row-desc { display: block; }
+.list-row-title { font-size: var(--type-body); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.list-row-desc { margin-top: 2px; font-size: var(--type-caption); color: var(--text-secondary); overflow-wrap: anywhere; }
+.list-row-trailing { flex: none; display: flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); font-size: var(--type-caption); font-weight: var(--weight-semibold); }
+.list-row-chevron { width: 18px; height: 18px; flex: none; }
+.status-pill { display: inline-block; padding: 2px 10px; border-radius: var(--radius-pill); font-size: var(--type-caption); font-weight: var(--weight-semibold); background: var(--bg-elevated); color: var(--text-secondary); }
+.status-pill--on { background: var(--status-success-bg); color: var(--status-success); }
+.status-pill--off { background: var(--bg-elevated); color: var(--text-secondary); }
+.status-pill--warn { background: var(--status-warning-bg); color: var(--accent-text); }
+
+/* ---------- Empty / error / loading state views (js/utils/stateViews.js) ---------- */
+.state-view { padding: var(--space-7) var(--space-5); text-align: center; color: var(--text-secondary); }
+.state-view-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--color-primary-navy);
+}
+.state-view-icon svg { width: 26px; height: 26px; }
+.state-view--error .state-view-icon { background: var(--status-danger-bg); color: var(--status-danger); }
+.state-view h3 { margin-bottom: var(--space-2); font-size: var(--type-card-title); color: var(--text-primary); }
+.state-view p { max-width: 36ch; margin: 0 auto var(--space-4); font-size: var(--type-body); }
+.state-view--compact { padding: var(--space-5) var(--space-4); }
+.skeleton-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; }
+.skeleton-row .skeleton { border-radius: var(--radius-control); }
+
+/* ---------- Label / value detail list (transaction sheet, receipts) ---------- */
+.detail-list { margin: 0; }
+.detail-list-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); }
+.detail-list-row:last-child { border-bottom: 0; }
+.detail-list-label { flex: none; font-size: var(--type-caption); color: var(--text-secondary); }
+.detail-list-value { margin: 0; min-width: 0; text-align: right; font-size: var(--type-body); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.detail-list-value--mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--type-caption); }
+
+/* ---------- Connectivity banner (js/utils/connectivity.js) ---------- */
+.offline-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 600;
+  padding: var(--space-2) var(--space-4);
+  padding-top: calc(var(--space-2) + env(safe-area-inset-top, 0px));
+  background: var(--color-primary-navy);
+  color: var(--text-on-navy);
+  text-align: center;
+  font-size: var(--type-caption);
+  font-weight: var(--weight-semibold);
+  transform: translateY(-100%);
+  transition: transform var(--duration-normal) var(--ease-standard);
+}
+.offline-banner.is-visible { transform: translateY(0); }
+
+/* ---------- App lock screen (js/modules/appLock.js) ---------- */
+.app-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(160deg, var(--color-primary-navy), var(--color-deep-navy));
+  color: var(--text-on-navy);
+  text-align: center;
+}
+.app-lock img { width: 72px; height: 72px; }
+.app-lock h1 { margin: 0; color: var(--text-on-navy); font-size: var(--type-page-title); }
+.app-lock p { max-width: 32ch; margin: 0; color: rgba(255, 255, 255, 0.75); font-size: var(--type-body); }
+.app-lock-unlock {
+  width: 88px;
+  height: 88px;
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid var(--color-primary-gold);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-light-gold);
+}
+.app-lock-unlock svg { width: 40px; height: 40px; }
+.app-lock-unlock:focus-visible { outline: 3px solid var(--color-light-gold); outline-offset: 4px; }
+.app-lock-message { min-height: 1.4em; color: var(--color-light-gold); font-weight: var(--weight-semibold); }
+.app-lock .btn-link-light { background: none; border: 0; color: rgba(255, 255, 255, 0.85); font-weight: var(--weight-semibold); text-decoration: underline; min-height: var(--touch-target); padding: 0 var(--space-4); }
+
+/* Page title role: the single h1 of a dashboard page. */
+.page-title { margin: 0; font-size: var(--type-page-title); }
+
+/* A list row whose trailing status drops onto its own line on narrow
+   screens instead of squeezing the title into a sliver. */
+@media (max-width: 420px) {
+  .list-row--stack-status { flex-wrap: wrap; row-gap: var(--space-2); }
+  .list-row--stack-status .list-row-text { flex-basis: calc(100% - 56px); }
+  .list-row--stack-status .list-row-trailing { flex-basis: 100%; padding-left: 56px; }
+}
+
+/* ---------- Account summary (top of the Account center) ---------- */
+.account-summary { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); padding: var(--space-4); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); }
+.account-avatar { flex: none; display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 50%; background: var(--color-primary-navy); color: var(--color-light-gold); font-family: var(--font-display); font-size: var(--type-section-title); font-weight: var(--weight-bold); }
+.account-summary-text { min-width: 0; }
+.account-summary-name { font-size: var(--type-card-title); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.account-summary-sub { font-size: var(--type-caption); color: var(--text-secondary); overflow-wrap: anywhere; }
+
+.page-title--with-sub { margin-bottom: var(--space-1); }
+
+.notif-row-icon svg { width: 16px; height: 16px; }

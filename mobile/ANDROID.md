@@ -246,3 +246,8 @@ Documented, not claimed as done — none of this can be completed without your P
 - **OAuth + 2FA together on Android** isn't wired through the Custom Tab hand-off (see § Authentication's Known gap) — password-based 2FA is unaffected.
 - **Notification icons are placeholders** (`android.R.drawable.ic_dialog_info` / `sym_call_incoming`) — Android requires a notification's small icon to be a simple white-on-transparent silhouette, which can't be reliably auto-generated from the existing full-color logo PNG (no source vector art, no alpha channel to threshold). Replace `JobRushFirebaseMessagingService`/`IncomingCallService`'s `setSmallIcon(...)` calls with a real monochrome icon before release.
 - **`assetlinks.json` has a placeholder fingerprint** — App Links won't verify until you replace it with your real release signing certificate's SHA-256 (see § Deep links).
+
+## Biometric login, app lock and haptics
+
+The app includes `@aparajita/capacitor-biometric-auth` (fingerprint / face unlock via Android's BiometricPrompt) and `@capacitor/haptics`, plus the `USE_BIOMETRIC` permission and a branded `ic_stat_jobrush` notification icon. The web layer reaches them through the injected `window.Capacitor.Plugins` bridge, only inside the app. Architecture, security model, what is and is not stored, the lock policy, and the physical-device test checklist are in [BIOMETRICS.md](BIOMETRICS.md). After changing plugins, run `npm install && npx cap sync android` and rebuild; an installed APK that predates a plugin shows "Update the Job Rush app" in Settings rather than failing.
+

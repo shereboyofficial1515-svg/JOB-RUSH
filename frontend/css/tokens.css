@@ -110,6 +110,28 @@
   --text-3xl: 2.75rem;
   --text-4xl: 3.5rem;
 
+  /* Semantic type roles — pages pick a ROLE, not a raw size, so the
+     hierarchy stays identical everywhere (and can be retuned in one
+     place). Mobile roles shrink via the media query at the end of this
+     block, not per page. Rule of thumb: display = hero numbers
+     (wallet balance); page title = the one h1; section title = a group
+     of related cards; card title = a card/sheet heading; body = default
+     reading text; secondary = supporting lines; caption = timestamps,
+     fine print; label = field labels and chips; button = all buttons. */
+  --type-display: var(--text-3xl);
+  --type-page-title: var(--text-2xl);
+  --type-section-title: var(--text-lg);
+  --type-card-title: var(--text-base);
+  --type-body: var(--text-sm);
+  --type-secondary: var(--text-sm);
+  --type-caption: var(--text-xs);
+  --type-label: var(--text-xs);
+  --type-button: var(--text-sm);
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
   /* ---- Spacing scale ---- */
   --space-1: 4px;
   --space-2: 8px;
@@ -125,7 +147,17 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
+  /* Roles: controls (buttons, inputs, chips) = md; cards = lg;
+     sheets / large surfaces = xl; pills for badges only. */
+  --radius-control: var(--radius-md);
+  --radius-card: var(--radius-lg);
+  --radius-sheet: var(--radius-xl);
+
+  /* Minimum touch target (WCAG 2.5.5 / Material): every tappable
+     control on a touch device is at least this tall/wide. */
+  --touch-target: 44px;
 
   /* ---- Motion (spec section 8) ---- */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
@@ -136,8 +168,21 @@
 
   --shadow-card: 0 1px 2px rgba(11, 31, 58, 0.06), 0 4px 16px rgba(11, 31, 58, 0.06);
   --shadow-elevated: 0 12px 32px rgba(11, 31, 58, 0.14);
+  /* Elevation roles: cards = shadow-card (barely there), floating
+     panels/dialogs = shadow-elevated, bottom sheets = shadow-sheet. */
+  --shadow-sheet: 0 -8px 32px rgba(11, 31, 58, 0.18);
+  --status-warning-bg: rgba(201, 162, 39, 0.14);
 
   --max-width: 1200px;
+}
+
+/* Phone type scale: page titles and the hero number step down one notch
+   so a title never wraps to three lines on a 320px screen. */
+@media (max-width: 640px) {
+  :root {
+    --type-display: var(--text-2xl);
+    --type-page-title: var(--text-xl);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

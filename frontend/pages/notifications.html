@@ -27,7 +27,7 @@
 
     <div class="dashboard-main">
       <div class="dashboard-topbar">
-        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Notifications</h1>
+        <h1 class="page-title">Notifications</h1>
         <div style="display:flex; align-items:center; gap: var(--space-3);">
           <div id="notif-bell-mount"></div>
           <button class="btn btn-secondary btn-sm" id="mark-all-btn" type="button">Mark all read</button>
@@ -60,6 +60,7 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/modules/pullToRefresh.js"></script>
@@ -96,7 +97,7 @@
         const { notifications } = await API.get(`/notifications?page=${page}&pageSize=${PAGE_SIZE}`);
         if (reset) list.innerHTML = '';
         if (reset && notifications.length === 0) {
-          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>You're all caught up</h3><p>New messages, applications, interviews and payments will appear here.</p></div>`;
+          StateView.empty(list, { icon: 'bell', title: 'You’re all caught up', message: 'New messages, applications, interviews and payments will appear here.' });
         } else {
           const holder = document.createElement('div');
           holder.innerHTML = notifications.map(NotificationBell.rowHtml).join('');
@@ -108,8 +109,7 @@
         NotificationBell.refresh();
       } catch (err) {
         if (reset && !list.querySelector('.notif-row')) {
-          list.innerHTML = `<div class="notif-empty text-secondary text-sm"><p>${esc(err.message)}</p><button type="button" class="btn btn-ghost btn-sm" id="retry-btn">Retry</button></div>`;
-          document.getElementById('retry-btn').addEventListener('click', () => loadNotifications(true).catch(() => {}));
+          StateView.error(list, err, { title: 'Unable to load notifications', retry: () => { StateView.skeleton(list, { rows: 3 }); loadNotifications(true).catch(() => {}); } });
         }
         throw err;
       } finally {

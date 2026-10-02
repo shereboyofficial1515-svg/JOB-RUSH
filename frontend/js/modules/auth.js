@@ -4,6 +4,55 @@
  * rather than constructing requests inline.
  */
 const Auth = (function () {
+  // Where this file was served from, so on-demand modules resolve correctly
+  // from any page depth (index.html, pages/*.html).
+  const SCRIPT_BASE = (function () {
+    try { return document.currentScript.src.replace(/auth\.js(\?.*)?$/, ''); } catch { return ''; }
+  })();
+
+  function loadScript(url) {
+    return new Promise((resolve) => {
+      const el = document.createElement('script');
+      el.src = url;
+      el.onload = resolve;
+      el.onerror = resolve; // a failed optional module must never block the page
+      document.head.appendChild(el);
+    });
+  }
+
+  /**
+   * Runtime modules every signed-in page gets without each page listing
+   * script tags: the connectivity banner everywhere, and — only inside the
+   * native app — the native bridge helper, BiometricService and the app
+   * lock. On the plain web the native modules are never even downloaded.
+   */
+  let runtimeReady = null;
+  function ensureRuntimeModules() {
+    if (runtimeReady) return runtimeReady;
+    runtimeReady = (async () => {
+      if (typeof Connectivity === 'undefined') await loadScript(`${SCRIPT_BASE}../utils/connectivity.js`);
+      if (typeof Connectivity !== 'undefined') Connectivity.start();
+
+      const cap = window.Capacitor;
+      const inApp = !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
+      if (inApp) {
+        for (const file of ['native.js', 'biometric.js', 'appLock.js']) {
+          await loadScript(`${SCRIPT_BASE}${file}`);
+        }
+      }
+    })();
+    return runtimeReady;
+  }
+
+  // A password login just proved who the user is, so don't immediately
+  // ask for a biometric scan on top of it.
+  function markFreshLogin() {
+    try {
+      sessionStorage.setItem('jr.lock.unlocked', '1');
+      sessionStorage.removeItem('jr.lock.leftAt');
+    } catch { /* storage unavailable */ }
+  }
+
   async function register({ fullName, email, phone, password, role, referralCode }) {
     return API.post('/auth/register', { fullName, email, phone, password, role, referralCode });
   }
@@ -17,11 +66,16 @@ const Auth = (function () {
   }
 
   async function login({ identifier, password }) {
-    return API.post('/auth/login', { identifier, password });
+    const result = await API.post('/auth/login', { identifier, password });
+    // A 2FA challenge isn't a completed login yet; only a real session counts.
+    if (result && !result.requiresTwoFactor) markFreshLogin();
+    return result;
   }
 
   async function verifyTwoFactorLogin({ challengeToken, code }) {
-    return API.post('/auth/2fa/verify-login', { challengeToken, code });
+    const result = await API.post('/auth/2fa/verify-login', { challengeToken, code });
+    markFreshLogin();
+    return result;
   }
 
   async function logout() {
@@ -102,12 +156,18 @@ const Auth = (function () {
    * idea of "logged in" is authoritative, always re-check with /me.
    */
   async function requireSession(loginPageHref) {
+    const runtime = ensureRuntimeModules(); // loads alongside the session check
     const user = await getCurrentUser();
     if (!user) {
       const returnTo = encodeURIComponent(window.location.pathname);
       window.location.href = `${loginPageHref}?returnTo=${returnTo}`;
       return null;
     }
+    await runtime;
+    // Biometric app lock (native app + opted-in users only; resolves
+    // immediately otherwise). Page init waits here, so protected data
+    // isn't requested while the lock screen is up.
+    if (typeof AppLock !== 'undefined') await AppLock.guard(user);
     return user;
   }
 

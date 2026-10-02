@@ -153,7 +153,7 @@
      untouched. 56px = the hamburger toggle's row (see components.css
      .dashboard-main padding-top). */
   body:has(.thread-panel.is-open-on-mobile) .dashboard-topbar { display: none; }
-  body:has(.thread-panel.is-open-on-mobile) .dashboard-main { padding-bottom: 0; }
+  body:has(.thread-panel.is-open-on-mobile) .dashboard-main { padding-top: calc(var(--space-5) + 56px); padding-bottom: 0; }
   body:has(.thread-panel.is-open-on-mobile) .messages-layout {
     height: calc(100vh - 56px);
     height: calc(100dvh - 56px);
@@ -346,3 +346,92 @@ html[data-chat-theme="dark"][data-chat-wallpaper="professional"] .thread-message
 html[data-chat-theme="system"][data-chat-wallpaper="professional"] .thread-messages { background-image: linear-gradient(rgba(11, 18, 32, 0.82), rgba(11, 18, 32, 0.82)), url("../assets/images/wallpapers/wallpaper-professional.jpg"); }
 html[data-chat-theme="dark"][data-chat-wallpaper="pattern"] .thread-messages,
 html[data-chat-theme="system"][data-chat-wallpaper="pattern"] .thread-messages { background-image: linear-gradient(rgba(11, 18, 32, 0.86), rgba(11, 18, 32, 0.86)), url("../assets/images/wallpapers/wallpaper-pattern.jpg"); }
+
+/* ---------- Wallet (redesign) ----------
+   Restrained, trust-first: one navy balance surface with a strong
+   number, plain white cards for everything else, status shown as small
+   pills, no decoration that isn't carrying information. */
+.wallet-hero {
+  margin-bottom: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-card);
+  background: linear-gradient(160deg, var(--color-primary-navy), var(--color-deep-navy));
+  color: var(--text-on-navy);
+  box-shadow: var(--shadow-card);
+}
+.wallet-hero-label { font-size: var(--type-caption); font-weight: var(--weight-semibold); letter-spacing: 0.05em; text-transform: uppercase; color: rgba(255, 255, 255, 0.72); }
+.wallet-hero-amount { margin: var(--space-2) 0 var(--space-1); font-family: var(--font-display); font-size: var(--type-display); font-weight: var(--weight-bold); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; transition: opacity var(--duration-normal) var(--ease-standard); }
+.wallet-hero-amount.is-stale { opacity: 0.7; }
+.wallet-hero-meta { margin-bottom: var(--space-4); font-size: var(--type-caption); color: rgba(255, 255, 255, 0.72); }
+.wallet-hero-cta { width: 100%; }
+@media (min-width: 641px) { .wallet-hero-cta { width: auto; min-width: 200px; } }
+
+.wallet-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
+.wallet-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 80px;
+  padding: var(--space-3) var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--type-caption);
+  font-weight: var(--weight-semibold);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.wallet-action:hover { border-color: var(--border-gold); }
+.wallet-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wallet-action-icon { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: var(--radius-control); background: var(--bg-elevated); color: var(--color-primary-navy); }
+.wallet-action-icon svg { width: 20px; height: 20px; }
+
+.wallet-section { margin-bottom: var(--space-5); }
+.wallet-section-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.wallet-section-head h2 { margin: 0; font-size: var(--type-section-title); }
+.wallet-footnote { max-width: none; margin: var(--space-3) var(--space-1) 0; font-size: var(--type-caption); color: var(--text-secondary); }
+
+.tx-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 68px;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tx-row:last-child { border-bottom: 0; }
+.tx-row:hover { background: rgba(11, 31, 58, 0.03); }
+.tx-row:active { background: rgba(11, 31, 58, 0.06); }
+.tx-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tx-icon { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; }
+.tx-icon svg { width: 18px; height: 18px; }
+.tx-icon--credit { background: var(--status-success-bg); color: var(--status-success); }
+.tx-icon--debit { background: var(--bg-elevated); color: var(--color-primary-navy); }
+.tx-text { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.tx-title { font-size: var(--type-body); font-weight: var(--weight-semibold); }
+.tx-sub { font-size: var(--type-caption); color: var(--text-secondary); overflow-wrap: anywhere; }
+.tx-pill { margin-top: 2px; }
+.tx-amount { flex: none; font-size: var(--type-body); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tx-amount--credit { color: var(--status-success); }
+.tx-amount--debit { color: var(--text-primary); }
+@media (max-width: 380px) {
+  .tx-icon { display: none; } /* the +/− sign and colour already carry the direction; room goes to the text */
+  .tx-row { padding-left: var(--space-3); padding-right: var(--space-3); }
+}
+
+/* Keep wallet content a readable width on wide desktop screens. */
+.wallet-hero, .wallet-actions, .wallet-section { max-width: 880px; }

@@ -115,7 +115,7 @@ public class JobRushFirebaseMessagingService extends FirebaseMessagingService {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_GENERAL)
-                .setSmallIcon(android.R.drawable.ic_dialog_info) // replaced by the real notification icon in res/drawable — see ANDROID.md
+                .setSmallIcon(R.drawable.ic_stat_jobrush)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setAutoCancel(true)

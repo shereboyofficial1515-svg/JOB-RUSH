@@ -29,7 +29,7 @@
     <div class="dashboard-main">
       <div class="dashboard-topbar">
         <div>
-          <h1 style="font-size: var(--text-2xl); margin-bottom: var(--space-1);">My Portfolio</h1>
+          <h1 class="page-title page-title--with-sub">My Portfolio</h1>
           <p class="text-secondary text-sm">Showcase your best work to hirers browsing your profile.</p>
         </div>
         <div style="display:flex; align-items:center; gap: var(--space-3);">
@@ -60,6 +60,7 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
@@ -237,7 +238,7 @@
         wireCardActions(portfolios);
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        grid.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        StateView.error(grid, err, { title: 'Unable to load your portfolio', retry: loadPortfolio });
       }
     }
 
