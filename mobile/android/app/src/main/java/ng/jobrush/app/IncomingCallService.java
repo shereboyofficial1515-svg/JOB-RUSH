@@ -104,7 +104,7 @@ public class IncomingCallService extends Service {
         PendingIntent rejectIntent = actionPendingIntent(ACTION_REJECT, 2);
 
         return new NotificationCompat.Builder(this, JobRushFirebaseMessagingService.CHANNEL_CALLS)
-                .setSmallIcon(android.R.drawable.sym_call_incoming) // replace with a branded call icon — see ANDROID.md
+                .setSmallIcon(R.drawable.ic_stat_jobrush)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setCategory(NotificationCompat.CATEGORY_CALL)

@@ -27,7 +27,7 @@
 
     <div class="dashboard-main">
       <div class="dashboard-topbar">
-        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Contracts &amp; Payments</h1>
+        <h1 class="page-title">Contracts &amp; Payments</h1>
         <div id="notif-bell-mount"></div>
       </div>
 
@@ -51,11 +51,13 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
   <script src="../js/modules/pullToRefresh.js"></script>
   <script>
+    let currentUser = null;
     function formatNaira(n) { return `\u20A6${Number(n).toLocaleString()}`; }
 
     function contractRowHtml(c) {
@@ -126,7 +128,7 @@
         wireActions();
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        StateView.error(list, err, { title: 'Unable to load your contracts', retry: loadContracts });
       }
     }
 
@@ -157,13 +159,36 @@
               <button type="button" class="btn btn-primary" id="confirm-release">Release funds</button>
             </div>`,
             onMount: () => {
-              document.getElementById('confirm-release').addEventListener('click', async () => {
+              document.getElementById('confirm-release').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                if (btn.disabled) return;
+                if (typeof Connectivity !== 'undefined' && !Connectivity.isOnline()) {
+                  Toast.error('You’re offline. Nothing was released. Reconnect and try again.');
+                  return;
+                }
+                btn.disabled = true;
                 try {
+                  // Releasing escrow can't be undone, so when biometric login is
+                  // on in the app, ask the OS to confirm it's really the owner.
+                  // The server still decides: it re-checks the session, that this
+                  // user is the hirer, and that the escrow is funded.
+                  if (typeof BiometricService !== 'undefined') {
+                    const check = await BiometricService.confirmSensitive(currentUser.id, 'Confirm releasing funds to the worker');
+                    if (!check.ok) {
+                      Toast.error(check.outcome === 'cancelled' || check.outcome === 'fallback' ? 'Confirmation cancelled. Funds were not released.' : (check.message || 'We couldn’t confirm it’s you. Funds were not released.'));
+                      return;
+                    }
+                  }
                   await API.post(`/escrow/${escrowId}/release`);
+                  if (typeof Native !== 'undefined') Native.haptic('success');
                   Toast.success('Funds released to the worker.');
                   Modal.close();
                   loadContracts();
-                } catch (err) { Toast.error(err.message); }
+                } catch (err) {
+                  Toast.error(err.status === 0 ? 'We couldn’t reach the server, so we can’t confirm the release. Check this contract before trying again.' : err.message);
+                } finally {
+                  btn.disabled = false;
+                }
               });
             },
           });
@@ -282,6 +307,7 @@
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
       if (user.role === 'worker') { window.location.href = 'dashboard.html'; return; }
+      currentUser = user;
 
       SidebarNav.render(user, 'contracts');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));

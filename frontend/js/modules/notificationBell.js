@@ -7,19 +7,21 @@
 const NotificationBell = (function () {
   let pollTimer = null;
 
+  // Notification type -> shared icon (js/utils/icons.js). No emoji: they
+  // render differently per device and don't match the rest of the UI.
   const TYPE_ICONS = {
-    new_message: '\u{1F4AC}',
-    application_submitted: '\u{1F4E5}',
-    interview_scheduled: '\u{1F4C5}',
-    contract_created: '\u{1F4DD}',
-    withdrawal_requested: '\u{1F4B0}',
-    subscription_renewed: '⭐',
-    referral_new_signup: '\u{1F517}',
-    referral_qualified: '✅',
-    referral_milestone_reached: '\u{1F3C6}',
-    referral_reward_approved: '\u{1F4B5}',
-    referral_reward_paid: '\u{1F4B5}',
-    referred_welcome: '\u{1F44B}',
+    new_message: 'message',
+    application_submitted: 'document',
+    interview_scheduled: 'calendar',
+    contract_created: 'document',
+    withdrawal_requested: 'wallet',
+    subscription_renewed: 'star',
+    referral_new_signup: 'link',
+    referral_qualified: 'check',
+    referral_milestone_reached: 'star',
+    referral_reward_approved: 'wallet',
+    referral_reward_paid: 'wallet',
+    referred_welcome: 'user',
   };
 
   function timeAgo(dateStr) {
@@ -31,7 +33,7 @@ const NotificationBell = (function () {
   }
 
   function notificationRowHtml(n) {
-    const icon = TYPE_ICONS[n.type];
+    const icon = typeof Icons !== 'undefined' && TYPE_ICONS[n.type] ? Icons[TYPE_ICONS[n.type]] : '';
     return `
       <div class="notif-row ${n.read_at ? '' : 'is-unread'}" data-notif-id="${n.id}">
         <div class="notif-row-title">${icon ? `<span class="notif-row-icon" aria-hidden="true">${icon}</span>` : ''}<span>${esc(n.title)}</span></div>

@@ -34,7 +34,7 @@ const SidebarNav = (function () {
     { key: 'referral', label: 'Referrals', icon: '⊕', href: 'referral.html', roles: ['worker', 'hirer', 'both'] },
     { key: 'pro', label: 'JOB RUSH PRO', icon: '★', href: 'pro.html', roles: ['worker'] },
     { key: 'profile', label: 'Profile', icon: '◆', href: 'profile-settings.html?tab=profile', roles: ['worker', 'hirer', 'both'] },
-    { key: 'settings', label: 'Settings', icon: '⚙', href: 'profile-settings.html?tab=account', roles: ['worker', 'hirer', 'both'] },
+    { key: 'settings', label: 'Settings', icon: '⚙', href: 'profile-settings.html?tab=hub', roles: ['worker', 'hirer', 'both'] },
     { key: 'support', label: 'Support', icon: '❓', href: 'support.html', roles: ['worker', 'hirer', 'both'] },
     { key: 'visit-site', label: 'Visit JOB RUSH site', icon: '↗', href: '../index.html', roles: ['worker', 'hirer', 'both'] },
   ];

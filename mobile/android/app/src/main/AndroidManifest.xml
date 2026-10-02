@@ -97,6 +97,11 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Biometric unlock / confirmation (BiometricPrompt via the
+         @aparajita/capacitor-biometric-auth plugin). Job Rush only asks the
+         OS to authenticate and receives success/failure; no biometric data
+         is read, stored or transmitted — see BIOMETRICS.md. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Granular media read permissions (Android 13+) for chat/portfolio
          attachment pickers; READ_EXTERNAL_STORAGE covers the same need

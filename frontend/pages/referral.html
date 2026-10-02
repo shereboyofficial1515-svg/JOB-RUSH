@@ -27,7 +27,7 @@
 
     <div class="dashboard-main">
       <div class="dashboard-topbar">
-        <h1 style="font-size: var(--text-2xl); margin-bottom: 0;">Referral Program</h1>
+        <h1 class="page-title">Referral Program</h1>
         <div id="notif-bell-mount"></div>
       </div>
 
@@ -126,6 +126,7 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
@@ -253,11 +254,15 @@
 
       PullToRefresh.init({ onRefresh: () => loadDashboard() });
 
-      try {
-        await loadDashboard();
-      } catch (err) {
-        document.getElementById('referrals-list').innerHTML = `<p class="text-secondary">${err.message}</p>`;
+      const referralsBox = document.getElementById('referrals-list');
+      async function initialLoad() {
+        try {
+          await loadDashboard();
+        } catch (err) {
+          StateView.error(referralsBox, err, { title: 'Unable to load your referrals', retry: () => { StateView.skeleton(referralsBox, { rows: 2 }); initialLoad(); } });
+        }
       }
+      await initialLoad();
     })();
   </script>
 </body>

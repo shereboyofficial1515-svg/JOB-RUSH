@@ -27,7 +27,7 @@
 
     <div class="dashboard-main" style="max-width: 760px;">
       <div class="dashboard-topbar">
-        <h1 id="page-heading" style="font-size: var(--text-2xl); margin-bottom: 0;">Profile</h1>
+        <h1 id="page-heading" class="page-title">Profile</h1>
         <div id="notif-bell-mount"></div>
       </div>
 
@@ -59,6 +59,7 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
@@ -163,6 +164,7 @@
       { key: 'education', label: 'Education', group: 'profile', workerOnly: true },
       { key: 'cv', label: 'CV / Resume', group: 'profile', workerOnly: true },
       { key: 'services', label: 'Services & Pricing', group: 'profile', workerOnly: true },
+      { key: 'hub', label: 'Overview', group: 'settings' },
       { key: 'account', label: 'Account & Security', group: 'settings' },
       { key: 'sessions', label: 'Sessions & Devices', group: 'settings' },
       { key: 'chat', label: 'Chat', group: 'settings' },
@@ -214,7 +216,7 @@
       content.innerHTML = `<div class="skeleton" style="height: 300px;"></div>`;
       const loader = TAB_LOADERS[key] || TAB_LOADERS.profile;
       loader(content).catch((err) => {
-        content.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        StateView.error(content, err, { title: 'Unable to load this page', retry: () => loadTab(key) });
       });
     }
 
@@ -1753,6 +1755,30 @@
     // ============================================================
     // TAB: Account & Security
     // ============================================================
+    // One row of the Security list: icon, title, one-line explanation,
+    // optional status pill, chevron. The whole row is the tap target.
+    function securityRowHtml({ id, icon, title, desc, pill = false }) {
+      const chevron = Icons.chevronRight.replace('<svg ', '<svg class="list-row-chevron" ');
+      return `
+      <button type="button" class="list-row" id="${id}">
+        <span class="list-row-icon">${Icons[icon] || ''}</span>
+        <span class="list-row-text">
+          <span class="list-row-title">${title}</span>
+          <span class="list-row-desc">${desc}</span>
+        </span>
+        <span class="list-row-trailing">${pill ? '<span class="status-pill" hidden></span>' : ''}${chevron}</span>
+      </button>`;
+    }
+
+    function setRowStatus(row, { desc, pillText, tone }) {
+      if (desc !== undefined) row.querySelector('.list-row-desc').textContent = desc;
+      const pill = row.querySelector('.status-pill');
+      if (!pill) return;
+      pill.hidden = !pillText;
+      pill.textContent = pillText || '';
+      pill.className = `status-pill${tone ? ` status-pill--${tone}` : ''}`;
+    }
+
     function accountTabHtml(user, settings) {
       const isHirer = user.role === 'hirer' || user.role === 'both';
       const isWorker = user.role === 'worker' || user.role === 'both';
@@ -1769,12 +1795,14 @@
         user.phone ? `${esc(user.phone)} ${user.phoneVerified ? '<span class="badge badge-verified" style="margin-left:6px;">Verified</span>' : ''}` : 'Not set',
         `<button type="button" class="btn btn-sm btn-secondary" id="change-phone-btn">${user.phone ? 'Change' : 'Add'}</button>`
       )}
-        ${settingsRowHtml('Password', 'Change the password used to sign in.', `<button type="button" class="btn btn-sm btn-secondary" id="change-password-btn">Change</button>`)}
       </div>
 
-      <div class="card" style="margin-bottom: var(--space-5);" id="tfa-card">
-        <h3>Two-factor authentication</h3>
-        <div id="tfa-body"><div class="skeleton" style="height: 16px; width: 60%;"></div></div>
+      <div class="list-group-title">Security</div>
+      <div class="list-group" id="security-group" style="margin-bottom: var(--space-5);">
+        ${securityRowHtml({ id: 'change-password-btn', icon: 'key', title: 'Password', desc: 'Change the password you use to sign in' })}
+        ${securityRowHtml({ id: 'tfa-row', icon: 'shield', title: 'Two-step verification', desc: 'Checking…', pill: true })}
+        ${securityRowHtml({ id: 'biometric-row', icon: 'fingerprint', title: 'Biometric login', desc: 'Checking this device…', pill: true })}
+        ${securityRowHtml({ id: 'sessions-row', icon: 'smartphone', title: 'Active sessions', desc: 'See and log out devices that are signed in' })}
       </div>
 
       <div class="card" style="margin-bottom: var(--space-5);">
@@ -1827,30 +1855,92 @@
     `;
     }
 
-    function disabledTfaHtml() {
-      return `
-      <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Two-factor authentication is currently <strong style="color: var(--text-primary);">off</strong>. Add an extra layer of security with an authenticator app (Google Authenticator, Authy, etc).</p>
-      <button class="btn btn-primary btn-sm" id="enable-tfa-btn">Enable two-factor authentication</button>
-    `;
-    }
-    function enabledTfaHtml() {
-      return `
-      <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);"><span class="badge badge-verified">Enabled</span> Your account is protected with two-factor authentication.</p>
-      <button class="btn btn-danger btn-sm" id="disable-tfa-btn">Disable two-factor authentication</button>
-    `;
-    }
-
     async function loadTfaStatus() {
-      const body = document.getElementById('tfa-body');
+      const row = document.getElementById('tfa-row');
+      if (!row) return;
       try {
         const { enabled } = await API.get('/auth/2fa/status');
-        body.innerHTML = enabled ? enabledTfaHtml() : disabledTfaHtml();
-        const enableBtn = document.getElementById('enable-tfa-btn');
-        if (enableBtn) enableBtn.addEventListener('click', startTfaSetup);
-        const disableBtn = document.getElementById('disable-tfa-btn');
-        if (disableBtn) disableBtn.addEventListener('click', openDisableTfaModal);
+        row.dataset.state = enabled ? 'on' : 'off';
+        setRowStatus(row, {
+          desc: enabled ? 'Your account asks for a code from your authenticator app when you sign in' : 'Add a code from an authenticator app to protect your sign-in',
+          pillText: enabled ? 'On' : 'Off',
+          tone: enabled ? 'on' : 'off',
+        });
       } catch (err) {
-        body.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
+        row.dataset.state = 'error';
+        setRowStatus(row, { desc: 'We couldn’t check this. Tap to try again.', pillText: '' });
+      }
+    }
+
+    function onTfaRowClick() {
+      const state = document.getElementById('tfa-row').dataset.state;
+      if (state === 'on') openDisableTfaModal();
+      else if (state === 'off') startTfaSetup();
+      else loadTfaStatus();
+    }
+
+    // ---- Biometric login (native app only; see js/modules/biometric.js) ----
+    async function renderBiometricRow() {
+      const row = document.getElementById('biometric-row');
+      if (!row) return;
+      if (typeof BiometricService === 'undefined') {
+        // Plain browser: there is no OS biometric prompt to use here.
+        row.dataset.state = 'web';
+        row.classList.add('is-static');
+        setRowStatus(row, { desc: 'Available in the Job Rush Android app. Open the app to turn it on.', pillText: 'App only', tone: 'off' });
+        return;
+      }
+      const caps = await BiometricService.getCapabilities({ refresh: true });
+      const enabled = BiometricService.isEnabled(currentUser.id);
+      if (caps.state === 'available') {
+        row.dataset.state = enabled ? 'on' : 'off';
+        setRowStatus(row, {
+          desc: enabled ? `Unlocks Job Rush with your ${caps.label} after you’ve been away` : `Use your ${caps.label} to unlock Job Rush faster`,
+          pillText: enabled ? 'On' : 'Off',
+          tone: enabled ? 'on' : 'off',
+        });
+      } else {
+        row.dataset.state = enabled ? 'on-unavailable' : 'unavailable';
+        setRowStatus(row, {
+          desc: enabled ? `${BiometricService.capabilityMessage(caps)} Tap to turn this off.` : BiometricService.capabilityMessage(caps),
+          pillText: enabled ? 'Needs attention' : 'Unavailable',
+          tone: enabled ? 'warn' : 'off',
+        });
+      }
+    }
+
+    async function onBiometricRowClick() {
+      const row = document.getElementById('biometric-row');
+      const state = row.dataset.state;
+      if (state === 'off') {
+        const caps = await BiometricService.getCapabilities();
+        const confirmed = await Modal.confirm({
+          title: 'Enable biometric login?',
+          message: `<p>Job Rush will ask your phone to check your ${esc(caps.label)} to unlock the app after you’ve been away for a while.</p>
+                    <p style="margin-top: var(--space-3);">Your ${esc(caps.label)} data stays on your device. Job Rush never sees or stores it. You can always use your password instead.</p>`,
+          confirmLabel: 'Enable',
+        });
+        if (!confirmed) return;
+        const result = await BiometricService.enable(currentUser.id);
+        if (result.ok) Toast.success('Biometric login is on.');
+        else if (result.outcome === 'cancelled' || result.outcome === 'fallback') Toast.error('Biometric login wasn’t turned on.');
+        else Toast.error(result.message || 'Biometric login couldn’t be turned on.');
+        renderBiometricRow();
+      } else if (state === 'on' || state === 'on-unavailable') {
+        const confirmed = await Modal.confirm({
+          title: 'Turn off biometric login?',
+          message: '<p>Job Rush will stop asking for your fingerprint or face when you open the app. You’ll still sign in with your password.</p>',
+          confirmLabel: 'Turn off',
+          danger: true,
+        });
+        if (!confirmed) return;
+        const result = await BiometricService.disable(currentUser.id);
+        if (result.ok) Toast.success('Biometric login is off.');
+        else Toast.error(result.message || 'Biometric login is still on.');
+        renderBiometricRow();
+      } else if (state === 'unavailable') {
+        const caps = await BiometricService.getCapabilities();
+        Toast.error(BiometricService.capabilityMessage(caps));
       }
     }
 
@@ -2136,10 +2226,77 @@
       });
     }
 
+    // ============================================================
+    // TAB: Account center (overview of every settings destination)
+    // ============================================================
+    function accountHubRows() {
+      const isWorker = currentUser.role === 'worker' || currentUser.role === 'both';
+      const sections = [
+        { title: 'Profile', rows: [
+          { tab: 'profile', icon: 'user', title: 'Profile information', desc: 'Your name, photo, bio and professional details' },
+          { tab: 'business', icon: 'business', title: 'Business profile', desc: 'Your storefront, address and opening hours' },
+          ...(isWorker ? [{ tab: 'social', icon: 'link', title: 'Social links', desc: 'Show your website and social pages on your profile' }] : []),
+        ] },
+        ...(isWorker ? [{ title: 'Professional', rows: [
+          { tab: 'services', icon: 'briefcase', title: 'Services & pricing', desc: 'What you offer and what it costs' },
+          { tab: 'experience', icon: 'clock', title: 'Experience', desc: 'Your work history' },
+          { tab: 'education', icon: 'graduationCap', title: 'Education', desc: 'Schools, courses and certificates' },
+          { tab: 'cv', icon: 'document', title: 'CV / Resume', desc: 'Upload, view and download your CV' },
+        ] }] : []),
+        { title: 'Security & privacy', rows: [
+          { tab: 'account', icon: 'shield', title: 'Account & security', desc: 'Email, phone, password, two-step verification, biometric login and privacy' },
+          { tab: 'sessions', icon: 'smartphone', title: 'Sessions & devices', desc: 'Devices that are signed in to your account' },
+        ] },
+        ...(isWorker ? [{ title: 'Money', rows: [
+          { href: 'wallet.html', icon: 'wallet', title: 'Wallet & withdrawals', desc: 'Your balance, payments received and withdrawal requests' },
+        ] }] : []),
+        { title: 'Preferences', rows: [
+          { tab: 'chat', icon: 'bell', title: 'Notifications & chat', desc: 'Push alerts, chat appearance, blocked users and archived chats' },
+          { tab: 'storage', icon: 'database', title: 'Data & storage', desc: 'Storage use and tools to free up space' },
+          { tab: 'accessibility', icon: 'eye', title: 'Accessibility', desc: 'Text size, contrast and motion' },
+        ] },
+        { title: 'Help', rows: [
+          { tab: 'support', icon: 'lifebuoy', title: 'Support', desc: 'Contact the Job Rush team and follow your requests' },
+          { tab: 'help', icon: 'message', title: 'Help & feedback', desc: 'Answers to common questions and a way to send feedback' },
+        ] },
+      ];
+      return sections;
+    }
+
+    TAB_LOADERS.hub = async function loadHubTab(content) {
+      const chevron = Icons.chevronRight.replace('<svg ', '<svg class="list-row-chevron" ');
+      const rowHtml = (r) => {
+        const inner = `
+          <span class="list-row-icon">${Icons[r.icon] || ''}</span>
+          <span class="list-row-text"><span class="list-row-title">${r.title}</span><span class="list-row-desc">${r.desc}</span></span>
+          <span class="list-row-trailing">${chevron}</span>`;
+        return r.href
+          ? `<a class="list-row" href="${r.href}">${inner}</a>`
+          : `<button type="button" class="list-row" data-hub-tab="${r.tab}">${inner}</button>`;
+      };
+      const initial = esc((currentUser.fullName || '?').trim().charAt(0).toUpperCase());
+      content.innerHTML = `
+        <div class="account-summary">
+          <div class="account-avatar" aria-hidden="true">${initial}</div>
+          <div class="account-summary-text">
+            <div class="account-summary-name">${esc(currentUser.fullName || 'Your account')}</div>
+            <div class="account-summary-sub">${esc(currentUser.email || currentUser.phone || '')}</div>
+          </div>
+        </div>
+        ${accountHubRows().map((sec) => `
+          <div class="list-group-title">${sec.title}</div>
+          <div class="list-group">${sec.rows.map(rowHtml).join('')}</div>`).join('')}`;
+      content.querySelectorAll('[data-hub-tab]').forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.hubTab)));
+    };
+
     TAB_LOADERS.account = async function loadAccountTab(content) {
       const settings = await ensureSettingsLoaded();
       content.innerHTML = accountTabHtml(currentUser, settings);
       loadTfaStatus();
+      renderBiometricRow();
+      document.getElementById('tfa-row').addEventListener('click', onTfaRowClick);
+      document.getElementById('biometric-row').addEventListener('click', onBiometricRowClick);
+      document.getElementById('sessions-row').addEventListener('click', () => switchTab('sessions'));
 
       document.getElementById('change-email-btn').addEventListener('click', openChangeEmailModal);
       document.getElementById('change-phone-btn').addEventListener('click', openChangePhoneModal);
@@ -2946,6 +3103,10 @@
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && document.getElementById('biometric-row')) renderBiometricRow();
+      });
 
       const params = new URLSearchParams(window.location.search);
       const requestedTab = params.get('tab');
