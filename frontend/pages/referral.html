@@ -31,23 +31,16 @@
         <div id="notif-bell-mount"></div>
       </div>
 
-      <div class="card referral-hero-card">
-        <div class="referral-hero-copy">
-          <h2 style="margin-bottom: var(--space-2);">Invite people to Job Rush and earn ₦15,000</h2>
-          <p class="text-secondary">When 12 people you referred complete the required Job Rush activity and share their experience, you become eligible for a ₦15,000 reward.
-            <a href="documentation.html#referral-program">How does the referral program work?</a>
-          </p>
-        </div>
-        <img src="../assets/images/referral-illustration.svg" alt="Two Nigerian professionals sharing a Job Rush referral link" loading="lazy" class="referral-hero-illustration" />
-      </div>
+      <!-- Real photograph + explanation + actions, rendered by PhotoCard
+           (js/utils/photoCard.js) from the approved photo library. This is
+           editorial imagery, not the signed-in user's avatar. -->
+      <div id="referral-photo-card" class="referral-photo-card"></div>
 
       <div class="referral-link-card card">
         <div class="field" style="margin-bottom: var(--space-4);">
           <label>Your referral link</label>
           <div class="referral-link-row">
-            <input type="text" id="referral-link-input" readonly />
-            <button class="btn btn-secondary" id="copy-link-btn" type="button">Copy Link</button>
-            <button class="btn btn-primary" id="share-link-btn" type="button">Share</button>
+            <input type="text" id="referral-link-input" readonly aria-label="Your referral link" />
           </div>
         </div>
         <p class="text-xs text-secondary">Your referral code: <strong id="referral-code-text">—</strong></p>
@@ -87,17 +80,11 @@
   </div>
 
   <style>
-    .referral-hero-card { background: linear-gradient(135deg, var(--color-primary-navy), var(--color-deep-navy)); color: var(--text-on-navy); margin-bottom: var(--space-5); display:flex; align-items:center; gap: var(--space-5); flex-wrap: wrap; }
-    .referral-hero-copy { flex: 1 1 260px; min-width: 0; }
-    .referral-hero-illustration { width: 200px; max-width: 100%; height: auto; border-radius: var(--radius-lg, 12px); flex-shrink: 0; }
-    @media (max-width: 640px) { .referral-hero-illustration { width: 100%; max-width: 280px; margin: 0 auto; } }
-    .referral-hero-card a { color: var(--color-light-gold); font-weight: 600; }
-    .referral-hero-card .text-secondary { color: rgba(255,255,255,0.75); }
+    .referral-photo-card { margin-bottom: var(--space-5); }
 
     .referral-link-card { margin-bottom: var(--space-5); }
     .referral-link-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
     .referral-link-row input { flex: 1 1 220px; min-width: 0; font-family: monospace; font-size: var(--text-sm); }
-    .referral-link-row .btn { flex-shrink: 0; }
 
     .referral-progress-card { margin-bottom: var(--space-5); }
     .referral-progress-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
@@ -123,8 +110,7 @@
          to a column layout without resetting it turns that 220px into
          a HEIGHT instead of a width, producing a huge, mostly-empty
          input box. flex: none + width: 100% sidesteps that entirely. */
-      .referral-link-row { flex-direction: column; }
-      .referral-link-row .btn, .referral-link-row input { width: 100%; flex: none; }
+      .referral-link-row input { width: 100%; flex: none; }
     }
   </style>
 
@@ -142,6 +128,9 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/utils/photoCard.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     const STATUS_LABELS = {
       registered: 'Registered — activity pending',
@@ -211,6 +200,19 @@
       }
     }
 
+    PhotoCard.mount(document.getElementById('referral-photo-card'), {
+      photo: 'collaboration',
+      layout: 'split',
+      badge: 'Referral program',
+      title: 'Invite people to Job Rush and earn ₦15,000',
+      descriptionHtml: 'When 12 people you referred complete the required Job Rush activity and share their experience, you become eligible for a ₦15,000 reward. <a href="documentation.html#referral-program">How does the referral program work?</a>',
+      support: 'Share Job Rush with people who could benefit from the platform.',
+      actions: [
+        { label: 'Copy referral link', id: 'copy-link-btn', variant: 'primary' },
+        { label: 'Share', id: 'share-link-btn', variant: 'secondary' },
+      ],
+    });
+
     (async function init() {
       const user = await Auth.requireSession('login.html');
       if (!user) return;
@@ -223,6 +225,7 @@
 
       document.getElementById('copy-link-btn').addEventListener('click', async () => {
         const input = document.getElementById('referral-link-input');
+        if (!input.value) { Toast.error('Your referral link is still loading — try again in a moment.'); return; }
         try {
           await navigator.clipboard.writeText(input.value);
           Toast.success('Referral link copied.');
@@ -234,6 +237,7 @@
 
       document.getElementById('share-link-btn').addEventListener('click', async () => {
         const link = document.getElementById('referral-link-input').value;
+        if (!link) { Toast.error('Your referral link is still loading — try again in a moment.'); return; }
         const shareData = { title: 'Join me on Job Rush', text: 'Join me on Job Rush and create your professional profile:', url: link };
         if (navigator.share) {
           try { await navigator.share(shareData); } catch { /* user cancelled */ }
@@ -246,6 +250,8 @@
           Toast.error('Could not copy the link. Copy it from the field above instead.');
         }
       });
+
+      PullToRefresh.init({ onRefresh: () => loadDashboard() });
 
       try {
         await loadDashboard();

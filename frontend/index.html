@@ -82,19 +82,10 @@
     </section>
 
     <!-- REAL PHOTOGRAPHY -- a genuine photo of a real Nigerian
-         professional, shown as ordinary in-section content (never a
-         page background), between Categories and How It Works. -->
-    <section class="container section reveal">
-      <img
-        srcset="assets/images/homepage-professional-640.jpg 640w, assets/images/homepage-professional.jpg 1200w"
-        sizes="(max-width: 640px) 100vw, 1100px"
-        src="assets/images/homepage-professional.jpg"
-        alt="A Nigerian tradesman, one of the verified professionals available on JOB RUSH"
-        loading="lazy"
-        width="1200" height="904"
-        style="width:100%; max-height:420px; object-fit:cover; object-position:center 25%; border-radius: var(--radius-lg, 14px); display:block;"
-      />
-    </section>
+         professional, shown with its description as one content card
+         (PhotoCard, js/utils/photoCard.js) between Categories and How It
+         Works. Never a page background. -->
+    <section class="container section reveal" id="photo-feature" aria-label="About JOB RUSH professionals"></section>
 
     <!-- HOW IT WORKS -->
     <section class="container section" id="how-it-works">
@@ -152,11 +143,25 @@
   <script src="js/utils/sanitize.js"></script>
   <script src="js/utils/toast.js"></script>
   <script src="js/utils/animate.js"></script>
+  <script src="js/utils/photoCard.js"></script>
   <script src="js/modules/notificationBell.js"></script>
   <script src="js/utils/modal.js"></script>
   <script src="js/modules/chrome.js"></script>
   <script src="js/modules/auth.js"></script>
   <script src="js/modules/scrollReveal.js"></script>
+  <script>
+    PhotoCard.mount(document.getElementById('photo-feature'), {
+      photo: 'tradesperson',
+      layout: 'split',
+      badge: 'Real professionals',
+      title: 'Skilled professionals, ready when you need them',
+      description: 'From electricians to developers, find verified professionals, see their real work, and hire with payment held safely in escrow until the job is done.',
+      actions: [
+        { label: 'Explore professionals', href: 'pages/search.html', variant: 'primary' },
+        { label: 'Offer your skills', href: 'pages/register.html', variant: 'secondary' },
+      ],
+    });
+  </script>
   <script>
     (async function init() {
       const user = await Auth.getCurrentUser();

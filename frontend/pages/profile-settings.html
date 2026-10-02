@@ -792,20 +792,59 @@
       });
     }
 
+    // A 'both'-role account (real accounts exist in production) has
+    // TWO separate profile rows — worker_profiles and hirer_profiles —
+    // so "Profile" can't just default to one of them the way a
+    // single-role account can. Remembers which one was last viewed
+    // for the duration of this page load only (not persisted), since
+    // it's just a view toggle, not an account setting.
+    let profileViewAs = 'worker';
+
+    async function loadWorkerProfileForm(content) {
+      const { profile } = await API.get('/profiles/worker/me');
+      // A 'both' user can switch the toggle again before this resolves --
+      // if they've since switched to 'hirer', don't clobber the hirer
+      // form that may have already loaded (or is still loading) with
+      // this now-stale worker response.
+      if (currentUser.role === 'both' && profileViewAs !== 'worker') return;
+      const safeProfile = profile || { verification_status: 'not_submitted' };
+      content.innerHTML = profileCompletionHtml(safeProfile) + workerFormHtml(safeProfile);
+      wireWorkerForm(safeProfile);
+      populateSkillsPicker(safeProfile);
+      pendingDocuments = [];
+      wireVerificationUpload();
+    }
+
+    async function loadHirerProfileForm(content) {
+      const { profile } = await API.get('/profiles/hirer/me');
+      if (currentUser.role === 'both' && profileViewAs !== 'hirer') return;
+      const safeHirerProfile = profile || {};
+      content.innerHTML = hirerFormHtml(safeHirerProfile);
+      wireHirerForm(safeHirerProfile);
+    }
+
     TAB_LOADERS.profile = async function loadProfileTab(content) {
-      if (currentUser.role === 'hirer') {
-        const { profile } = await API.get('/profiles/hirer/me');
-        const safeHirerProfile = profile || {};
-        content.innerHTML = hirerFormHtml(safeHirerProfile);
-        wireHirerForm(safeHirerProfile);
+      if (currentUser.role === 'both') {
+        content.innerHTML = `
+          <div class="settings-tabs" id="profile-view-toggle" role="tablist" aria-label="View profile as" style="border-bottom: none; padding-bottom: 0;">
+            <button type="button" class="settings-tab ${profileViewAs === 'worker' ? 'is-active' : ''}" data-view-as="worker">Worker profile</button>
+            <button type="button" class="settings-tab ${profileViewAs === 'hirer' ? 'is-active' : ''}" data-view-as="hirer">Hirer profile</button>
+          </div>
+          <div id="profile-view-body"></div>
+        `;
+        content.querySelectorAll('[data-view-as]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            profileViewAs = btn.dataset.viewAs;
+            content.querySelectorAll('[data-view-as]').forEach((b) => b.classList.toggle('is-active', b === btn));
+            const body = document.getElementById('profile-view-body');
+            (profileViewAs === 'hirer' ? loadHirerProfileForm : loadWorkerProfileForm)(body);
+          });
+        });
+        await (profileViewAs === 'hirer' ? loadHirerProfileForm : loadWorkerProfileForm)(document.getElementById('profile-view-body'));
+      } else if (currentUser.role === 'hirer') {
+        await loadHirerProfileForm(content);
       } else {
-        const { profile } = await API.get('/profiles/worker/me');
-        const safeProfile = profile || { verification_status: 'not_submitted' };
-        content.innerHTML = profileCompletionHtml(safeProfile) + workerFormHtml(safeProfile);
-        wireWorkerForm(safeProfile);
-        populateSkillsPicker(safeProfile);
-        pendingDocuments = [];
-        wireVerificationUpload();
+        await loadWorkerProfileForm(content);
       }
     };
 
@@ -1346,9 +1385,14 @@
     // Shared by workers AND hirers — many hirers are themselves small
     // businesses/companies, so this isn't worker-only.
     // ============================================================
-    function businessApiBase() {
-      return currentUser.role === 'hirer' ? '/profiles/hirer/me/business' : '/profiles/worker/me/business';
+    function businessApiBase(asRole) {
+      return asRole === 'hirer' ? '/profiles/hirer/me/business' : '/profiles/worker/me/business';
     }
+
+    // A 'both' user has two independent business profiles (worker and
+    // hirer side), same as the main Profile tab -- remembers which one
+    // was last viewed for the duration of this page load only.
+    let businessViewAs = 'worker';
 
     function storefrontPhotoHtml(profile) {
       const url = profile?.storefront_photo_url;
@@ -1473,9 +1517,10 @@
       </form>`;
     }
 
-    TAB_LOADERS.business = async function loadBusinessTab(content) {
-      const businessApiPath = businessApiBase();
+    async function loadBusinessForm(content, asRole) {
+      const businessApiPath = businessApiBase(asRole);
       const { profile } = await API.get(businessApiPath);
+      if (currentUser.role === 'both' && businessViewAs !== asRole) return;
       content.innerHTML = businessFormHtml(profile);
       const form = document.getElementById('business-form');
 
@@ -1536,6 +1581,28 @@
             },
           });
         });
+      }
+    }
+
+    TAB_LOADERS.business = async function loadBusinessTab(content) {
+      if (currentUser.role === 'both') {
+        content.innerHTML = `
+          <div class="settings-tabs" id="business-view-toggle" role="tablist" aria-label="View business profile as" style="border-bottom: none; padding-bottom: 0;">
+            <button type="button" class="settings-tab ${businessViewAs === 'worker' ? 'is-active' : ''}" data-view-as="worker">As a professional</button>
+            <button type="button" class="settings-tab ${businessViewAs === 'hirer' ? 'is-active' : ''}" data-view-as="hirer">As a hirer</button>
+          </div>
+          <div id="business-view-body"></div>
+        `;
+        content.querySelectorAll('[data-view-as]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            businessViewAs = btn.dataset.viewAs;
+            content.querySelectorAll('[data-view-as]').forEach((b) => b.classList.toggle('is-active', b === btn));
+            loadBusinessForm(document.getElementById('business-view-body'), businessViewAs);
+          });
+        });
+        await loadBusinessForm(document.getElementById('business-view-body'), businessViewAs);
+      } else {
+        await loadBusinessForm(content, currentUser.role);
       }
     };
 

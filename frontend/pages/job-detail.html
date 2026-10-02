@@ -103,10 +103,13 @@
     let cta = '';
     if (!user) {
       cta = `<a href="login.html?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}" class="btn btn-primary btn-block" id="apply-cta">Log in to apply</a>`;
+    } else if (job.hirer_user_id === user.id) {
+      // Ownership checked before role -- a 'both'-role account posting
+      // this job is still its owner regardless of `user.role` not
+      // literally equalling 'hirer'.
+      cta = `<a href="my-jobs.html" class="btn btn-secondary btn-block">Manage this job</a>`;
     } else if (user.role === 'hirer') {
-      cta = job.hirer_user_id === user.id
-        ? `<a href="my-jobs.html" class="btn btn-secondary btn-block">Manage this job</a>`
-        : '';
+      cta = '';
     } else if (job.status !== 'open') {
       cta = `<span class="badge badge-neutral">This job is ${job.status}</span>`;
     } else {

@@ -1,6 +1,17 @@
 /* JOB RUSH — Homepage */
 
-.section { padding: var(--space-9) 0; }
+/* Vertical only: the shorthand `padding: X 0` also zeroed the horizontal
+   padding that `.container` (base.css) provides on `<section class="container
+   section">`, putting every section edge-to-edge on phones. */
+.section { padding-top: var(--space-9); padding-bottom: var(--space-9); }
+
+/* The photo card is one self-contained content unit, not a full-height
+   marketing band — the standard 96px section padding left a large empty
+   gap above and below it. */
+#photo-feature.section { padding-top: var(--space-7); padding-bottom: var(--space-7); }
+@media (max-width: 640px) {
+  #photo-feature.section { padding-top: var(--space-5); padding-bottom: var(--space-5); }
+}
 
 /* The homepage hero is one of the deliberate navy brand surfaces (nav/
    hero/footer) — same scoped-token pattern as .site-header in

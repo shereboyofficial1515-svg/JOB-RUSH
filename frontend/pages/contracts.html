@@ -53,6 +53,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     function formatNaira(n) { return `\u20A6${Number(n).toLocaleString()}`; }
 
@@ -123,6 +125,7 @@
         }
         wireActions();
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -278,10 +281,12 @@
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
-      if (user.role !== 'hirer') { window.location.href = 'dashboard.html'; return; }
+      if (user.role === 'worker') { window.location.href = 'dashboard.html'; return; }
 
       SidebarNav.render(user, 'contracts');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
+
+      PullToRefresh.init({ onRefresh: () => loadContracts() });
 
       loadContracts();
     })();

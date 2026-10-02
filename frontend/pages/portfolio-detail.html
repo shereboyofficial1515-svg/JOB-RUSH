@@ -304,7 +304,7 @@
         }
       });
 
-      if (user.role === 'hirer' && user.id !== portfolio.worker.user_id) {
+      if ((user.role === 'hirer' || user.role === 'both') && user.id !== portfolio.worker.user_id) {
         hireBtn.hidden = false;
         hireBtn.addEventListener('click', () => openHireModal(portfolio));
       }

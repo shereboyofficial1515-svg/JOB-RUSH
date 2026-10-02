@@ -162,6 +162,27 @@ async function listConversationsForUser(userId, { archived = false } = {}) {
   return rows;
 }
 
+/**
+ * Total unread incoming messages across the user's non-archived chats
+ * — the same per-conversation rule listConversationsForUser applies
+ * (not sent by them, not deleted, newer than their last_read_at),
+ * summed in one query so a nav badge doesn't have to fetch every
+ * conversation just to add up a number.
+ */
+async function countUnreadForUser(userId) {
+  const { rows } = await query(
+    `SELECT COUNT(*)::int AS count
+       FROM messages m
+       JOIN conversation_participants cp ON cp.conversation_id = m.conversation_id AND cp.user_id = $1
+      WHERE cp.archived_at IS NULL
+        AND m.sender_id != $1
+        AND m.deleted_at IS NULL
+        AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)`,
+    [userId]
+  );
+  return rows[0].count;
+}
+
 /** Archives/unarchives a conversation for this participant only. */
 async function setArchived(conversationId, userId, archived) {
   await assertParticipant(conversationId, userId);
@@ -193,6 +214,7 @@ module.exports = {
   getOtherParticipant,
   getOrCreateConversation,
   listConversationsForUser,
+  countUnreadForUser,
   markRead,
   clearChat,
   setArchived,

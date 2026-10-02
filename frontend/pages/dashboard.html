@@ -87,8 +87,18 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script src="../js/modules/onboarding.js"></script>
   <script>
+    // Set only while a pull-to-refresh is re-running a loader below: a
+    // failed request must then *fail the refresh* (so the user sees
+    // "Couldn't refresh" and keeps their current numbers) instead of
+    // being swallowed into a default that would overwrite real data
+    // with zeros. The first page load keeps the forgiving behaviour.
+    let strictLoad = false;
+    const soft = (promise, fallback) => (strictLoad ? promise : promise.catch(() => fallback));
+
     function statCard(label, value) {
       return `<div class="card stat-card"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
     }
@@ -99,14 +109,14 @@
       document.getElementById('welcome-sub').textContent = "Here's what's happening with your profile.";
 
       const statGrid = document.getElementById('stat-grid');
-      statGrid.innerHTML = [statCard('Applications', '—'), statCard('Upcoming interviews', '—'), statCard('Wallet balance', '—'), statCard('Profile completion', '—')].join('');
+      if (!strictLoad) statGrid.innerHTML = [statCard('Applications', '—'), statCard('Upcoming interviews', '—'), statCard('Wallet balance', '—'), statCard('Profile completion', '—')].join('');
 
       try {
         const [applications, interviews, wallet, profile] = await Promise.all([
-          API.get('/applications/me').catch(() => ({ applications: [] })),
-          API.get('/interviews/upcoming').catch(() => ({ interviews: [] })),
-          API.get('/wallet').catch(() => ({ wallet: { available_balance: 0 } })),
-          API.get('/profiles/worker/me').catch(() => ({ profile: null })),
+          soft(API.get('/applications/me'), ({ applications: [] })),
+          soft(API.get('/interviews/upcoming'), ({ interviews: [] })),
+          soft(API.get('/wallet'), ({ wallet: { available_balance: 0 } })),
+          soft(API.get('/profiles/worker/me'), ({ profile: null })),
         ]);
 
         statGrid.innerHTML = [
@@ -118,6 +128,7 @@
         Animate.stagger(statGrid, { stepMs: 30 });
 
         const badges = document.getElementById('topbar-badges');
+        badges.innerHTML = '';
         if (profile.profile?.verification_status === 'approved') badges.innerHTML += '<span class="badge badge-verified badge-enter">Verified</span>';
         if (profile.profile?.is_pro) badges.innerHTML += '<span class="badge badge-pro badge-enter">PRO</span>';
 
@@ -133,8 +144,10 @@
           ).join('');
           Animate.stagger(activityBody, { stepMs: 25 });
         }
+        return true;
       } catch (err) {
-        Toast.error('Could not load your dashboard right now.');
+        if (!strictLoad) Toast.error('Could not load your dashboard right now.');
+        return false;
       }
     }
 
@@ -144,13 +157,13 @@
       document.getElementById('welcome-sub').textContent = "Here's an overview of your hiring activity.";
 
       const statGrid = document.getElementById('stat-grid');
-      statGrid.innerHTML = [statCard('Open jobs', '—'), statCard('Total applicants', '—'), statCard('Upcoming interviews', '—'), statCard('Active contracts', '—')].join('');
+      if (!strictLoad) statGrid.innerHTML = [statCard('Open jobs', '—'), statCard('Total applicants', '—'), statCard('Upcoming interviews', '—'), statCard('Active contracts', '—')].join('');
 
       try {
         const [jobs, interviews, contracts] = await Promise.all([
-          API.get('/jobs/mine').catch(() => ({ jobs: [] })),
-          API.get('/interviews/upcoming').catch(() => ({ interviews: [] })),
-          API.get('/contracts').catch(() => ({ contracts: [] })),
+          soft(API.get('/jobs/mine'), ({ jobs: [] })),
+          soft(API.get('/interviews/upcoming'), ({ interviews: [] })),
+          soft(API.get('/contracts'), ({ contracts: [] })),
         ]);
 
         const openJobs = jobs.jobs.filter((j) => j.status === 'open');
@@ -175,8 +188,97 @@
           ).join('');
           Animate.stagger(activityBody, { stepMs: 25 });
         }
+        return true;
       } catch (err) {
-        Toast.error('Could not load your dashboard right now.');
+        if (!strictLoad) Toast.error('Could not load your dashboard right now.');
+        return false;
+      }
+    }
+
+    /**
+     * A 'both' role account (real accounts exist in production) is a
+     * worker AND a hirer at once — previously this branch didn't
+     * exist at all, so `user.role === 'hirer' ? ... : loadWorkerDashboard`
+     * silently gave every 'both' user the worker view forever, with no
+     * dashboard surface for their hiring activity. Shows both stat
+     * sets and both activity feeds side by side rather than picking
+     * one side to represent the whole account.
+     */
+    async function loadBothDashboard(user) {
+      SidebarNav.render(user, 'overview');
+      document.getElementById('welcome-heading').textContent = `Welcome back, ${user.fullName.split(' ')[0]}`;
+      document.getElementById('welcome-sub').textContent = "Here's your activity as both a professional and a hirer on Job Rush.";
+
+      const statGrid = document.getElementById('stat-grid');
+      if (!strictLoad) statGrid.innerHTML = [
+        statCard('Applications', '—'), statCard('Wallet balance', '—'), statCard('Profile completion', '—'),
+        statCard('Open jobs posted', '—'), statCard('Active contracts', '—'), statCard('Upcoming interviews', '—'),
+      ].join('');
+
+      // A second activity card for job postings, injected right after
+      // the existing "Recent activity" (applications) card — reusing
+      // the exact same markup pattern rather than a second bespoke one.
+      if (!document.getElementById('hirer-activity-card')) {
+        const hirerActivityCard = document.createElement('section');
+        hirerActivityCard.className = 'card';
+        hirerActivityCard.id = 'hirer-activity-card';
+        hirerActivityCard.style.marginTop = 'var(--space-5)';
+        hirerActivityCard.innerHTML = `<h3>Your job postings</h3><div id="hirer-activity-body"><div class="skeleton" style="height: 16px; width: 80%; margin-bottom: 12px;"></div></div>`;
+        document.getElementById('activity-card').after(hirerActivityCard);
+      }
+      document.querySelector('#activity-card h3').textContent = 'Your applications';
+
+      try {
+        const [applications, interviews, wallet, profile, jobs, contracts] = await Promise.all([
+          soft(API.get('/applications/me'), ({ applications: [] })),
+          soft(API.get('/interviews/upcoming'), ({ interviews: [] })),
+          soft(API.get('/wallet'), ({ wallet: { available_balance: 0 } })),
+          soft(API.get('/profiles/worker/me'), ({ profile: null })),
+          soft(API.get('/jobs/mine'), ({ jobs: [] })),
+          soft(API.get('/contracts'), ({ contracts: [] })),
+        ]);
+
+        const openJobs = jobs.jobs.filter((j) => j.status === 'open');
+        statGrid.innerHTML = [
+          statCard('Applications', applications.applications.length),
+          statCard('Wallet balance', `₦${Number(wallet.wallet.available_balance).toLocaleString()}`),
+          statCard('Profile completion', `${profile.profile?.profile_completion_percent ?? 0}%`),
+          statCard('Open jobs posted', openJobs.length),
+          statCard('Active contracts', contracts.contracts.filter((c) => c.status === 'active').length),
+          statCard('Upcoming interviews', interviews.interviews.length),
+        ].join('');
+        Animate.stagger(statGrid, { stepMs: 30 });
+
+        const badges = document.getElementById('topbar-badges');
+        badges.innerHTML = '';
+        if (profile.profile?.verification_status === 'approved') badges.innerHTML += '<span class="badge badge-verified badge-enter">Verified</span>';
+        if (profile.profile?.is_pro) badges.innerHTML += '<span class="badge badge-pro badge-enter">PRO</span>';
+
+        const activityBody = document.getElementById('activity-body');
+        activityBody.innerHTML = applications.applications.length === 0
+          ? `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>No applications yet</h3><p>Browse open jobs and apply to get started.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`
+          : applications.applications.slice(0, 5).map((a) =>
+              `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
+                 <span>${esc(a.job_title)}</span>
+                 <span class="badge badge-neutral">${a.status}</span>
+               </div>`
+            ).join('');
+        Animate.stagger(activityBody, { stepMs: 25 });
+
+        const hirerActivityBody = document.getElementById('hirer-activity-body');
+        hirerActivityBody.innerHTML = jobs.jobs.length === 0
+          ? `<div class="empty-state fade-in"><img src="${ASSETS.emptyState}" alt="" /><h3>You haven't posted a job yet</h3><p>Post your first job to start receiving applications.</p><a href="my-jobs.html" class="btn btn-primary btn-sm">Post a job</a></div>`
+          : jobs.jobs.slice(0, 5).map((j) =>
+              `<div style="display:flex; justify-content:space-between; padding: var(--space-3) 0; border-bottom: 1px solid var(--border-subtle);">
+                 <span>${esc(j.title)}</span>
+                 <span class="badge badge-neutral">${j.status}</span>
+               </div>`
+            ).join('');
+        Animate.stagger(hirerActivityBody, { stepMs: 25 });
+        return true;
+      } catch (err) {
+        if (!strictLoad) Toast.error('Could not load your dashboard right now.');
+        return false;
       }
     }
 
@@ -254,7 +356,22 @@
 
         document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
 
-        if (user.role === 'hirer') {
+        PullToRefresh.init({
+          onRefresh: async () => {
+            strictLoad = true;
+            try {
+              const reload = user.role === 'both' ? loadBothDashboard : user.role === 'hirer' ? loadHirerDashboard : loadWorkerDashboard;
+              if ((await reload(user)) === false) throw new Error('Dashboard refresh failed');
+              checkReferralFeedbackPrompt();
+            } finally {
+              strictLoad = false;
+            }
+          },
+        });
+
+        if (user.role === 'both') {
+          await loadBothDashboard(user);
+        } else if (user.role === 'hirer') {
           await loadHirerDashboard(user);
         } else {
           await loadWorkerDashboard(user);

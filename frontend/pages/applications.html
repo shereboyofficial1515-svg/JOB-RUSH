@@ -59,6 +59,8 @@
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
+  <script src="../js/utils/icons.js"></script>
+  <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     const ACTIVE_STATUSES = ['applied', 'invited', 'accepted', 'shortlisted'];
     const CLOSED_STATUSES = ['hired', 'rejected', 'withdrawn', 'declined'];
@@ -159,6 +161,7 @@
         const activeFilter = document.querySelector('.wallet-tab.is-active')?.dataset.filter || 'all';
         render(activeFilter);
       } catch (err) {
+        if (PullToRefresh.isRefreshing()) throw err;
         document.getElementById('applications-list').innerHTML = `<p class="text-secondary">${err.message}</p>`;
       }
     }
@@ -181,6 +184,8 @@
           render(tab.dataset.filter);
         });
       });
+
+      PullToRefresh.init({ onRefresh: () => loadApplications() });
 
       loadApplications();
     })();

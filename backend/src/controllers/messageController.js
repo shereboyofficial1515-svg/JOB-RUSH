@@ -21,6 +21,11 @@ const listConversations = asyncHandler(async (req, res) => {
   res.status(200).json({ conversations });
 });
 
+const unreadCount = asyncHandler(async (req, res) => {
+  const count = await conversationService.countUnreadForUser(req.user.id);
+  res.status(200).json({ count });
+});
+
 const archiveConversation = asyncHandler(async (req, res) => {
   await conversationService.setArchived(req.params.id, req.user.id, true);
   res.status(200).json({ message: 'Chat archived.' });
@@ -96,6 +101,7 @@ const getMediaUrl = asyncHandler(async (req, res) => {
 module.exports = {
   startConversation,
   listConversations,
+  unreadCount,
   archiveConversation,
   unarchiveConversation,
   markRead,
