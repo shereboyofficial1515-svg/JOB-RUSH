@@ -1,3 +1,4 @@
+const conversationService = require('../services/conversationService');
 const notificationService = require('../services/notificationService');
 const pushService = require('../services/pushService');
 const fcmService = require('../services/fcmService');
@@ -10,6 +11,19 @@ const list = asyncHandler(async (req, res) => {
     pageSize: req.query.pageSize,
   });
   res.status(200).json({ notifications });
+});
+
+/**
+ * GET /api/notifications/summary -- both badge counts in one round trip.
+ * The bell and the bottom-nav Messages badge each used to poll their own
+ * endpoint; the app shell now asks once and shares the answer.
+ */
+const summary = asyncHandler(async (req, res) => {
+  const [notifications, messages] = await Promise.all([
+    notificationService.getUnreadCount(req.user.id),
+    conversationService.countUnreadForUser(req.user.id),
+  ]);
+  res.status(200).json({ notifications, messages });
 });
 
 const unreadCount = asyncHandler(async (req, res) => {
@@ -65,6 +79,7 @@ const unregisterFcmToken = asyncHandler(async (req, res) => {
 
 module.exports = {
   list,
+  summary,
   unreadCount,
   markRead,
   markAllRead,

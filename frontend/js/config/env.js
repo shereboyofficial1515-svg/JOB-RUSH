@@ -21,3 +21,14 @@ const ENV = (function () {
     API_BASE_URL: isLocalDev ? 'http://127.0.0.1:4000/api' : '/api',
   };
 })();
+
+// Registered on every page (not only after the user turns push on) so the
+// app-shell cache in service-worker.js is available from the first visit.
+// The worker itself decides whether to cache (see server.js).
+if ('serviceWorker' in navigator && window.location.protocol !== 'file:') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+      .then((registration) => registration.update())
+      .catch(() => { /* optional enhancement: never blocks or breaks a page */ });
+  });
+}

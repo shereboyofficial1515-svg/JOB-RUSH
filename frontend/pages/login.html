@@ -48,11 +48,6 @@
         <span class="btn-label">Continue with Facebook</span>
       </a>
 
-      <a href="#" id="apple-login-btn" class="btn btn-apple btn-block" style="margin-top: var(--space-3);">
-        <svg width="16" height="18" viewBox="0 0 16 18" fill="none"><path fill="#fff" d="M13.15 9.53c-.02-2.03 1.66-3 1.73-3.05-.95-1.38-2.42-1.57-2.94-1.6-1.25-.13-2.45.74-3.08.74-.64 0-1.62-.72-2.66-.7-1.37.02-2.63.8-3.33 2.02-1.42 2.46-.36 6.1 1.02 8.1.67.98 1.47 2.08 2.52 2.04 1.01-.04 1.4-.65 2.62-.65 1.23 0 1.57.65 2.64.63 1.09-.02 1.78-.99 2.44-1.98.77-1.13 1.09-2.23 1.1-2.28-.02-.01-2.11-.81-2.06-3.27ZM11.09 3.35c.55-.67.92-1.6.82-2.53-.79.03-1.75.53-2.32 1.19-.51.59-.96 1.54-.84 2.44.88.07 1.79-.44 2.34-1.1Z"/></svg>
-        <span class="btn-label">Continue with Apple</span>
-      </a>
-
       <div class="auth-divider">or</div>
 
       <form id="login-form" novalidate>
@@ -144,9 +139,6 @@
     facebook_denied: 'Facebook sign-in was cancelled.',
     facebook_email_required: 'Facebook did not share an email address. Please allow email access, or use your password.',
     facebook_signin_failed: 'Could not sign in with Facebook. Please try again or use your password.',
-    apple_denied: 'Apple sign-in was cancelled.',
-    apple_email_required: 'Apple did not share an email address. Please try again, or use your password.',
-    apple_signin_failed: 'Could not sign in with Apple. Please try again or use your password.',
   };
 
   (async function init() {
@@ -183,7 +175,7 @@
     function startOAuthRedirect(provider) {
       if (oauthInProgress) return;
       oauthInProgress = true;
-      ['google', 'facebook', 'apple'].forEach((p) => {
+      ['google', 'facebook'].forEach((p) => {
         const btn = document.getElementById(`${p}-login-btn`);
         btn.classList.add('is-loading');
         btn.setAttribute('aria-disabled', 'true');
@@ -199,10 +191,6 @@
     document.getElementById('facebook-login-btn').addEventListener('click', (e) => {
       e.preventDefault();
       startOAuthRedirect('facebook');
-    });
-    document.getElementById('apple-login-btn').addEventListener('click', (e) => {
-      e.preventDefault();
-      startOAuthRedirect('apple');
     });
 
     const form = document.getElementById('login-form');

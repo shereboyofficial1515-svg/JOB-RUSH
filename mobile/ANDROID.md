@@ -17,7 +17,7 @@ Three options were considered against what Job Rush actually does (not against w
 Confirmed by inspection before choosing, not assumed:
 - `frontend/manifest.json` + `frontend/service-worker.js` already exist (Web Push via VAPID, notification-click routing) — the site was already partway to PWA-ready, but that only covers *browser* push, not an installed Android app in the background/killed state, which needs real FCM.
 - Calls are real WebRTC via **LiveKit** (`frontend/pages/call-room.html`, `livekit-client` from CDN) — genuine media, not a stub. The Android app reuses this page unchanged once a call is answered.
-- Auth is `httpOnly` session cookies (`sameSite: lax`, `secure` in production) — no JWT to bridge, no token to store. A WebView's cookie jar handles this natively, with one exception (Google/Facebook/Apple OAuth — see § Authentication).
+- Auth is `httpOnly` session cookies (`sameSite: lax`, `secure` in production) — no JWT to bridge, no token to store. A WebView's cookie jar handles this natively, with one exception (Google/Facebook OAuth — see § Authentication).
 - No `navigator.geolocation` usage anywhere in the codebase — Job Rush's "location" is a State/LGA dropdown, not device GPS. No location permission is requested.
 
 ## 2. Project structure
@@ -87,12 +87,12 @@ Never point this at `localhost`/`127.0.0.1` — a device or emulator can't reach
 
 **Email/password login, 2FA, logout** — work with zero special handling. These are plain `fetch()` calls made *from inside the WebView itself*, so `Set-Cookie` lands in the WebView's own cookie jar exactly like any other browser tab. Nothing to bridge.
 
-**Google / Facebook / Apple sign-in** — need special handling, and got it:
+**Google / Facebook sign-in** — need special handling, and got it:
 
 Google actively detects and blocks its own OAuth consent screen from completing inside an embedded WebView user-agent (this is a documented anti-phishing policy of Google's, not a bug to work around quietly). The fix used here:
 
-1. `JobRushWebViewClient` intercepts navigation to `/api/auth/{google,facebook,apple}` and opens it in a **Chrome Custom Tab** instead (`androidx.browser`) — a real, separate Chrome instance the provider can't distinguish from the user's normal browser — with `?client=android` appended.
-2. The backend (`googleRedirect`/`facebookRedirect`/`appleRedirect` in `authController.js`) signs that `client=android` flag into the existing OAuth `state` parameter (extended `oauthStateService.js` to carry a small HMAC-signed payload; fully backward compatible with the existing web flow, which passes no payload).
+1. `JobRushWebViewClient` intercepts navigation to `/api/auth/{google,facebook}` and opens it in a **Chrome Custom Tab** instead (`androidx.browser`) — a real, separate Chrome instance the provider can't distinguish from the user's normal browser — with `?client=android` appended.
+2. The backend (`googleRedirect`/`facebookRedirect` in `authController.js`) signs that `client=android` flag into the existing OAuth `state` parameter (extended `oauthStateService.js` to carry a small HMAC-signed payload; fully backward compatible with the existing web flow, which passes no payload).
 3. On success, `completeOAuthLogin` checks that flag. For the Android case, instead of setting a cookie on a response the Custom Tab would receive (useless — different cookie jar from the app's WebView), it issues a one-time code (new `oauth_mobile_handoffs` table, 2-minute TTL, single-use) and redirects the Custom Tab to `jobrush://oauth-complete?code=...`.
 4. Android's OS hands that custom-scheme URL to the app (intent filter in `AndroidManifest.xml`); `MainActivity.handleIntent()` catches it and loads `https://job-rush.onrender.com/api/auth/mobile-handoff?code=...` **inside the app's own WebView**.
 5. That new endpoint (`mobileOAuthHandoff` in `authController.js`) redeems the one-time code and sets the real session cookie — this time in the WebView's own cookie jar, where it actually matters.
@@ -129,7 +129,7 @@ FCM needs a Firebase project, which only you can create (tied to your Google acc
 
 1. Firebase Console → Create project (or use an existing one).
 2. Project Settings → Add app → Android → package name `ng.jobrush.app` → download **`google-services.json`** → place it at `mobile/android/app/google-services.json`. (`app/build.gradle` already conditionally applies the `google-services` Gradle plugin only if this file exists — the project builds fine without it, just without push.)
-3. Project Settings → Service Accounts → Generate new private key → set the **entire downloaded JSON** as the backend's `FIREBASE_SERVICE_ACCOUNT_JSON` environment variable (real newlines in the private key escaped as `\n`, same convention as `APPLE_PRIVATE_KEY`). Added to `render.yaml` and `.env.example` already, `sync: false` (Render will prompt for it, no secret is committed).
+3. Project Settings → Service Accounts → Generate new private key → set the **entire downloaded JSON** as the backend's `FIREBASE_SERVICE_ACCOUNT_JSON` environment variable (real newlines in the private key escaped as `\n`). Added to `render.yaml` and `.env.example` already, `sync: false` (Render will prompt for it, no secret is committed).
 
 Until both are in place, `fcmService.isConfigured` is `false` and every send silently no-ops — logged once as a warning, exactly like the existing VAPID/web-push pattern when *that's* unconfigured. Nothing else breaks.
 

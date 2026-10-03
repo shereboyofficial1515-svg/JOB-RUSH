@@ -20,8 +20,12 @@
   <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
     <div class="jobs-toolbar">
       <h1 class="page-title">Find work</h1>
-      <form id="jobs-search-form" class="jobs-search">
-        <input type="text" name="keyword" placeholder="Search by title or keyword" aria-label="Keyword" />
+      <nav class="search-tabs" aria-label="What to search">
+        <a href="search.html" id="tab-talent">Professionals</a>
+        <a href="jobs.html" id="tab-jobs" class="is-active" aria-current="page">Jobs</a>
+      </nav>
+      <form id="jobs-search-form" class="jobs-search" role="search">
+        <input type="search" name="keyword" placeholder="Job title, skill, category or keyword" aria-label="Keyword" autocomplete="off" />
         <select name="categoryId" id="categoryId" aria-label="Category"><option value="">Any category</option></select>
         <select name="employmentType" aria-label="Employment type">
           <option value="">Any type</option>
@@ -116,13 +120,13 @@
         list.innerHTML = result.jobs.map(jobCardHtml).join('');
         Animate.stagger(list);
       } catch (err) {
-        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        list.innerHTML = `<div class="empty-state"><h3>Jobs are unavailable right now</h3><p>${esc(err.message)}</p><button type="button" class="btn btn-secondary btn-sm" id="jobs-retry">Try again</button></div>`;
+        document.getElementById('jobs-retry').addEventListener('click', () => loadJobs(query));
       }
     }
 
     (async function init() {
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-work', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-work' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const form = document.getElementById('jobs-search-form');
@@ -146,6 +150,12 @@
         statePlaceholder: 'Any state',
         initial: { stateId: urlParams.get('stateId') || undefined, lgaId: urlParams.get('lgaId') || undefined },
       });
+
+      const syncTabs = () => {
+        const k = form.keyword.value.trim();
+        document.getElementById('tab-talent').href = `search.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
+      };
+      form.keyword.addEventListener('input', syncTabs); syncTabs();
 
       loadJobs(urlParams.toString());
 

@@ -323,11 +323,11 @@ async function resetPasswordWithToken({ rawToken, newPassword }) {
  * endpoint exists.
  */
 /**
- * Shared by every OAuth provider (Google/Facebook/Apple): same
+ * Shared by every OAuth provider (Google/Facebook): same
  * find-by-provider-id -> find-by-email-and-link -> create flow either
  * way, differing only in which column holds the provider's identifier
  * and what the audit log calls it. `providerColumn` is always one of
- * three hardcoded literals from the wrapper functions below, never
+ * the hardcoded literals from the wrapper functions below, never
  * caller/user-supplied, so interpolating it into the query is safe.
  */
 async function findOrCreateOAuthUser({ providerColumn, providerId, email, fullName, provider }) {
@@ -382,16 +382,6 @@ async function findOrCreateGoogleUser({ googleId, email, fullName }) {
 
 async function findOrCreateFacebookUser({ facebookId, email, fullName }) {
   return findOrCreateOAuthUser({ providerColumn: 'facebook_id', providerId: facebookId, email, fullName, provider: 'facebook' });
-}
-
-/**
- * Apple's own identifier (the id_token's `sub`) is the only thing
- * guaranteed stable across logins -- name/email may not be resent
- * after the first authorization (see appleOAuthService.js), so this
- * must never depend on fullName being present.
- */
-async function findOrCreateAppleUser({ appleId, email, fullName }) {
-  return findOrCreateOAuthUser({ providerColumn: 'apple_id', providerId: appleId, email, fullName, provider: 'apple' });
 }
 
 /**
@@ -627,7 +617,6 @@ module.exports = {
   resetPasswordWithToken,
   findOrCreateGoogleUser,
   findOrCreateFacebookUser,
-  findOrCreateAppleUser,
   reactivateIfNeeded,
   changePassword,
   requestEmailChange,

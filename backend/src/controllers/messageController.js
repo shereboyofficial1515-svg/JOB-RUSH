@@ -5,6 +5,7 @@ const storageService = require('../services/storageService');
 const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 const asyncHandler = require('../utils/asyncHandler');
+const { deleteMessageQuerySchema } = require('../validators/messagingValidators');
 
 const startConversation = asyncHandler(async (req, res) => {
   const conversation = await conversationService.getOrCreateConversation(
@@ -62,8 +63,44 @@ const editMessage = asyncHandler(async (req, res) => {
 });
 
 const deleteMessage = asyncHandler(async (req, res) => {
-  const message = await messageService.deleteMessage(req.params.messageId, req.user.id);
+  const parsed = deleteMessageQuerySchema.safeParse(req.query);
+  if (!parsed.success) throw new AppError('scope must be "everyone" or "me".', 400, 'VALIDATION_FAILED');
+  const { scope } = parsed.data;
+  const message = await messageService.deleteMessage(req.params.messageId, req.user.id, scope);
   res.status(200).json({ message });
+});
+
+const getConversation = asyncHandler(async (req, res) => {
+  const conversation = await conversationService.getConversationDetail(req.params.id, req.user.id);
+  res.status(200).json({ conversation });
+});
+
+const muteConversation = asyncHandler(async (req, res) => {
+  const result = await conversationService.setMuted(req.params.id, req.user.id, req.body.duration);
+  res.status(200).json(result);
+});
+
+const listPinned = asyncHandler(async (req, res) => {
+  const messages = await messageService.listPinned(req.params.id, req.user.id);
+  res.status(200).json({ messages });
+});
+
+const searchConversation = asyncHandler(async (req, res) => {
+  const messages = await messageService.searchConversation(req.params.id, req.user.id, req.query.q);
+  res.status(200).json({ messages });
+});
+
+const listConversationMedia = asyncHandler(async (req, res) => {
+  const media = await messageService.listConversationMedia(req.params.id, req.user.id, req.query);
+  res.status(200).json({ media });
+});
+
+const pinMessage = asyncHandler(async (req, res) => {
+  res.status(200).json(await messageService.pinMessage(req.params.messageId, req.user.id));
+});
+
+const unpinMessage = asyncHandler(async (req, res) => {
+  res.status(200).json(await messageService.unpinMessage(req.params.messageId, req.user.id));
 });
 
 const searchMessages = asyncHandler(async (req, res) => {
@@ -84,18 +121,24 @@ const reportMessage = asyncHandler(async (req, res) => {
  */
 const getMediaUrl = asyncHandler(async (req, res) => {
   const { rows } = await query(
-    `SELECT mm.*, m.conversation_id FROM message_media mm
+    `SELECT mm.*, m.conversation_id, m.deleted_at FROM message_media mm
        JOIN messages m ON m.id = mm.message_id
       WHERE mm.id = $1 AND mm.message_id = $2`,
     [req.params.mediaId, req.params.messageId]
   );
   const media = rows[0];
-  if (!media) throw new AppError('Media not found.', 404, 'NOT_FOUND');
+  if (!media || media.deleted_at) throw new AppError('Media not found.', 404, 'NOT_FOUND');
 
   await conversationService.assertParticipant(media.conversation_id, req.user.id); // authorization check
 
-  const signedUrl = await storageService.getSignedUrl('CHAT_MEDIA', media.storage_path, 300);
-  res.status(200).json({ signedUrl });
+  // `variant=thumb` serves the small preview object for images (never the
+  // full-size photo inside a conversation); `download=1` asks storage to send
+  // it as an attachment under the sanitised original file name.
+  const path = req.query.variant === 'thumb' && media.thumbnail_path ? media.thumbnail_path : media.storage_path;
+  const downloadName = req.query.download === '1' ? (media.file_name || 'download') : undefined;
+  const expiresIn = 300;
+  const signedUrl = await storageService.getSignedUrl('CHAT_MEDIA', path, expiresIn, downloadName);
+  res.status(200).json({ signedUrl, expiresIn });
 });
 
 module.exports = {
@@ -112,5 +155,12 @@ module.exports = {
   deleteMessage,
   searchMessages,
   reportMessage,
+  getConversation,
+  muteConversation,
+  listPinned,
+  searchConversation,
+  listConversationMedia,
+  pinMessage,
+  unpinMessage,
   getMediaUrl,
 };

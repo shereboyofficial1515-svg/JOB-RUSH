@@ -31,40 +31,47 @@
     <section class="hero">
       <div class="container hero-grid">
         <div class="hero-copy">
-          <h1>Find the right professional, before the job can't wait.</h1>
-          <p class="lede">JOB RUSH connects Nigerian hirers with verified artisans, freelancers, and professionals —
-            search, message, interview, and pay securely in one place.</p>
+          <!-- Desktop only (css/home.css hides it on phones); one hero, one set of markup. -->
+          <span class="hero-badge">For Nigerian artisans, freelancers &amp; hirers</span>
+          <h1>Hire skilled professionals in Nigeria, or get hired.</h1>
+          <p class="lede">JOB RUSH is where hirers find verified artisans, freelancers and professionals &mdash; and where
+            professionals get discovered, hired and paid securely.</p>
 
-          <form class="hero-search" id="hero-search-form">
-            <input type="text" name="keyword" placeholder="What do you need done? e.g. plumber, graphic designer"
-              aria-label="Search for a service or skill" />
-            <button type="submit" class="btn btn-primary">Search</button>
+          <form class="hero-search" id="hero-search-form" role="search">
+            <div class="hero-search-type" role="radiogroup" aria-label="What are you looking for?">
+              <label><input type="radio" name="type" value="talent" checked /><span>Find a professional</span></label>
+              <label><input type="radio" name="type" value="jobs" /><span>Find a job</span></label>
+            </div>
+            <div class="hero-search-row">
+              <input type="search" name="keyword" id="hero-keyword" placeholder="e.g. electrician, graphic designer, Warri"
+                aria-label="Search by skill, profession or place" autocomplete="off" />
+              <button type="submit" class="btn btn-primary" id="hero-search-btn">Search</button>
+            </div>
           </form>
 
-          <div class="hero-trust">
-            <span><strong>2,400+</strong> verified professionals</span>
-            <span><strong>10%</strong> platform fee, paid on delivery</span>
+          <div class="hero-paths">
+            <a class="btn btn-premium" href="pages/search.html">Hire a professional</a>
+            <a class="btn btn-secondary" href="pages/jobs.html">Find work</a>
+          </div>
+          <p class="hero-links">
+            <a href="pages/register.html?role=hirer">Post a job</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="pages/register.html?role=worker">Create your professional profile</a>
+          </p>
+
+          <div class="hero-trust" id="hero-trust">
+            <span><strong>Escrow</strong> holds payment until the work is done</span>
           </div>
         </div>
 
-        <div class="hero-visual" aria-hidden="true">
-          <div class="floating-card card card-notched">
-            <div class="floating-card-top">
-              <img src="assets/images/profile-placeholder.svg" alt="" width="52" height="52"
-                style="border-radius: 50%;" />
-              <div>
-                <strong>Chidinma A.</strong>
-                <div class="text-sm text-secondary">Electrical Installation</div>
-              </div>
-            </div>
-            <div class="floating-card-badges">
-              <span class="badge badge-verified">Verified</span>
-              <span class="badge badge-pro">PRO</span>
-            </div>
-            <div class="floating-card-rating">★★★★★ <span class="text-secondary text-sm">4.9 (128 jobs)</span></div>
-            <div class="floating-card-status"><span class="status-dot"></span> Available now</div>
+        <!-- Real professionals from the live directory (filled by script; stays hidden if there are none). -->
+        <aside class="hero-visual" id="hero-visual" hidden aria-label="Professionals on JOB RUSH">
+          <div class="hero-pros card">
+            <h2 class="hero-pros-title">Professionals on JOB RUSH</h2>
+            <div id="hero-pros-list"></div>
+            <a class="hero-pros-more" href="pages/search.html">Browse all professionals &rarr;</a>
           </div>
-        </div>
+        </aside>
       </div>
     </section>
 
@@ -164,16 +171,50 @@
     });
   </script>
   <script>
+    async function loadHeroData() {
+      const [stats, pros] = await Promise.all([
+        API.get('/catalog/stats').catch(() => null),
+        API.get('/profiles/worker/search?pageSize=3').catch(() => null),
+      ]);
+      if (stats) {
+        const bits = [];
+        if (stats.verifiedProfessionals > 0) bits.push(`<span><strong>${stats.verifiedProfessionals.toLocaleString()}</strong> verified professional${stats.verifiedProfessionals === 1 ? '' : 's'}</span>`);
+        else if (stats.professionals > 0) bits.push(`<span><strong>${stats.professionals.toLocaleString()}</strong> professional${stats.professionals === 1 ? '' : 's'}</span>`);
+        if (stats.openJobs > 0) bits.push(`<span><strong>${stats.openJobs.toLocaleString()}</strong> open job${stats.openJobs === 1 ? '' : 's'}</span>`);
+        bits.push(`<span><strong>${Number(stats.platformFeePercent)}%</strong> fee, only when the work is paid</span>`);
+        document.getElementById('hero-trust').innerHTML = bits.join('') + '<span><strong>Escrow</strong> holds payment until the work is done</span>';
+      }
+      const list = pros && pros.profiles ? pros.profiles : [];
+      if (list.length) {
+        document.getElementById('hero-pros-list').innerHTML = list.map((p) => {
+          const where = [p.lga_name, p.state_name].filter(Boolean).join(', ');
+          const rating = Number(p.rating_count) > 0 ? `\u2605 ${Number(p.rating_avg).toFixed(1)} (${p.rating_count})` : '';
+          return `<a class="hero-pro" href="pages/worker-profile.html?id=${encodeURIComponent(p.user_id)}">
+            <img src="${esc(p.profile_picture_url || ASSETS.defaultAvatar)}" alt="" width="44" height="44" loading="lazy" />
+            <span class="hero-pro-text"><strong>${esc(p.full_name)}</strong><span>${esc(p.professional_title || 'Professional')}${where ? ` &middot; ${esc(where)}` : ''}</span></span>
+            ${p.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}${rating ? `<span class="hero-pro-rating">${rating}</span>` : ''}
+          </a>`;
+        }).join('');
+        document.getElementById('hero-visual').hidden = false;
+      }
+    }
+
     (async function init() {
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'home', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'home' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
+      // Search goes to the page that actually searches what was asked for, carrying the
+      // keyword: professionals (search.html) or jobs (jobs.html). Both read ?keyword=.
       document.getElementById('hero-search-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const keyword = e.target.keyword.value.trim();
-        window.location.href = `pages/jobs.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
+        const page = e.target.type.value === 'jobs' ? 'jobs' : 'search';
+        window.location.href = `pages/${page}.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
       });
+
+      // Real numbers and real people only: nothing here is hardcoded. If a request
+      // fails or a count is zero, that element is simply not shown.
+      loadHeroData();
 
       try {
         const { categories } = await API.get('/catalog/categories');

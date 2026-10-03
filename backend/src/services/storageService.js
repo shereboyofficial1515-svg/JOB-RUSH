@@ -1,7 +1,8 @@
 const fs = require('fs/promises');
 const { randomUUID } = require('crypto');
 const { getSupabaseClient } = require('../config/supabase');
-const { validateFile } = require('../utils/fileValidation');
+const { validateFile, detectChatFile, sanitizeDisplayFileName } = require('../utils/fileValidation');
+const { readImageSize } = require('../utils/imageSize');
 const { resizeImage } = require('./imageProcessingService');
 const AppError = require('../utils/AppError');
 const logger = require('../utils/logger');
@@ -65,7 +66,34 @@ const LIMITS = {
     maxSizeBytes: 15 * 1024 * 1024,
   },
   voice_note: { allowedMimeTypes: ['audio/mpeg'], maxSizeBytes: 10 * 1024 * 1024 },
+
+  // Chat attachments. The MIME type checked here is the one DETECTED from
+  // the file's bytes (utils/fileValidation.detectChatFile), never the one
+  // the client declared, so these lists only gate what detection can emit.
+  chat_image: { allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], maxSizeBytes: 8 * 1024 * 1024 },
+  chat_voice: {
+    // MediaRecorder output differs by platform: Chrome and the Android
+    // WebView record webm/opus (or ogg); some builds record AAC in MP4.
+    allowedMimeTypes: ['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/aac', 'audio/wav'],
+    maxSizeBytes: 10 * 1024 * 1024,
+  },
+  chat_document: {
+    allowedMimeTypes: [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/zip',
+    ],
+    maxSizeBytes: 15 * 1024 * 1024,
+  },
+  chat_video: { allowedMimeTypes: ['video/mp4'], maxSizeBytes: SUPABASE_MAX_UPLOAD_BYTES },
 };
+
+const CHAT_LIMIT_PROFILE = { image: 'chat_image', voice_note: 'chat_voice', document: 'chat_document', video: 'chat_video' };
+const CHAT_IMAGE_MAX_DIMENSION_PX = 1600;
+const CHAT_THUMBNAIL_MAX_DIMENSION_PX = 480;
 
 /**
  * Uploads a validated buffer to a bucket under a caller-controlled
@@ -282,20 +310,60 @@ async function uploadCvDocument(workerUserId, file) {
 }
 
 /**
- * Chat media (images, video, documents, voice notes) — private
- * bucket, same as verification documents. Only participants in the
- * conversation the message belongs to may ever resolve a signed URL
- * for it (enforced in messageController, not here).
+ * Chat media (images, documents, voice notes, video) -- private bucket,
+ * same as verification documents. Only participants in the conversation
+ * the message belongs to may ever resolve a signed URL for it (enforced
+ * in messageController, not here).
+ *
+ * What the file IS comes from its bytes (detectChatFile); the declared
+ * MIME type and the client's file name are never used to decide anything
+ * or to build a storage path. Images are re-encoded to a bounded size
+ * (which also drops EXIF such as GPS) and get a small preview object so
+ * the conversation never has to download a full-size photo for a bubble.
  */
-async function uploadChatMedia(userId, file, mediaCategory) {
+async function uploadChatMedia(userId, file, mediaCategory, originalName) {
+  const detected = detectChatFile(file.buffer, mediaCategory, file.mimeType);
+  const limitProfile = CHAT_LIMIT_PROFILE[mediaCategory];
+
+  let buffer = file.buffer;
+  let thumbnailPath = null;
+  let width = null;
+  let height = null;
+
+  if (mediaCategory === 'image') {
+    buffer = await resizeImage(file.buffer, detected.mimeType, CHAT_IMAGE_MAX_DIMENSION_PX);
+    const size = readImageSize(buffer) || readImageSize(file.buffer);
+    if (size) ({ width, height } = size);
+    if (detected.mimeType !== 'image/gif') {
+      const thumbBuffer = await resizeImage(file.buffer, detected.mimeType, CHAT_THUMBNAIL_MAX_DIMENSION_PX);
+      const thumb = await uploadToBucket({
+        bucket: BUCKETS.CHAT_MEDIA,
+        ownerUserId: userId,
+        buffer: thumbBuffer,
+        mimeType: detected.mimeType,
+        limitProfile,
+      });
+      thumbnailPath = thumb.storagePath;
+    }
+  }
+
   const result = await uploadToBucket({
     bucket: BUCKETS.CHAT_MEDIA,
     ownerUserId: userId,
-    buffer: file.buffer,
-    mimeType: file.mimeType,
-    limitProfile: mediaCategory,
+    buffer,
+    mimeType: detected.mimeType,
+    limitProfile,
   });
-  return { storagePath: result.storagePath };
+
+  return {
+    storagePath: result.storagePath,
+    thumbnailPath,
+    mimeType: detected.mimeType,
+    sizeBytes: result.sizeBytes,
+    fileName: sanitizeDisplayFileName(originalName),
+    width,
+    height,
+  };
 }
 
 /** Dispute evidence — private bucket, same access pattern as chat media/verification docs. */
@@ -321,6 +389,34 @@ async function uploadDisputeEvidence(userId, file, mediaCategory) {
  * place rather than downloading). VIEW and DOWNLOAD must always use
  * two separately-generated URLs, never the same one repurposed.
  */
+/**
+ * What storage itself knows about an object: MIME type and size. Used to
+ * attach an uploaded file to a message without trusting anything the
+ * client says about it. Returns null if the object does not exist.
+ * (Objects are `<userId>/<random>.<ext>`, so listing the folder filtered
+ * by the file name finds exactly one entry.)
+ */
+async function getObjectMetadata(bucketKey, storagePath) {
+  const bucket = BUCKETS[bucketKey];
+  if (!bucket) throw new AppError('Unknown storage bucket.', 400, 'INVALID_BUCKET');
+  const slash = storagePath.indexOf('/');
+  const folder = storagePath.slice(0, slash);
+  const name = storagePath.slice(slash + 1);
+  const { data, error } = await getSupabaseClient().storage.from(bucket.name).list(folder, { limit: 5, search: name });
+  if (error) throw new AppError('Could not verify the attachment. Please try again.', 502, 'STORAGE_LOOKUP_FAILED');
+  const object = (data || []).find((o) => o.name === name);
+  if (!object) return null;
+  return { mimeType: object.metadata?.mimetype || 'application/octet-stream', size: object.metadata?.size || 0 };
+}
+
+/** Best-effort removal of stored objects (used when a message is deleted for everyone). */
+async function removeObjects(bucketKey, storagePaths) {
+  const bucket = BUCKETS[bucketKey];
+  if (!bucket || storagePaths.length === 0) return;
+  const { error } = await getSupabaseClient().storage.from(bucket.name).remove(storagePaths);
+  if (error) throw new Error(error.message);
+}
+
 async function getSignedUrl(bucketKey, storagePath, expiresInSeconds = 300, downloadFilename = undefined) {
   const bucket = BUCKETS[bucketKey];
   if (!bucket || bucket.public) {
@@ -413,6 +509,8 @@ module.exports = {
   uploadVerificationDocument,
   uploadCvDocument,
   uploadChatMedia,
+  getObjectMetadata,
+  removeObjects,
   uploadDisputeEvidence,
   getSignedUrl,
   getPublicUrlForPath,

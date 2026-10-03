@@ -166,8 +166,7 @@
     }
 
     (async function init() {
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'pro', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'pro' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       let subscription = null;

@@ -23,7 +23,7 @@
             </intent-filter>
 
             <!-- OAuth hand-off deep link — see JobRushWebViewClient (opens
-                 Google/Facebook/Apple in a Custom Tab) and completeOAuthLogin
+                 Google/Facebook in a Custom Tab) and completeOAuthLogin
                  on the backend (redirects the Custom Tab here on success). -->
             <intent-filter android:label="Job Rush sign-in">
                 <action android:name="android.intent.action.VIEW" />

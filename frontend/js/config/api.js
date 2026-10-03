@@ -39,6 +39,14 @@ const API = (function () {
     }
 
     if (!response.ok) {
+      // A 401 from any data endpoint means the session is gone (revoked,
+      // expired, logged out elsewhere). Pages render from the cached session
+      // while the server verifies it in the background, so this is the single
+      // place that reacts: see Auth.handleSessionExpired. (/auth/* answers are
+      // part of normal sign-in flows and are not treated as "expired".)
+      if (response.status === 401 && !path.startsWith('/auth/')) {
+        window.dispatchEvent(new CustomEvent('jr:session-expired'));
+      }
       throw new ApiError(
         payload?.error || 'Something went wrong. Please try again.',
         response.status,

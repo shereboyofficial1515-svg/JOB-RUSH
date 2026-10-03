@@ -3,7 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- interactive-widget=resizes-content: on browsers that otherwise only resize the *visual*
+       viewport when the keyboard opens, this makes the layout viewport shrink too, so the
+       composer stays above the keyboard. (The Android app's WebView already resizes natively.) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
   <title>Messages — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
   <link rel="manifest" href="../manifest.json" />
@@ -12,6 +15,7 @@
   <link rel="stylesheet" href="../css/components.css" />
   <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/dashboard-pages.css" />
+  <link rel="stylesheet" href="../css/chat.css" />
 </head>
 
 <body>
@@ -30,18 +34,11 @@
         <h1 class="page-title">Messages</h1>
         <div id="notif-bell-mount"></div>
       </div>
-      <div class="messages-layout card" style="padding:0;">
-        <div class="conversation-list" id="conversation-list">
-          <div class="skeleton" style="height:60px; margin:12px;"></div>
-          <div class="skeleton" style="height:60px; margin:12px;"></div>
-        </div>
-        <div class="thread-panel" id="thread-panel">
-          <div class="empty-state" style="margin: auto;">
-            <img src="../assets/images/empty-state.svg" alt="" />
-            <h3>Select a conversation</h3>
-            <p>Choose someone from the list to see your messages.</p>
-          </div>
-        </div>
+
+      <!-- Conversation list + chat screen. Both are filled in by js/modules/chat.js. -->
+      <div class="messages-layout">
+        <div class="conversation-list" id="conversation-list"></div>
+        <div class="thread-panel" id="thread-panel"></div>
       </div>
     </div>
   </div>
@@ -64,444 +61,20 @@
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
+  <script src="../js/modules/chat.js"></script>
   <script>
-    let currentUser = null;
-    let activeConversationId = null;
-    let pollTimer = null;
-    let listPollTimer = null;
-
-    // Keyed by conversation ID so the thread header (and the read-state
-    // fix below) can look up "who is this conversation with" without a
-    // second API call — the list endpoint already returns everything
-    // needed about the other participant.
-    let conversationsById = new Map();
-
-    function timeShort(dateStr) {
-      if (!dateStr) return '';
-      const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-      if (diff < 86400) return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      if (diff < 604800) return new Date(dateStr).toLocaleDateString([], { weekday: 'short' });
-      return new Date(dateStr).toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-
-    function conversationItemHtml(c) {
-      const name = esc(c.other_full_name) || 'Unknown user';
-      return `
-      <a class="conversation-item ${c.id === activeConversationId ? 'is-active' : ''}" data-conversation-id="${c.id}">
-        <div style="display:flex; gap: var(--space-3); align-items:center;">
-          <img src="${c.other_profile_picture_url || ASSETS.defaultAvatar}" alt="" width="40" height="40" loading="lazy" style="border-radius:50%; object-fit:cover; flex-shrink:0;" />
-          <div style="min-width:0; flex:1;">
-            <div style="display:flex; justify-content:space-between; align-items:baseline; gap: var(--space-2);">
-              <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</strong>
-              <span class="text-xs text-secondary" style="flex-shrink:0;">${timeShort(c.last_message_at)}</span>
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; gap: var(--space-2);">
-              <div class="preview">${esc(c.last_message_preview) || 'No messages yet'}</div>
-              ${c.unread_count > 0 ? `<span class="badge badge-pro" style="flex-shrink:0;">${c.unread_count}</span>` : ''}
-            </div>
-          </div>
-        </div>
-      </a>
-    `;
-    }
-
-    async function loadConversations(isBackgroundRefresh) {
-      const list = document.getElementById('conversation-list');
-      try {
-        const { conversations } = await API.get('/messaging/conversations');
-        conversationsById = new Map(conversations.map((c) => [c.id, c]));
-        // Same inbox the badge counts (non-archived chats): keep the
-        // bottom-nav Messages badge in step without another request.
-        SidebarNav.setUnread('messages', conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0));
-        if (conversations.length === 0) {
-          if (!isBackgroundRefresh) {
-            list.innerHTML = `<div class="empty-state" style="padding: var(--space-5);"><p class="text-secondary text-sm">No conversations yet. Message a hirer or worker from their profile or a job application to start one.</p></div>`;
-          }
-          return;
-        }
-        list.innerHTML = conversations.map(conversationItemHtml).join('');
-        // A background poll re-renders the same list every ~12s to
-        // pick up new messages/unread counts — replaying the stagger
-        // entrance on every one of those would be exactly the kind of
-        // distracting, unnecessary motion the animation system is
-        // supposed to avoid, so it only plays on the real first load.
-        if (!isBackgroundRefresh) Animate.stagger(list, { max: 8, stepMs: 30 });
-        list.querySelectorAll('.conversation-item').forEach((item) => {
-          item.addEventListener('click', () => openConversation(item.dataset.conversationId));
-        });
-      } catch (err) {
-        if (PullToRefresh.isRefreshing()) throw err;
-        if (!isBackgroundRefresh) StateView.error(list, err, { title: 'Unable to load your conversations', compact: true, retry: () => loadConversations() });
-      }
-    }
-
-    /**
-     * Zeroes the unread badge for one conversation immediately — both
-     * in the cached list data and in the DOM — right after the backend
-     * confirms the read. A background list poll would eventually catch
-     * up anyway, but the spec asks for "almost immediately," and
-     * waiting up to a full poll interval for that isn't it.
-     */
-    function markConversationReadLocally(conversationId) {
-      const cached = conversationsById.get(conversationId);
-      if (cached) cached.unread_count = 0;
-      const item = document.querySelector(`.conversation-item[data-conversation-id="${conversationId}"]`);
-      const badge = item?.querySelector('.badge-pro');
-      if (badge) badge.remove();
-    }
-
-    // Polling now appends only genuinely new messages (see
-    // pollForNewMessages) instead of rebuilding the whole thread \u2014
-    // this set is what makes "genuinely new" decidable, and also
-    // guards against ever rendering the same message twice.
-    let renderedMessageIds = new Set();
-    let lastMessageId = null; // cursor for the next incremental poll
-
-    function messageBubbleHtml(m, isNew) {
-      const isOwn = m.sender_id === currentUser.id;
-      const content = m.deleted_at ? '<em>Message deleted</em>' : esc(m.content || '[attachment]');
-      const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const metaHtml = m._status === 'sending'
-        ? `<span class="spinner-inline" style="width:10px; height:10px; border-width:1.5px;"></span> Sending\u2026`
-        : m._status === 'failed'
-          ? `<span style="color:var(--status-danger);">Not sent</span> \u00B7 <button type="button" class="retry-send-btn" data-retry-message="1">Retry</button>`
-          : `${time}${m.is_edited ? ' \u00B7 edited' : ''}`;
-      return `
-      <div class="message-bubble ${isOwn ? 'own' : 'other'} ${isNew ? 'msg-enter' : ''} ${m._status === 'sending' ? 'is-sending' : ''} ${m._status === 'failed' ? 'is-failed' : ''}" data-message-id="${m.id}" data-message-content="${esc(m.content || '')}">
-        <div>${content}</div>
-        <div class="message-meta">${metaHtml}</div>
-      </div>
-    `;
-    }
-
-    function isNearBottom(container) {
-      return container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    }
-
-    function scrollToBottom(container) {
-      container.scrollTop = container.scrollHeight;
-    }
-
-    function renderBubbleElement(m, isNew) {
-      const wrap = document.createElement('div');
-      wrap.innerHTML = messageBubbleHtml(m, isNew).trim();
-      return wrap.firstElementChild;
-    }
-
-    /** Appends without touching any existing bubble \u2014 auto-scrolls only if the user was already at (or near) the bottom, never yanking them away from history they scrolled up to read. */
-    function appendMessageBubble(container, m, isNew) {
-      const wasNearBottom = isNearBottom(container);
-      container.appendChild(renderBubbleElement(m, isNew));
-      if (wasNearBottom) scrollToBottom(container);
-    }
-
-    /** Swaps one bubble in place (optimistic \u2192 confirmed, or sending \u2192 failed) without touching any other bubble or the scroll position of the rest of the thread. */
-    function replaceMessageBubble(container, existingId, m, isNew) {
-      const old = container.querySelector(`[data-message-id="${existingId}"]`);
-      const wasNearBottom = isNearBottom(container);
-      const fresh = renderBubbleElement(m, isNew);
-      if (old) old.replaceWith(fresh);
-      else container.appendChild(fresh);
-      if (wasNearBottom) scrollToBottom(container);
-    }
-
-    /**
-     * One delegated listener per opened conversation (the container
-     * itself is recreated fresh on every conversation switch, via
-     * panel.innerHTML in openConversation, so this never double-wires)
-     * handles Retry for every failed bubble, present now or appended
-     * later \u2014 no per-button listener bookkeeping needed.
-     */
-    function wireMessageRetryDelegation(container, conversationId) {
-      container.addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-retry-message]');
-        if (!btn) return;
-        const bubble = btn.closest('[data-message-id]');
-        const tempId = bubble.dataset.messageId;
-        const content = bubble.dataset.messageContent;
-        await sendMessage(conversationId, content, tempId);
-      });
-    }
-
-    /**
-     * Optimistic send: render immediately with a "sending" state,
-     * POST in the background, then swap in the server's own message
-     * (real id/timestamp) on success or a "failed \u00B7 Retry" state on
-     * failure \u2014 the typed content is never lost either way, unlike
-     * the old flow where a failed send silently discarded it.
-     */
-    async function sendMessage(conversationId, content, existingBubbleId) {
-      const container = document.getElementById('thread-messages');
-      if (!container) return;
-      const emptyState = container.querySelector('p.text-secondary');
-      if (emptyState) container.innerHTML = '';
-
-      const tempId = existingBubbleId || `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const sendingMsg = { id: tempId, sender_id: currentUser.id, content, created_at: new Date().toISOString(), _status: 'sending' };
-
-      if (existingBubbleId) {
-        replaceMessageBubble(container, existingBubbleId, sendingMsg, false);
-      } else {
-        appendMessageBubble(container, sendingMsg, true);
-        renderedMessageIds.add(tempId);
-        scrollToBottom(container);
-      }
-
-      try {
-        const { message } = await API.post(`/messaging/conversations/${conversationId}/messages`, { content });
-        renderedMessageIds.delete(tempId);
-        renderedMessageIds.add(message.id);
-        replaceMessageBubble(container, tempId, message, false);
-        lastMessageId = message.id; // so the next poll doesn't re-fetch the message we already rendered
-      } catch (err) {
-        replaceMessageBubble(container, tempId, { ...sendingMsg, _status: 'failed' }, false);
-      }
-    }
-
-    const CALL_STATUS_LABEL = {
-      calling: 'Calling…', ringing: 'Ringing…', connecting: 'Connecting…',
-      connected: 'Connected', reconnecting: 'Reconnecting…',
-      ended: 'Completed', busy: 'Busy', declined: 'Declined',
-      missed: 'Missed', failed: 'Failed', cancelled: 'Cancelled',
-    };
-    const CALL_STATUS_BADGE_CLASS = {
-      ended: 'badge-verified', connected: 'badge-verified',
-      busy: 'badge-danger', declined: 'badge-danger', missed: 'badge-danger',
-      failed: 'badge-danger', cancelled: 'badge-neutral',
-    };
-
-    function callIconSvg(type) {
-      return type === 'video'
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>';
-    }
-
-    function callHistoryRowHtml(call) {
-      const directionIcon = call.direction === 'outgoing'
-        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>'
-        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="17" y1="7" x2="7" y2="17"/><polyline points="17 17 7 17 7 7"/></svg>';
-      const label = CALL_STATUS_LABEL[call.status] || call.status;
-      const badgeClass = CALL_STATUS_BADGE_CLASS[call.status] || 'badge-neutral';
-      const duration = call.duration_seconds ? `${Math.floor(call.duration_seconds / 60)}:${String(call.duration_seconds % 60).padStart(2, '0')}` : null;
-      return `
-      <div style="display:flex; align-items:center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle);">
-        <span class="text-secondary">${directionIcon}</span>
-        <span class="text-secondary">${callIconSvg(call.call_type)}</span>
-        <span class="text-sm" style="flex:1;">${call.direction === 'outgoing' ? 'Outgoing' : 'Incoming'} ${call.call_type} call${duration ? ` · ${duration}` : ''}</span>
-        <span class="badge ${badgeClass}" style="font-size: 11px;">${label}</span>
-        <span class="text-xs text-secondary">${timeShort(call.started_at)}</span>
-      </div>`;
-    }
-
-    async function loadCallHistory(conversationId) {
-      const mount = document.getElementById('call-history-body');
-      if (!mount) return;
-      try {
-        const { calls } = await API.get(`/messaging/conversations/${conversationId}/calls`);
-        mount.innerHTML = calls.length
-          ? calls.map(callHistoryRowHtml).join('')
-          : '<p class="text-secondary text-sm" style="padding: var(--space-3) 0;">No calls yet in this conversation.</p>';
-      } catch (err) {
-        mount.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
-      }
-    }
-
-    // Opening a conversation only toggles CSS classes (no real page
-    // navigation), so the Android hardware back button had nothing to
-    // catch and would leave this page entirely instead of just closing
-    // the thread pane. Pushing a real history entry when the thread
-    // opens, and closing it on `popstate`, makes the hardware back
-    // button and the on-screen back-to-list arrow behave identically.
-    function closeThreadOnMobile() {
-      document.getElementById('conversation-list').classList.remove('is-hidden-on-mobile');
-      document.getElementById('thread-panel').classList.remove('is-open-on-mobile');
-    }
-    window.addEventListener('popstate', (e) => {
-      if (e.state?.view !== 'thread') closeThreadOnMobile();
-    });
-
-    async function openConversation(conversationId) {
-      activeConversationId = conversationId;
-      renderedMessageIds = new Set(); // a fresh thread, not "already seen"
-      document.querySelectorAll('.conversation-item').forEach((i) => i.classList.toggle('is-active', i.dataset.conversationId === conversationId));
-
-      // Mobile shows one pane at a time — switch to the thread view.
-      document.getElementById('conversation-list').classList.add('is-hidden-on-mobile');
-      document.getElementById('thread-panel').classList.add('is-open-on-mobile');
-
-      if (window.history.state?.view === 'thread') {
-        window.history.replaceState({ view: 'thread', conversationId }, '');
-      } else {
-        window.history.pushState({ view: 'thread', conversationId }, '');
-      }
-
-      const conversation = conversationsById.get(conversationId);
-      const otherName = esc(conversation?.other_full_name) || 'Unknown user';
-      const otherAvatar = conversation?.other_profile_picture_url || ASSETS.defaultAvatar;
-
-      const panel = document.getElementById('thread-panel');
-      panel.innerHTML = `
-      <div class="thread-header">
-        <button type="button" class="icon-btn back-to-list-btn" id="back-to-list-btn" aria-label="Back to conversations" title="Back">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
-        </button>
-        <div style="display:flex; align-items:center; gap: var(--space-2); flex:1; min-width:0;">
-          <img src="${otherAvatar}" alt="" width="32" height="32" style="border-radius:50%; object-fit:cover; flex-shrink:0;" />
-          <strong style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${otherName}</strong>
-        </div>
-        <div style="display:flex; gap: var(--space-2);">
-          <button class="icon-btn" id="call-history-btn" aria-label="Call history" title="Call history">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </button>
-          <button class="icon-btn" id="audio-call-btn" aria-label="Audio call" title="Audio call">${callIconSvg('audio')}</button>
-          <button class="icon-btn" id="video-call-btn" aria-label="Video call" title="Video call">${callIconSvg('video')}</button>
-        </div>
-      </div>
-      <div id="call-history-panel" hidden style="padding: var(--space-3) var(--space-5); border-bottom: 1px solid var(--border-subtle); max-height: 220px; overflow-y:auto;">
-        <div id="call-history-body"><div class="skeleton" style="height:32px;"></div></div>
-      </div>
-      <div class="thread-messages fade-in" id="thread-messages"><div class="skeleton" style="height:40px; width:60%;"></div></div>
-      <form class="thread-composer" id="composer-form">
-        <input type="text" name="content" placeholder="Type a message..." autocomplete="off" />
-        <button type="submit" class="btn btn-primary" id="send-btn">Send</button>
-      </form>
-    `;
-
-      document.getElementById('audio-call-btn').addEventListener('click', () => startCall(conversationId, 'audio'));
-      document.getElementById('video-call-btn').addEventListener('click', () => startCall(conversationId, 'video'));
-      document.getElementById('back-to-list-btn').addEventListener('click', () => {
-        if (window.history.state?.view === 'thread') window.history.back();
-        else closeThreadOnMobile();
-      });
-      document.getElementById('call-history-btn').addEventListener('click', () => {
-        const historyPanel = document.getElementById('call-history-panel');
-        historyPanel.hidden = !historyPanel.hidden;
-        if (!historyPanel.hidden) loadCallHistory(conversationId);
-      });
-
-      wireMessageRetryDelegation(document.getElementById('thread-messages'), conversationId);
-      await loadInitialMessages(conversationId);
-      try {
-        await API.post(`/messaging/conversations/${conversationId}/read`);
-        markConversationReadLocally(conversationId);
-      } catch {
-        // Best-effort — the thread is still fully usable even if this failed.
-      }
-
-      document.getElementById('composer-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const form = e.target;
-        const content = form.content.value.trim();
-        if (!content) return;
-        form.content.value = '';
-        // Fire-and-forget: sendMessage renders the optimistic bubble
-        // itself and reconciles it when the server responds — the
-        // composer doesn't wait on it, exactly the "don't make the
-        // user stare at a spinner after pressing Send" requirement.
-        sendMessage(conversationId, content);
-      });
-
-      clearInterval(pollTimer);
-      pollTimer = setInterval(() => pollForNewMessages(conversationId), 5000);
-    }
-
-    async function startCall(conversationId, callType) {
-      try {
-        const { call } = await API.post(`/messaging/conversations/${conversationId}/calls`, { callType });
-        window.location.href = `call-room.html?type=call&id=${call.id}`;
-      } catch (err) {
-        Toast.error(err.message);
-      }
-    }
-
-    /** Full render \u2014 used once when a conversation is opened. Every later update is an incremental append (see pollForNewMessages) or a targeted swap (see sendMessage), never another full rebuild. */
-    async function loadInitialMessages(conversationId) {
-      const container = document.getElementById('thread-messages');
-      if (!container) return;
-      try {
-        const { messages } = await API.get(`/messaging/conversations/${conversationId}/messages`);
-        container.innerHTML = messages.length
-          ? messages.map((m) => messageBubbleHtml(m, false)).join('')
-          : `<p class="text-secondary text-sm">No messages yet \u2014 say hello.</p>`;
-        renderedMessageIds = new Set(messages.map((m) => m.id));
-        lastMessageId = messages.length ? messages[messages.length - 1].id : null;
-        container.scrollTop = container.scrollHeight;
-      } catch (err) {
-        container.innerHTML = `<p class="text-secondary text-sm">${err.message}</p>`;
-      }
-    }
-
-    /**
-     * Runs every 5s for the open conversation. Fetches only messages
-     * newer than the last one already on screen and appends them --
-     * no full re-fetch, no full DOM rebuild, no forced scroll unless
-     * the user was already at the bottom. If a conversation has never
-     * successfully loaded yet (lastMessageId still null), falls back
-     * to a full load instead of guessing.
-     */
-    async function pollForNewMessages(conversationId) {
-      if (activeConversationId !== conversationId) return;
-      if (lastMessageId === null) return loadInitialMessages(conversationId);
-      try {
-        const { messages } = await API.get(
-          `/messaging/conversations/${conversationId}/messages?afterMessageId=${encodeURIComponent(lastMessageId)}`
-        );
-        if (messages.length === 0) return;
-        const container = document.getElementById('thread-messages');
-        if (!container) return;
-        const emptyState = container.querySelector('p.text-secondary');
-        if (emptyState) container.innerHTML = '';
-        messages.forEach((m) => {
-          if (renderedMessageIds.has(m.id)) return; // e.g. our own just-sent message, already reconciled by sendMessage
-          appendMessageBubble(container, m, true);
-          renderedMessageIds.add(m.id);
-        });
-        lastMessageId = messages[messages.length - 1].id;
-      } catch (err) {
-        // Silent on poll failures \u2014 the next tick (or the 'online' listener below) just tries again.
-      }
-    }
-
-    // A dropped connection shouldn't have to wait for the next fixed
-    // 5s tick once it comes back \u2014 catch up immediately.
-    window.addEventListener('online', () => {
-      if (activeConversationId) pollForNewMessages(activeConversationId);
-    });
-
     (async function init() {
       const user = await Auth.requireSession('login.html');
       if (!user) return;
-      currentUser = user;
+      // The shell (sidebar, bottom nav, bell) draws immediately from the cached
+      // session; the conversation list and everything else load in parallel.
+      SidebarNav.render(user, 'messages');
       NotificationBell.render(document.getElementById('notif-bell-mount'));
       IncomingCallWatcher.start();
       PushNotifications.registerIfAlreadySubscribed();
-
-      SidebarNav.render(user, 'messages');
       document.getElementById('logout-btn').addEventListener('click', () => Auth.confirmLogout('../index.html'));
-
-      // Refreshes the conversation list only. Pulling inside an open
-      // chat is already ignored (the thread scrolls on its own), and
-      // while a conversation is open on a phone the list isn't what's
-      // on screen, so don't refresh behind it either.
-      PullToRefresh.init({
-        enabled: () => !document.getElementById('thread-panel').classList.contains('is-open-on-mobile'),
-        onRefresh: () => loadConversations(false),
-      });
-
-      await loadConversations();
-      listPollTimer = setInterval(() => loadConversations(true), 12000);
-
-      // Deep link from a "Contact" button elsewhere (e.g. a worker's
-      // public profile) that already started/found the conversation
-      // and just needs this page to open straight into it.
-      const conversationId = new URLSearchParams(window.location.search).get('conversation');
-      if (conversationId) openConversation(conversationId);
+      Chat.init(user);
     })();
-
-    window.addEventListener('beforeunload', () => {
-      clearInterval(pollTimer);
-      clearInterval(listPollTimer);
-    });
   </script>
 </body>
 

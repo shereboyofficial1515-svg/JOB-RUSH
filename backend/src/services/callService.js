@@ -1,3 +1,4 @@
+const realtimeHub = require('./realtimeHub');
 const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 const conversationService = require('./conversationService');
@@ -51,6 +52,12 @@ async function initiateCall(callerUserId, conversationId, callType) {
   );
   const call = rows[0];
 
+  // Instant ring: an open page on the callee's side learns about the call
+  // over the realtime stream immediately instead of on its next poll. The
+  // poll in incomingCallWatcher.js stays as the fallback, so a call is never
+  // missed if the stream is down.
+  realtimeHub.publish([calleeUserId], 'call.incoming', { callId: call.id, callType });
+
   // Best-effort only: the callee's device(s) still discover the call
   // for certain via the existing 3s incoming-call poll
   // (incomingCallWatcher.js) even if this push never arrives (no
@@ -98,6 +105,9 @@ async function updateCallStatus(callId, userId, newStatus, failureReason) {
   }
 
   const { rows } = await query(`UPDATE calls SET ${fields.join(', ')} WHERE id = $1 RETURNING *`, params);
+  // Lets the other side's open page react at once (stop ringing when the
+  // caller hangs up or the call is answered elsewhere) instead of on its next poll.
+  realtimeHub.publish([call.caller_user_id, call.callee_user_id], 'call.updated', { callId, status: newStatus });
   return rows[0];
 }
 

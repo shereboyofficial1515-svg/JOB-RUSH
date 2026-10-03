@@ -3,7 +3,7 @@ const controller = require('../controllers/storageController');
 const { authenticate } = require('../middleware/authenticate');
 const { requireRole } = require('../middleware/authorize');
 const { singleFile, singleVideoFile } = require('../middleware/uploadHandler');
-const { uploadLimiter, videoUploadLimiter } = require('../middleware/rateLimiter');
+const { uploadLimiter, chatUploadLimiter, videoUploadLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
@@ -71,7 +71,7 @@ router.post(
 router.post(
   '/chat/:mediaCategory',
   authenticate,
-  uploadLimiter,
+  chatUploadLimiter,
   singleFile('file'),
   controller.uploadChatMedia
 );

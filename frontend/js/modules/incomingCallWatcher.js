@@ -13,7 +13,7 @@
  * currently is, not only from inside the conversation it belongs to.
  */
 const IncomingCallWatcher = (function () {
-  const POLL_INTERVAL_MS = 3000;
+  const POLL_INTERVAL_MS = 3000; // fallback cadence while the realtime stream is down
   const RING_TIMEOUT_MS = 30000;
 
   let pollTimer = null;
@@ -150,10 +150,33 @@ const IncomingCallWatcher = (function () {
     }
   }
 
+  // Polling stays as the safety net, but at a different pace: the realtime
+  // stream tells this page the moment a call starts or changes, so while it is
+  // connected the poll only backs that up every 20s; if it is not connected the
+  // original 3s cadence applies, so a call is never missed.
+  function schedule() {
+    clearTimeout(pollTimer);
+    const live = typeof Realtime !== 'undefined' && Realtime.isConnected();
+    pollTimer = setTimeout(async () => {
+      if (!document.hidden || !live) await poll();
+      schedule();
+    }, live ? 20000 : POLL_INTERVAL_MS);
+  }
+
+  let started = false;
   function start() {
+    if (started) return;
+    started = true;
     poll();
-    clearInterval(pollTimer);
-    pollTimer = setInterval(poll, POLL_INTERVAL_MS);
+    schedule();
+    if (typeof Realtime !== 'undefined') {
+      Realtime.on('call.incoming', poll);
+      Realtime.on('call.updated', poll);
+      // The first 'connected' arrives moments after start(), which already polled: only a RE-connect needs a catch-up.
+      let firstConnect = true;
+      Realtime.on('connected', () => { if (firstConnect) { firstConnect = false; } else poll(); schedule(); });
+      Realtime.on('disconnected', schedule);
+    }
   }
 
   return { start };

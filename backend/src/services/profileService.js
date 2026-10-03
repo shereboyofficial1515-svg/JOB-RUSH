@@ -1,3 +1,4 @@
+const { addKeywordConditions } = require('../utils/searchTerms');
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
@@ -245,10 +246,18 @@ async function searchWorkers({
        WHERE p.worker_user_id = wp.user_id AND pm.media_type = 'video'
     )`);
   }
-  if (keyword) {
-    params.push(`%${keyword}%`);
-    conditions.push(`(wp.professional_title ILIKE $${params.length} OR wp.bio ILIKE $${params.length})`);
-  }
+  // Every word must match something about the person: their title, bio, name,
+  // location, a skill, an active service, or their business name.
+  const firstTerm = addKeywordConditions(keyword, params, conditions, (p) => `
+        wp.professional_title ILIKE ${p} OR wp.bio ILIKE ${p} OR u.full_name ILIKE ${p}
+        OR st.name ILIKE ${p} OR l.name ILIKE ${p}
+        OR EXISTS (SELECT 1 FROM worker_profile_skills wps JOIN skills sk ON sk.id = wps.skill_id
+                    WHERE wps.worker_user_id = wp.user_id AND sk.name ILIKE ${p})
+        OR EXISTS (SELECT 1 FROM professional_services ps
+                    WHERE ps.worker_user_id = wp.user_id AND ps.is_active = true
+                      AND (ps.name ILIKE ${p} OR ps.description ILIKE ${p}))
+        OR EXISTS (SELECT 1 FROM business_profiles bp
+                    WHERE bp.worker_user_id = wp.user_id AND bp.is_enabled = true AND bp.business_name ILIKE ${p})`);
   if (skillId) {
     params.push(skillId);
     conditions.push(`EXISTS (SELECT 1 FROM worker_profile_skills wps WHERE wps.worker_user_id = wp.user_id AND wps.skill_id = $${params.length})`);
@@ -280,7 +289,7 @@ async function searchWorkers({
        LEFT JOIN states st ON st.id = wp.state_id
        LEFT JOIN lgas l ON l.id = wp.lga_id
       WHERE ${conditions.join(' AND ')}
-      ORDER BY wp.is_pro DESC, wp.rating_avg DESC, wp.profile_completion_percent DESC
+      ORDER BY ${firstTerm ? `(wp.professional_title ILIKE ${firstTerm}) DESC, ` : ''}wp.is_pro DESC, wp.rating_avg DESC, wp.profile_completion_percent DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
     params
   );

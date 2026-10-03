@@ -101,8 +101,7 @@
     }
 
     (async function init() {
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), {});
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const form = document.getElementById('ticket-form');

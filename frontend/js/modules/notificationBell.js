@@ -79,23 +79,35 @@ const NotificationBell = (function () {
   let badgeEl = null;
   let previousUnreadCount = 0;
 
+  function paintBadge(count) {
+    if (!badgeEl) return;
+    badgeEl.textContent = count > 9 ? '9+' : String(count);
+    badgeEl.hidden = count === 0;
+    document.dispatchEvent(new CustomEvent('jr:unread-notifications', { detail: { count } }));
+
+    // A restrained pop only when the count actually climbed (a new
+    // notification arrived) — never on every poll, and never when
+    // it's dropping because the user just read something.
+    if (count > previousUnreadCount && !badgeEl.hidden) {
+      badgeEl.classList.remove('icon-pop');
+      void badgeEl.offsetWidth; // restart the animation if it's already mid-play
+      badgeEl.classList.add('icon-pop');
+    }
+    previousUnreadCount = count;
+  }
+
+  // Signed-in app pages share ONE poller for the bell and the Messages badge
+  // (ShellStatus). Pages that render a bell without it (the public header)
+  // keep this module's own light poll.
+  const sharedPoller = () => typeof ShellStatus !== 'undefined' && ShellStatus.isStarted();
+  let unsubscribeShared = null;
+
   async function refreshBadge() {
     if (!badgeEl) return;
+    if (sharedPoller()) { ShellStatus.refresh(true); return; }
     try {
       const { count } = await API.get('/notifications/unread-count');
-      badgeEl.textContent = count > 9 ? '9+' : String(count);
-      badgeEl.hidden = count === 0;
-      document.dispatchEvent(new CustomEvent('jr:unread-notifications', { detail: { count } }));
-
-      // A restrained pop only when the count actually climbed (a new
-      // notification arrived) — never on every poll, and never when
-      // it's dropping because the user just read something.
-      if (count > previousUnreadCount && !badgeEl.hidden) {
-        badgeEl.classList.remove('icon-pop');
-        void badgeEl.offsetWidth; // restart the animation if it's already mid-play
-        badgeEl.classList.add('icon-pop');
-      }
-      previousUnreadCount = count;
+      paintBadge(count);
     } catch {
       badgeEl.hidden = true;
     }
@@ -218,9 +230,14 @@ const NotificationBell = (function () {
       }
     });
 
-    refreshBadge();
-    clearInterval(pollTimer);
-    pollTimer = setInterval(refreshBadge, 30000);
+    if (unsubscribeShared) unsubscribeShared();
+    if (sharedPoller()) {
+      unsubscribeShared = ShellStatus.subscribe((status) => paintBadge(status.notifications));
+    } else {
+      refreshBadge();
+      clearInterval(pollTimer);
+      pollTimer = setInterval(refreshBadge, 30000);
+    }
   }
 
   return { render, refresh: refreshBadge, rowHtml: notificationRowHtml };
