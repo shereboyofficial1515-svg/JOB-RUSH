@@ -399,36 +399,53 @@
       };
     }
 
-    function workerFormHtml(profile) {
-      const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(profile.verification_status);
-      return `
-      <form id="profile-form" novalidate>
-        <div class="card" style="margin-bottom: var(--space-5);">
-          <h3>Verification status</h3>
-          ${profile.verification_status === 'approved'
-          ? `<span class="badge badge-verified">Verified professional</span>`
-          : `<p class="text-secondary text-sm">Status: <strong style="text-transform:capitalize;">${profile.verification_status.replace('_', ' ')}</strong></p>`
-        }
-          ${canSubmit ? `
-            <div id="verification-uploads" style="margin-top: var(--space-4);">
-              <div class="text-sm text-secondary" style="margin-bottom: var(--space-3);">Upload at least one document (e.g. government ID) to request the free Verified badge.</div>
-              <div id="uploaded-docs-list" style="margin-bottom: var(--space-3);"></div>
-              <button type="button" class="btn btn-sm btn-secondary" id="add-doc-btn">Upload document</button>
-              <button type="button" class="btn btn-sm btn-primary" id="submit-verification-btn" style="margin-left: var(--space-2);" disabled>Submit for review</button>
-            </div>
-          ` : profile.verification_status === 'submitted' || profile.verification_status === 'under_review'
-          ? `<p class="text-secondary text-sm" style="margin-top: var(--space-3);">Your documents are being reviewed. We'll notify you once a decision is made.</p>`
-          : ''}
-        </div>
+    // What the backend's verification_status values mean to the person, in
+    // the words the UI uses. Only statuses the API actually returns.
+    const VERIFICATION_STATES = {
+      not_submitted: { label: 'Not submitted', pill: '', note: 'Upload at least one document (for example a government ID) to request the free Verified badge.' },
+      submitted: { label: 'Submitted', pill: 'status-pill--warn', note: "Your documents are being reviewed. We'll notify you once a decision is made." },
+      under_review: { label: 'Under review', pill: 'status-pill--warn', note: "Your documents are being reviewed. We'll notify you once a decision is made." },
+      approved: { label: 'Verified', pill: 'status-pill--on', note: 'Your identity has been verified.' },
+      rejected: { label: 'Rejected', pill: 'status-pill--danger', note: 'Your last request was not approved. Upload your documents again and submit for another review.' },
+      resubmission_required: { label: 'Resubmission required', pill: 'status-pill--danger', note: 'More information is needed. Upload updated documents and submit again.' },
+    };
 
+    function verificationCardHtml(profile) {
+      const status = profile.verification_status || 'not_submitted';
+      const state = VERIFICATION_STATES[status] || { label: status.replace(/_/g, ' '), pill: '', note: '' };
+      const canSubmit = ['not_submitted', 'rejected', 'resubmission_required'].includes(status);
+      return `
+        <section class="card card-spaced verification-card" aria-labelledby="verification-title">
+          <div class="card-head">
+            <h3 id="verification-title">Verification</h3>
+            <span class="status-pill ${state.pill}" id="verification-status-pill">${esc(state.label)}</span>
+          </div>
+          <p class="card-note">${esc(state.note)}</p>
+          ${canSubmit ? `
+            <div id="verification-uploads">
+              <div id="uploaded-docs-list" class="doc-list" aria-live="polite"></div>
+              <div class="btn-row">
+                <button type="button" class="btn btn-secondary" id="add-doc-btn">Upload document</button>
+                <button type="button" class="btn btn-primary" id="submit-verification-btn" aria-describedby="submit-verification-hint" disabled>Submit for review</button>
+              </div>
+              <p class="field-hint" id="submit-verification-hint">Upload at least one document before submitting for review.</p>
+            </div>
+          ` : ''}
+        </section>`;
+    }
+
+    function workerFormHtml(profile) {
+      return `
+      ${verificationCardHtml(profile)}
+      <form id="profile-form" novalidate>
         <div class="field">
-          <label>Profile picture</label>
-          <div style="display:flex; align-items:center; gap: var(--space-4);">
+          <label id="profile-picture-label">Profile picture</label>
+          <div class="media-row" role="group" aria-labelledby="profile-picture-label">
             ${AvatarBadge.wrap(
               `<img id="profile-picture-preview" src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="72" height="72" style="border-radius:50%; object-fit:cover; border: 2px solid var(--border-gold);" />`,
               { verified: profile.verification_status === 'approved', isPro: !!profile.is_pro }
             )}
-            <button type="button" class="btn btn-sm btn-secondary" id="change-picture-btn">Change photo</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="change-picture-btn" aria-label="Change profile photo">Change photo</button>
           </div>
         </div>
         ${genderFieldsHtml(profile)}
@@ -507,9 +524,9 @@
     function profileCompletionHtml(profile) {
       const pct = profile.profile_completion_percent ?? 0;
       return `
-      <div class="card" style="margin-bottom: var(--space-5);">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom: var(--space-2);">
-          <h3 style="margin:0;">Profile completion</h3>
+      <div class="card card-spaced">
+        <div class="card-head">
+          <h3>Profile completion</h3>
           <strong style="font-family: var(--font-display); color: var(--accent);">${pct}%</strong>
         </div>
         <div style="height:8px; background: var(--bg-elevated); border-radius: 999px; overflow:hidden;">
@@ -587,20 +604,46 @@
 
     let pendingDocuments = [];
 
+    let verificationBusy = false; // an upload or a submission is in flight
+
+    // One place owns the disabled state of both buttons and the reason text,
+    // so they can never disagree with what is actually pending.
+    function syncVerificationControls() {
+      const submitBtn = document.getElementById('submit-verification-btn');
+      const addBtn = document.getElementById('add-doc-btn');
+      const hint = document.getElementById('submit-verification-hint');
+      if (!submitBtn) return;
+      const hasDocs = pendingDocuments.length > 0;
+      submitBtn.disabled = !hasDocs || verificationBusy;
+      addBtn.disabled = verificationBusy;
+      hint.textContent = hasDocs
+        ? `${pendingDocuments.length} ${pendingDocuments.length === 1 ? 'document' : 'documents'} ready. Submit for review when you have added everything.`
+        : 'Upload at least one document before submitting for review.';
+    }
+
     function renderUploadedDocs() {
       const list = document.getElementById('uploaded-docs-list');
       if (!list) return;
       list.innerHTML = pendingDocuments.length
-        ? pendingDocuments.map((d, i) => `<div class="text-sm" style="display:flex; justify-content:space-between; padding: var(--space-2) 0;"><span>${d.label}</span><button type="button" class="btn btn-sm btn-ghost" data-remove-doc="${i}">Remove</button></div>`).join('')
-        : `<div class="text-sm text-secondary">No documents added yet.</div>`;
+        ? pendingDocuments.map((d, i) => `
+          <div class="doc-row">
+            <span class="doc-row-icon" aria-hidden="true">${Icons.document}</span>
+            <span class="doc-row-text">
+              <span class="doc-row-title">${esc(d.label)}</span>
+              <span class="doc-row-meta">${esc([d.fileName, d.fileSize ? formatBytes(d.fileSize) : ''].filter(Boolean).join(' · '))}</span>
+            </span>
+            <button type="button" class="btn btn-sm btn-ghost" data-remove-doc="${i}" aria-label="Remove ${esc(d.label)}">Remove</button>
+          </div>`).join('')
+        : `<p class="doc-empty">No documents added yet.</p>`;
 
       list.querySelectorAll('[data-remove-doc]').forEach((btn) => {
         btn.addEventListener('click', () => {
+          if (verificationBusy) return;
           pendingDocuments.splice(Number(btn.dataset.removeDoc), 1);
           renderUploadedDocs();
-          document.getElementById('submit-verification-btn').disabled = pendingDocuments.length === 0;
         });
       });
+      syncVerificationControls();
     }
 
     function wireVerificationUpload() {
@@ -609,6 +652,7 @@
       if (!addBtn) return;
 
       addBtn.addEventListener('click', () => {
+        if (verificationBusy) return;
         Modal.open({
           title: 'Upload a document',
           bodyHtml: `
@@ -619,37 +663,44 @@
           <div class="field">
             <label for="docFile">File</label>
             <input type="file" id="docFile" accept="image/jpeg,image/png,application/pdf" />
+            <div class="field-hint">PDF, JPG or PNG.</div>
           </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          <div class="modal-actions modal-actions--stacked">
             <button type="button" class="btn btn-primary" id="confirm-doc-upload">Upload</button>
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
           </div>
         `,
           onMount: () => {
             document.getElementById('confirm-doc-upload').addEventListener('click', async () => {
+              if (verificationBusy) return;
               const fileInput = document.getElementById('docFile');
               const docType = document.getElementById('docType');
               const file = fileInput.files[0];
               if (!file) { Toast.error('Choose a file first.'); return; }
 
               const confirmBtn = document.getElementById('confirm-doc-upload');
+              verificationBusy = true;
               FormHelpers.setLoading(confirmBtn, true);
+              syncVerificationControls();
               try {
                 const result = await Upload.uploadVerificationDocument(file, docType.value);
                 pendingDocuments.push({
                   documentType: docType.value,
                   storagePath: result.storagePath,
                   fileSize: result.sizeBytes,
+                  fileName: file.name,
                   label: DOCUMENT_TYPES.find((t) => t.value === docType.value).label,
                 });
+                verificationBusy = false;
                 renderUploadedDocs();
-                submitBtn.disabled = false;
                 Modal.close();
                 Toast.success('Document uploaded.');
               } catch (err) {
                 Toast.error(err.message);
               } finally {
+                verificationBusy = false;
                 FormHelpers.setLoading(confirmBtn, false);
+                syncVerificationControls();
               }
             });
           },
@@ -657,18 +708,24 @@
       });
 
       submitBtn.addEventListener('click', async () => {
+        if (verificationBusy || pendingDocuments.length === 0) return;
+        verificationBusy = true;
         FormHelpers.setLoading(submitBtn, true);
+        syncVerificationControls();
         try {
           await API.post('/verification/submit', {
             documents: pendingDocuments.map(({ documentType, storagePath, fileSize }) => ({ documentType, storagePath, fileSize })),
           });
           Toast.success('Submitted for review.');
           pendingDocuments = [];
-          loadTab('profile');
+          verificationBusy = false;
+          loadTab('profile'); // re-renders from the backend, which now reports "submitted"
         } catch (err) {
           Toast.error(err.message);
         } finally {
+          verificationBusy = false;
           FormHelpers.setLoading(submitBtn, false);
+          syncVerificationControls();
         }
       });
 
@@ -876,7 +933,7 @@
 
     function experienceFormHtml() {
       return `
-      <form id="experience-form" class="card" style="margin-bottom: var(--space-5);">
+      <form id="experience-form" class="card card-spaced">
         <h3>Add work experience</h3>
         <div class="field">
           <label for="exp-job-title">Job title</label>
@@ -1001,7 +1058,7 @@
 
     function educationFormHtml() {
       return `
-      <form id="education-form" class="card" style="margin-bottom: var(--space-5);">
+      <form id="education-form" class="card card-spaced">
         <h3>Add education</h3>
         <div class="field">
           <label for="edu-institution">School / Institution</label>
@@ -1401,7 +1458,7 @@
 
     function serviceFormHtml() {
       return `
-      <form id="service-form" class="card" style="margin-bottom: var(--space-5);" novalidate>
+      <form id="service-form" class="card card-spaced" novalidate>
         <h3>Add a service</h3>
         ${serviceFieldsHtml({}, 'svc-new')}
         <button type="submit" class="btn btn-primary btn-sm" id="service-submit">Add service</button>
@@ -1688,7 +1745,7 @@
     function businessFormHtml(profile) {
       return `
       <form id="business-form">
-        <div class="card" style="margin-bottom: var(--space-5);">
+        <div class="card card-spaced">
           <p class="text-secondary text-sm">If you operate from a physical store or business location, add it here. This is completely separate from your personal location — your home address is never shown publicly, but a business address you fill in here can be, once you enable it below.</p>
         </div>
         <div class="field">
@@ -1911,7 +1968,7 @@
       const byPlatform = Object.fromEntries(links.map((l) => [l.platform, l]));
 
       content.innerHTML = `
-        <div class="card" style="margin-bottom: var(--space-5);">
+        <div class="card card-spaced">
           <p class="text-secondary text-sm">Add links to your social profiles or website. Each one only appears on your public profile once you switch it on.</p>
         </div>
         <div id="social-links-list">
@@ -2014,7 +2071,7 @@
       const isHirer = user.role === 'hirer' || user.role === 'both';
       const isWorker = user.role === 'worker' || user.role === 'both';
       return `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Account information</h3>
         ${settingsRowHtml(
         'Email address',
@@ -2036,7 +2093,7 @@
         ${securityRowHtml({ id: 'sessions-row', icon: 'smartphone', title: 'Active sessions', desc: 'See and log out devices that are signed in' })}
       </div>
 
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Privacy & messaging</h3>
         ${settingsRowHtml(
         'Profile visibility',
@@ -2058,7 +2115,7 @@
       </div>
 
       ${isWorker ? `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Job application settings</h3>
         <div class="field" style="margin-top: var(--space-3);">
           <label for="default-cover-note">Default cover note</label>
@@ -2069,7 +2126,7 @@
       </div>` : ''}
 
       ${isHirer ? `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Applicant management</h3>
         ${settingsRowHtml(
         'Require a cover note',
@@ -2624,7 +2681,7 @@
 
     TAB_LOADERS.sessions = async function loadSessionsTab(content) {
       content.innerHTML = `
-      <div class="card" style="margin-bottom: var(--space-5);" id="sessions-card">
+      <div class="card card-spaced" id="sessions-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
           <h3 style="margin-bottom:0;">Active sessions</h3>
           <button class="btn btn-sm btn-danger" id="logout-all-btn">Log out of all devices</button>
@@ -2780,7 +2837,7 @@
     TAB_LOADERS.chat = async function loadChatTab(content) {
       const settings = await ensureSettingsLoaded();
       content.innerHTML = `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Appearance</h3>
         ${settingsRowHtml('Chat theme', 'How the chat page looks.', `
           <select id="chat-theme-select">
@@ -2805,7 +2862,7 @@
           </select>`)}
       </div>
 
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Notifications & media</h3>
         ${settingsRowHtml('Push notifications', 'Get a phone/desktop notification for new messages and incoming calls, even when Job Rush isn\'t the tab you\'re looking at.', `<button type="button" class="btn btn-sm btn-secondary" id="push-notifications-btn">Checking...</button>`)}
         ${settingsRowHtml('Message previews', "Show the message text in notifications, not just “New message.”", toggleHtml('chat-previews-toggle', settings.chat_message_previews))}
@@ -2829,12 +2886,12 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Blocked users</h3>
         <div id="blocked-users-body"><div class="skeleton" style="height: 16px; width: 50%;"></div></div>
       </div>
 
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Archived chats</h3>
         <div id="archived-chats-body"><div class="skeleton" style="height: 16px; width: 50%;"></div></div>
       </div>
@@ -2969,7 +3026,7 @@
 
     TAB_LOADERS.storage = async function loadStorageTab(content) {
       content.innerHTML = `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Storage usage</h3>
         <div id="storage-usage-body"><div class="skeleton" style="height: 80px;"></div></div>
       </div>
@@ -3087,7 +3144,7 @@
 
     TAB_LOADERS.support = async function loadSupportTab(content) {
       content.innerHTML = `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: var(--space-4);">
           <h3 style="margin-bottom:0;">Your support tickets</h3>
           <button type="button" class="btn btn-sm btn-primary" id="new-ticket-btn">New ticket</button>
@@ -3227,7 +3284,7 @@
 
     TAB_LOADERS.help = async function loadHelpTab(content) {
       content.innerHTML = `
-      <div class="card" style="margin-bottom: var(--space-5);">
+      <div class="card card-spaced">
         <h3>Frequently asked questions</h3>
         <div style="margin-top: var(--space-4);">${FAQS.map(faqItemHtml).join('')}</div>
       </div>

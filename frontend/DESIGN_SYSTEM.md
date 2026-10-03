@@ -40,6 +40,40 @@ Weights: `--weight-regular|medium|semibold|bold`. Phones step display and page t
 | **App header** | `.dashboard-topbar` (≤900px) | Title on the same row as the hamburger; contextual actions on the right. |
 | **Connectivity banner** | `js/utils/connectivity.js` | "You're offline" strip; money screens refuse to act offline. |
 
+## Mobile app shell (dashboard pages, <= 900px)
+
+```
+body.has-bottom-nav
+|- .dashboard-sidebar            off-canvas drawer (fixed, 280px)
+|- .dashboard-main               the single scroll surface (the page/body scrolls)
+|  |- .dashboard-topbar          the app bar, in normal flow
+|  |  |- .topbar-lead
+|  |  |  |- .mobile-nav-slot > .mobile-nav-toggle   menu button (in flow)
+|  |  |  '- page title (h1, or a title + subtitle block)
+|  |  '- actions (bell, page button) - wrap to their own row if needed
+|  '- page content
+'- .bottom-nav                   fixed; content clears it via padding
+```
+
+* **Nothing is positioned over the content.** The menu button is a real child of the header row (SidebarNav moves it there). It only becomes `position: fixed` while the drawer is open, so it stays above the backdrop as the close "X"; its slot keeps the layout from shifting. Pages without a `.dashboard-topbar` get a floating fallback button.
+* **Space for fixed chrome is reserved, not hacked.** `body.has-bottom-nav .dashboard-main` has `padding-bottom: space-5 + --bottom-nav-h + env(safe-area-inset-bottom)`. Full-height regions (messages) subtract `--mobile-header-h` and `--bottom-nav-h` from `100dvh` instead of using `100vh` and negative offsets.
+* **Android safe areas.** The Capacitor Android shell pads the WebView natively for the status bar, gesture/nav bar and on-screen keyboard (no `viewport-fit=cover`), so `env(safe-area-inset-*)` is 0 in the app and non-zero in notched browsers (read from Capacitor's `SystemBars.java`; confirm on a device after any Capacitor upgrade). Keep using `env()` so both work; do not add `viewport-fit=cover` without re-testing the shell.
+* **Android Back** closes an open drawer (history entry, same pattern as the modal and notification panel).
+* **Keyboard.** `body.is-typing` hides the bottom nav while a text field has focus.
+
+### Layout primitives (components.css)
+
+| Class | Use |
+|---|---|
+| `.btn-row` | Action buttons. Column + full width on phones, row from 520px. Never put buttons side by side as inline siblings with margins: they wrap into each other. |
+| `.card-head` | Card title + optional status pill; wraps instead of colliding. |
+| `.card-note`, `.card-spaced` | Card explanation text; card-to-card spacing. |
+| `.media-row` | Avatar/thumbnail + control; wraps on very narrow screens. |
+| `.doc-list` / `.doc-row` | Uploaded-file rows. Grid tracks use `minmax(0, 1fr)` and the meta line truncates, so a long file name cannot widen the page. |
+| `.status-pill` (+ `--on`, `--warn`, `--danger`) | State label. |
+
+Touch targets: every `.btn`, including `.btn-sm`, is at least `--touch-target` (44px) on coarse pointers. On phones, `h3` inside dashboard pages uses `--type-section-title`.
+
 ## Rules of thumb
 
 - A value is never shown without its meaning: "12 years of experience", "30 jobs completed", "Starting from ₦200,000", "Mon – Fri".
