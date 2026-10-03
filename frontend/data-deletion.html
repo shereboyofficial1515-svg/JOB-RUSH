@@ -36,7 +36,7 @@
           <li>Go to <strong>Settings → Account &amp; Security</strong>.</li>
           <li>Select <strong>Delete account</strong> and confirm with your password.</li>
         </ol>
-        <p class="text-secondary text-sm">If your account was created only through Facebook, Google, or Apple sign-in and you've never set a Job Rush password, use Option 2 or 3 below instead.</p>
+        <p class="text-secondary text-sm">If your account was created only through Facebook or Google sign-in and you've never set a Job Rush password, use Option 2 or 3 below instead.</p>
         <a href="pages/profile-settings.html?tab=account" class="btn btn-secondary btn-sm">Go to Account Settings</a>
       </div>
 
@@ -109,9 +109,7 @@
       // (Facebook's own review tooling included) — getCurrentUser()
       // failing just means the header renders its logged-out state,
       // never an error on the page itself.
-      let user = null;
-      try { user = await Auth.getCurrentUser(); } catch {}
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: '' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       // If Facebook (or a user checking their own request) arrives here

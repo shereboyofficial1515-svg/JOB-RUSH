@@ -21,8 +21,12 @@
   <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
     <div class="jobs-toolbar">
       <h1 class="page-title">Find talent</h1>
-      <form id="search-form" class="jobs-search">
-        <input type="text" name="keyword" placeholder="Search by title or skill" aria-label="Keyword" />
+      <nav class="search-tabs" aria-label="What to search">
+        <a href="search.html" id="tab-talent" class="is-active" aria-current="page">Professionals</a>
+        <a href="jobs.html" id="tab-jobs">Jobs</a>
+      </nav>
+      <form id="search-form" class="jobs-search" role="search">
+        <input type="search" name="keyword" placeholder="Name, profession, skill, service or place" aria-label="Keyword" autocomplete="off" />
         <select name="availabilityStatus" aria-label="Availability">
           <option value="">Any availability</option>
           <option value="available">Available now</option>
@@ -44,11 +48,13 @@
         <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
           <input type="checkbox" name="hasVideo" style="width:auto;" /> Has work video
         </label>
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary" id="search-submit">Search</button>
       </form>
     </div>
 
+    <p class="text-secondary text-sm" id="search-summary" aria-live="polite" style="margin: var(--space-3) 0;"></p>
     <div id="workers-list" class="jobs-list" aria-live="polite"></div>
+    <div style="text-align:center; margin-top: var(--space-5);"><button type="button" class="btn btn-secondary" id="load-more" hidden>Load more</button></div>
   </main>
 
   <div id="footer-mount"></div>
@@ -108,25 +114,54 @@
     `;
     }
 
-    async function loadWorkers(query) {
+    const PAGE_SIZE = 20;
+    let currentQuery = '';
+    let currentPage = 1;
+    let loading = false;
+
+    function setSummary(text) { document.getElementById('search-summary').textContent = text; }
+
+    /** page 1 replaces the list; later pages append. Shows loading, empty and error states. */
+    async function loadWorkers(query, page = 1) {
+      if (loading) return;
+      loading = true;
+      currentQuery = query; currentPage = page;
       const list = document.getElementById('workers-list');
-      list.innerHTML = `<div class="skeleton" style="height:180px;"></div><div class="skeleton" style="height:180px;"></div>`;
+      const moreBtn = document.getElementById('load-more');
+      const submit = document.getElementById('search-submit');
+      submit.disabled = true; moreBtn.disabled = true;
+      if (page === 1) {
+        list.innerHTML = `<div class="skeleton" style="height:180px;"></div><div class="skeleton" style="height:180px;"></div>`;
+        moreBtn.hidden = true; setSummary('Searching…');
+      }
       try {
-        const { profiles } = await API.get(`/profiles/worker/search?${query}`);
-        if (profiles.length === 0) {
-          list.innerHTML = `<div class="empty-state fade-in" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try a different search.</p></div>`;
-          return;
+        const qs = new URLSearchParams(query); qs.set('page', String(page)); qs.set('pageSize', String(PAGE_SIZE));
+        const { profiles } = await API.get(`/profiles/worker/search?${qs.toString()}`);
+        if (page === 1 && profiles.length === 0) {
+          list.innerHTML = `<div class="empty-state fade-in" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try fewer words, a different spelling, or clear a filter.</p></div>`;
+          setSummary('No results');
+        } else {
+          const html = profiles.map(workerCardHtml).join('');
+          if (page === 1) { list.innerHTML = html; Animate.stagger(list); } else list.insertAdjacentHTML('beforeend', html);
+          const shown = list.querySelectorAll('.job-card').length;
+          setSummary(`${shown} professional${shown === 1 ? '' : 's'}${profiles.length === PAGE_SIZE ? ' shown' : ' found'}`);
         }
-        list.innerHTML = profiles.map(workerCardHtml).join('');
-        Animate.stagger(list);
+        moreBtn.hidden = profiles.length < PAGE_SIZE;
       } catch (err) {
-        list.innerHTML = `<p class="text-secondary">${err.message}</p>`;
+        if (page === 1) {
+          list.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><h3>Search is unavailable right now</h3><p>${esc(err.message)}</p><button type="button" class="btn btn-secondary btn-sm" id="search-retry">Try again</button></div>`;
+          document.getElementById('search-retry').addEventListener('click', () => loadWorkers(query, 1));
+          setSummary('');
+        } else {
+          Toast.error(err.message);
+        }
+      } finally {
+        loading = false; submit.disabled = false; moreBtn.disabled = false;
       }
     }
 
     (async function init() {
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-talent' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const searchForm = document.getElementById('search-form');
@@ -152,7 +187,21 @@
         statePlaceholder: 'Any state',
       });
 
-      loadWorkers('');
+      // Restore the search from the address (?keyword=… from the homepage, a shared link, Back/Forward).
+      const initial = new URLSearchParams(window.location.search);
+      for (const field of ['keyword', 'availabilityStatus', 'minRating', 'maxPrice', 'categoryId', 'skillId']) {
+        if (initial.get(field) && searchForm[field]) searchForm[field].value = initial.get(field);
+      }
+      if (initial.get('verifiedOnly') === 'true') searchForm.verifiedOnly.checked = true;
+      if (initial.get('hasVideo') === 'true') searchForm.hasVideo.checked = true;
+      const syncTabs = () => {
+        const k = searchForm.keyword.value.trim();
+        document.getElementById('tab-jobs').href = `jobs.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
+      };
+      searchForm.keyword.addEventListener('input', syncTabs); syncTabs();
+
+      loadWorkers(initial.toString());
+      document.getElementById('load-more').addEventListener('click', () => loadWorkers(currentQuery, currentPage + 1));
 
       searchForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -168,6 +217,8 @@
         if (e.target.lgaId.value) params.set('lgaId', e.target.lgaId.value);
         if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');
         if (e.target.hasVideo.checked) params.set('hasVideo', 'true');
+        window.history.replaceState(null, '', params.toString() ? `?${params.toString()}` : window.location.pathname);
+        syncTabs();
         loadWorkers(params.toString());
       });
     })();

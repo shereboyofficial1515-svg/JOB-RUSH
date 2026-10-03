@@ -89,6 +89,8 @@ const SidebarNav = (function () {
   }
 
   async function refreshMessageUnread() {
+    // The shared poller already returns the Messages count with the bell's: ask that instead of a second request.
+    if (typeof ShellStatus !== 'undefined' && ShellStatus.isStarted()) { ShellStatus.refresh(); return; }
     try {
       const { count } = await API.get('/messaging/conversations/unread-count');
       setUnread('messages', count);
@@ -137,12 +139,66 @@ const SidebarNav = (function () {
       </a>`;
     }).join('');
 
+    // Timeline marker for performance measurement (time from navigation start to a usable shell).
+    if (window.performance && performance.mark && !performance.getEntriesByName('jr:shell-rendered').length) performance.mark('jr:shell-rendered');
     paintBadge('messages');
     paintBadge('notifications');
     if (!bottomNavPollTimer) {
-      refreshMessageUnread();
-      bottomNavPollTimer = setInterval(() => { if (!document.hidden) refreshMessageUnread(); }, 30000);
+      if (typeof ShellStatus !== 'undefined' && ShellStatus.isStarted()) {
+        // The shared poller already fetches the Messages count with the bell's.
+        bottomNavPollTimer = true;
+        ShellStatus.subscribe((status) => setUnread('messages', status.messages));
+      } else {
+        refreshMessageUnread();
+        bottomNavPollTimer = setInterval(() => { if (!document.hidden) refreshMessageUnread(); }, 30000);
+      }
     }
+
+    wireInstantNavFeedback(nav);
+    prefetchDestinations(nav);
+  }
+
+  /**
+   * The tapped destination turns active on the very first touch/mouse event,
+   * not after the next page has loaded: the response to a tap is immediate
+   * and the actual navigation follows. (Destinations are real pages, so the
+   * load itself is made fast by the service-worker cache, the cached session
+   * and the prefetch below -- this is feedback, not a cover-up.)
+   */
+  function wireInstantNavFeedback(nav) {
+    if (nav.dataset.instantFeedback) return;
+    nav.dataset.instantFeedback = 'true';
+    const activate = (e) => {
+      const link = e.target.closest('.bottom-nav-item');
+      if (!link) return;
+      nav.querySelectorAll('.bottom-nav-item').forEach((el) => {
+        const on = el === link;
+        el.classList.toggle('is-active', on);
+        if (on) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+      });
+    };
+    nav.addEventListener('pointerdown', activate, { passive: true });
+    nav.addEventListener('click', activate);
+  }
+
+  /** Warms the other bottom-nav pages (HTML is tiny; the shared CSS/JS is already cached) while the browser is idle. */
+  function prefetchDestinations(nav) {
+    if (nav.dataset.prefetched) return;
+    nav.dataset.prefetched = 'true';
+    const run = () => {
+      const connection = navigator.connection;
+      if (connection && (connection.saveData || /(^|-)2g$/.test(connection.effectiveType || ''))) return; // respect data saver / very slow links
+      nav.querySelectorAll('.bottom-nav-item:not(.is-active)').forEach((a) => {
+        if (document.querySelector(`link[rel="prefetch"][href="${a.getAttribute('href')}"]`)) return;
+        const link = document.createElement('link');
+        link.rel = 'prefetch';
+        link.href = a.getAttribute('href');
+        link.as = 'document';
+        document.head.appendChild(link);
+      });
+    };
+    if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 4000 });
+    else setTimeout(run, 2000);
   }
 
   /**

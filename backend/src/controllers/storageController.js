@@ -126,7 +126,7 @@ const uploadChatMedia = asyncHandler(async (req, res) => {
   if (!['image', 'video', 'document', 'voice_note'].includes(category)) {
     throw new AppError('Invalid chat media category.', 400, 'INVALID_CATEGORY');
   }
-  const result = await storageService.uploadChatMedia(req.user.id, fileFromRequest(req), category);
+  const result = await storageService.uploadChatMedia(req.user.id, fileFromRequest(req), category, req.file.originalname);
   res.status(201).json(result);
 });
 

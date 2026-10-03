@@ -382,8 +382,12 @@
   border-bottom: 1px solid var(--border-subtle);
   background: rgba(11, 31, 58, 0.94);
   backdrop-filter: blur(8px);
-  position: sticky;
-  top: 0;
+  /* The PUBLIC site header is a normal, static header: it sits in the page's
+     own flow and scrolls away with it (not fixed, not sticky). `relative` only
+     gives the mobile menu dropdown (absolutely positioned below) something to
+     anchor to, and keeps the header above the menu scrim. The signed-in app
+     shell (sidebar, bottom nav, app bar) is unrelated and unchanged. */
+  position: relative;
   z-index: 100;
   color: var(--text-primary);
 }
@@ -452,6 +456,10 @@
   color: var(--text-primary);
   padding: var(--space-2);
 }
+/* Hamburger <-> X follows the open state (SVG elements ignore `hidden`). */
+.nav-toggle .nav-toggle-icon-close,
+.nav-toggle.is-open .nav-toggle-icon-open { display: none; }
+.nav-toggle.is-open .nav-toggle-icon-close { display: block; }
 
 @media (max-width: 860px) {
   .main-nav { display: none; }
@@ -691,24 +699,8 @@
 .btn-facebook:hover { filter: brightness(0.94); }
 .btn-facebook svg { flex-shrink: 0; }
 
-/* Apple's "black" Sign in with Apple button style (one of Apple's own
-   approved variants), with "Continue with Apple" wording -- also an
-   Apple-approved string for this button. */
-.btn-apple {
-  background: #000;
-  color: #fff;
-  border: 1px solid #000;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-}
-.btn-apple:hover { filter: brightness(1.2); }
-.btn-apple svg { flex-shrink: 0; }
-
 .btn-google.is-loading,
-.btn-facebook.is-loading,
-.btn-apple.is-loading {
+.btn-facebook.is-loading {
   opacity: 0.6;
   pointer-events: none;
 }
@@ -1390,8 +1382,7 @@
   }
   /* Step aside while typing (on-screen keyboard) and inside an open
      chat, where the composer owns the bottom edge. */
-  body.is-typing .bottom-nav,
-  body:has(.thread-panel.is-open-on-mobile) .bottom-nav { display: none; }
+  body.is-typing .bottom-nav { display: none; }
 }
 
 .bottom-nav-item {

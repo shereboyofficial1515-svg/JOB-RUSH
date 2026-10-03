@@ -37,8 +37,18 @@ const PushNotifications = (function () {
   }
 
   /** Registers the service worker if push was already granted+subscribed in an earlier visit — safe/cheap to call on every page load, does not prompt. */
+  // The subscription only needs re-syncing to the server now and then (it is
+  // an upsert, for the rare case the server lost its copy). Doing it on every
+  // page load meant a write request on every navigation.
+  const RESYNC_KEY = 'jr.push.synced';
+  const RESYNC_EVERY_MS = 12 * 60 * 60 * 1000;
+  function resyncDue() {
+    try { return Date.now() - Number(localStorage.getItem(RESYNC_KEY) || 0) > RESYNC_EVERY_MS; } catch { return true; }
+  }
+
   async function registerIfAlreadySubscribed() {
     if (!isSupported() || Notification.permission !== 'granted') return;
+    if (!resyncDue()) return;
     try {
       const registration = await registerServiceWorker();
       const existing = await registration.pushManager.getSubscription();
@@ -47,6 +57,7 @@ const PushNotifications = (function () {
       // without the browser knowing — cheap no-op otherwise since the
       // subscribe endpoint upserts by endpoint URL.
       await API.post('/notifications/push/subscribe', { subscription: existing.toJSON() });
+      try { localStorage.setItem(RESYNC_KEY, String(Date.now())); } catch { /* ignore */ }
     } catch {
       // Best-effort only — never blocks page load.
     }

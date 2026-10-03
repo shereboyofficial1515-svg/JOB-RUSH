@@ -620,8 +620,7 @@
 
       const params = new URLSearchParams(window.location.search);
       const workerId = params.get('id');
-      const user = await Auth.getCurrentUser();
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: 'find-talent', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-talent' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const content = document.getElementById('profile-content');

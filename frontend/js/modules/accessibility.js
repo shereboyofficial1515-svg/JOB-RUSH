@@ -119,11 +119,36 @@ const Accessibility = (function () {
    * authenticated user, and the cached copy (or defaults) covers
    * logged-out pages.
    */
-  async function syncWithServer() {
+  // GET /settings used to run on EVERY page load, including public pages for signed-out
+  // visitors (a guaranteed 401) and every bottom-nav tap for signed-in users (a ~1s request
+  // for data that almost never changes). Now: skipped while this tab knows the visitor is
+  // signed out, and for 10 minutes after the last successful sync. Changes made on this
+  // device are applied immediately (applyFromSettings), and a login forces a fresh sync.
+  const SYNCED_AT_KEY = 'jr_accessibility_synced_at';
+  const SYNCED_FOR_KEY = 'jr_accessibility_synced_for';
+  const SYNC_EVERY_MS = 10 * 60 * 1000;
+  function syncNeeded() {
+    try {
+      const anonAt = Number(sessionStorage.getItem('jr.anon.v1') || 0);
+      if (anonAt && Date.now() - anonAt < 5 * 60 * 1000) return false; // known signed out
+      // A different account than the one whose settings are cached (OAuth sign-in, account switch): sync now.
+      const cachedUser = JSON.parse(sessionStorage.getItem('jr.user.v1') || 'null');
+      if (cachedUser && localStorage.getItem(SYNCED_FOR_KEY) !== cachedUser.id) return true;
+      return Date.now() - Number(localStorage.getItem(SYNCED_AT_KEY) || 0) > SYNC_EVERY_MS;
+    } catch { return true; }
+  }
+
+  async function syncWithServer(force = false) {
     if (typeof API === 'undefined') return;
+    if (!force && !syncNeeded()) return;
     try {
       const { settings } = await API.get('/settings');
       applyFromSettings(settings);
+      try {
+        localStorage.setItem(SYNCED_AT_KEY, String(Date.now()));
+        const u = JSON.parse(sessionStorage.getItem('jr.user.v1') || 'null');
+        if (u) localStorage.setItem(SYNCED_FOR_KEY, u.id);
+      } catch { /* ignore */ }
     } catch {
       // Not logged in, or offline — the cached/default appearance
       // already applied above stands.
@@ -156,5 +181,5 @@ const Accessibility = (function () {
     }
   }
 
-  return { apply, applyFromSettings, writeCache, getPrefs, setSiteTheme, resolveTheme };
+  return { apply, applyFromSettings, writeCache, getPrefs, setSiteTheme, resolveTheme, syncWithServer };
 })();

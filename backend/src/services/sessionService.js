@@ -60,7 +60,14 @@ async function getActiveSessionByToken(rawToken) {
 
   // Sliding last-seen timestamp for session hygiene/reporting; not
   // security-critical, so failures here should never block the request.
-  query('UPDATE sessions SET last_seen_at = now() WHERE id = $1', [rows[0].id]).catch(() => {});
+  // Throttled to one write a minute per session: this lookup runs on EVERY
+  // authenticated request (the incoming-call and unread polls included), and
+  // an unconditional UPDATE here turned each of them into a database write.
+  query(
+    `UPDATE sessions SET last_seen_at = now()
+      WHERE id = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '60 seconds')`,
+    [rows[0].id]
+  ).catch(() => {});
 
   return rows[0];
 }

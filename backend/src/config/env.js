@@ -85,7 +85,7 @@ const env = {
   // Firebase Cloud Messaging (Android app push — new messages, incoming
   // calls while the app is backgrounded/killed). The full JSON contents
   // of a Firebase service account key, as one line with real newlines
-  // escaped as \n (same convention as APPLE_PRIVATE_KEY below) — from
+  // escaped as \n (real newlines in the private key written as \n) — from
   // Firebase Console → Project Settings → Service Accounts → Generate
   // new private key. When unset, fcmService no-ops, same as pushService
   // does when VAPID isn't configured — the app runs fine without it,
@@ -120,18 +120,6 @@ const env = {
   FACEBOOK_APP_ID: optional('FACEBOOK_APP_ID', ''),
   FACEBOOK_APP_SECRET: optional('FACEBOOK_APP_SECRET', ''),
   FACEBOOK_REDIRECT_URI: optional('FACEBOOK_REDIRECT_URI', ''),
-
-  // Sign in with Apple's "client secret" isn't a static string like
-  // Google/Facebook's -- it's a short-lived JWT this server signs
-  // itself (see appleOAuthService.js) using a private key from Apple
-  // Developer's "Keys" section. APPLE_PRIVATE_KEY holds that key's PEM
-  // content; since env vars can't contain real newlines, it's stored
-  // with literal "\n" sequences and unescaped at load time here.
-  APPLE_CLIENT_ID: optional('APPLE_CLIENT_ID', ''), // the Services ID, not the App ID
-  APPLE_TEAM_ID: optional('APPLE_TEAM_ID', ''),
-  APPLE_KEY_ID: optional('APPLE_KEY_ID', ''),
-  APPLE_PRIVATE_KEY: optional('APPLE_PRIVATE_KEY', '').replace(/\\n/g, '\n'),
-  APPLE_REDIRECT_URI: optional('APPLE_REDIRECT_URI', ''),
 
   GEMINI_API_KEY: optional('GEMINI_API_KEY', ''),
   GEMINI_MODEL: optional('GEMINI_MODEL', 'gemini-1.5-flash'),

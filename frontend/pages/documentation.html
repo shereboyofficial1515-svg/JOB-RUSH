@@ -193,7 +193,7 @@
     { id: 'who-can-use', group: 'Getting Started', title: 'Who can use Job Rush?', html: `
       <p>Anyone based in Nigeria who wants to find skilled work, or hire someone, can sign up. A single account can act as both a worker and a hirer — registering signs you up as both, and you can focus your profile toward whichever role you use most.</p>` },
     { id: 'creating-account', group: 'Getting Started', title: 'Creating an account', html: `
-      <p>From the <a href="register.html">registration page</a>, sign up with an email or phone number and a password, or continue with Google, Facebook, or Apple. Email/phone sign-ups verify with a one-time code; signing in with a provider skips that step since the provider has already verified you.</p>` },
+      <p>From the <a href="register.html">registration page</a>, sign up with an email or phone number and a password, or continue with Google or Facebook. Email/phone sign-ups verify with a one-time code; signing in with a provider skips that step since the provider has already verified you.</p>` },
     { id: 'logging-in', group: 'Getting Started', title: 'Logging in', html: `
       <p>Use the <a href="login.html">login page</a> with your email/phone and password, or the same provider you registered with. If you've enabled two-factor authentication, you'll also be asked for a 6-digit code from your authenticator app (or a backup code) after your password.</p>` },
     { id: 'managing-profile', group: 'Getting Started', title: 'Managing your profile', html: `
@@ -468,8 +468,7 @@
   }
 
   (async function init() {
-    const user = await Auth.getCurrentUser();
-    Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+    const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: '' });
     Chrome.renderFooter(document.getElementById('footer-mount'));
 
     document.getElementById('docs-nav').innerHTML = renderNav();

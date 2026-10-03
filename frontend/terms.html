@@ -88,9 +88,7 @@
   <script src="js/modules/auth.js"></script>
   <script>
     (async function init() {
-      let user = null;
-      try { user = await Auth.getCurrentUser(); } catch {}
-      Chrome.renderHeader(document.getElementById('header-mount'), { activeLink: '', user });
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: '' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
     })();
   </script>

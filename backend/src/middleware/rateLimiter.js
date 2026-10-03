@@ -57,6 +57,17 @@ const uploadLimiter = rateLimit({
   message: { error: 'Too many uploads. Please slow down and try again shortly.' },
 });
 
+// Chat attachments (photos, voice notes, files) are a normal part of a
+// conversation, so they get their own, roomier budget than the shared
+// uploadLimiter -- still bounded so one account cannot flood storage.
+const chatUploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attachments sent. Please slow down and try again shortly.' },
+});
+
 // Video processing (transcoding) costs real CPU/RAM per request, far
 // more than a plain image/document upload — the generic uploadLimiter
 // alone would let someone queue up 30 transcode jobs in 15 minutes.
@@ -89,6 +100,7 @@ module.exports = {
   otpVerifyLimiter,
   passwordResetLimiter,
   uploadLimiter,
+  chatUploadLimiter,
   videoUploadLimiter,
   facebookDeletionLimiter,
 };

@@ -50,17 +50,10 @@ router.get('/facebook/callback', controller.facebookCallback);
 // POST /facebook/data-deletion (Meta's User Data Deletion Callback) is
 // intentionally NOT mounted here -- see server.js, registered before
 // the global CORS/json middleware with its own form-urlencoded parser,
-// the same reasoning as the Apple callback above. It's a public,
+// the same reasoning as the Meta deletion callback. It's a public,
 // signature-verified endpoint (see facebookDataDeletionService), not
 // authenticate-gated -- there is no Job Rush session at that point.
 router.get('/facebook/deletion-status/:code', controller.facebookDeletionStatus);
-router.get('/apple', controller.appleRedirect);
-// POST /apple/callback is intentionally NOT mounted here -- see
-// server.js, where it's registered before the global CORS middleware.
-// Apple's response_mode=form_post means the browser submits it as a
-// real cross-origin POST from appleid.apple.com, which (unlike a
-// simple GET redirect) carries an Origin header the CORS origin
-// check would otherwise reject outright, blocking every Apple login.
 router.post('/2fa/verify-login', loginLimiter, validateTwoFactorBody(verifyLoginSchema), controller.verifyLoginTwoFactor);
 router.post('/2fa/setup', authenticate, twoFactorController.setup);
 router.post('/2fa/confirm-setup', authenticate, validateTwoFactorBody(codeSchema), twoFactorController.confirmSetup);

@@ -6,7 +6,6 @@ const sessionService = require('../services/sessionService');
 const twoFactorService = require('../services/twoFactorService');
 const googleOAuthService = require('../services/googleOAuthService');
 const facebookOAuthService = require('../services/facebookOAuthService');
-const appleOAuthService = require('../services/appleOAuthService');
 const oauthStateService = require('../services/oauthStateService');
 const oauthMobileHandoffService = require('../services/oauthMobileHandoffService');
 const referralService = require('../services/referralService');
@@ -282,7 +281,7 @@ const resetPassword = asyncHandler(async (req, res) => {
  */
 async function completeOAuthLogin(req, res, user, frontendBase) {
   // The state payload is a comma-joined list of tokens (see
-  // googleRedirect/facebookRedirect/appleRedirect building it via
+  // googleRedirect/facebookRedirect building it via
   // buildAuthorizationUrl(client, referralCode)) -- currently either
   // or both of "android" and "ref:<code>" may be present.
   const stateTokens = (oauthStateService.parseState(req.query.state)?.payload || '').split(',').filter(Boolean);
@@ -456,67 +455,6 @@ const facebookCallback = asyncHandler(async (req, res) => {
 });
 
 /**
- * GET /api/auth/apple
- * Same shape again, to Apple's consent screen. response_mode=form_post
- * is baked into the URL this builds, so Apple POSTs the result back
- * instead of redirecting with query params -- see appleCallback below.
- */
-const appleRedirect = asyncHandler(async (req, res) => {
-  const url = appleOAuthService.buildAuthorizationUrl(req.query.client, req.query.ref);
-  res.redirect(url);
-});
-
-/**
- * POST /api/auth/apple/callback
- * Apple posts here (form-urlencoded, parsed by the scoped middleware
- * in server.js) with code/state and, on the very first authorization
- * only, a `user` field carrying the person's name as JSON -- see
- * appleOAuthService.parseFirstLoginName. Identity (sub/email) comes
- * from the id_token itself, cryptographically verified against
- * Apple's own published keys, never trusted from the request body.
- */
-const appleCallback = asyncHandler(async (req, res) => {
-  const { code, state, error: appleError, user: userField } = req.body;
-  const frontendBase = getOAuthRedirectBase();
-
-  if (appleError) {
-    return res.redirect(`${frontendBase}/pages/login.html?error=apple_denied`);
-  }
-  if (!code || !state || !oauthStateService.verifyState(state)) {
-    logger.warn('Rejected Apple OAuth callback with invalid/missing state');
-    return res.redirect(`${frontendBase}/pages/login.html?error=invalid_state`);
-  }
-
-  try {
-    const tokens = await appleOAuthService.exchangeCodeForTokens(code);
-    const claims = await appleOAuthService.verifyIdToken(tokens.id_token);
-
-    if (!claims.email) {
-      return res.redirect(`${frontendBase}/pages/login.html?error=apple_email_required`);
-    }
-
-    // Apple's email_verified/is_private_email claims are strings
-    // ("true"/"false"), not booleans, in the id_token.
-    if (claims.email_verified !== true && claims.email_verified !== 'true') {
-      return res.redirect(`${frontendBase}/pages/login.html?error=email_not_verified`);
-    }
-
-    const fullName = appleOAuthService.parseFirstLoginName(userField);
-
-    const user = await authService.findOrCreateAppleUser({
-      appleId: claims.sub,
-      email: claims.email,
-      fullName,
-    });
-
-    return await completeOAuthLogin(req, res, user, frontendBase);
-  } catch (err) {
-    logger.error('Apple OAuth callback failed', { error: err.message });
-    return res.redirect(`${frontendBase}/pages/login.html?error=apple_signin_failed`);
-  }
-});
-
-/**
  * POST /api/auth/password/change
  * Distinct from /password/forgot + /password/reset — this is for a
  * logged-in user who knows their current password and wants a new
@@ -621,8 +559,6 @@ module.exports = {
   googleCallback,
   facebookRedirect,
   facebookCallback,
-  appleRedirect,
-  appleCallback,
   logout,
   logoutAllDevices,
   listSessions,

@@ -1,3 +1,4 @@
+const { addKeywordConditions } = require('../utils/searchTerms');
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
@@ -248,10 +249,12 @@ async function searchJobs({
     params.push(minBudget);
     conditions.push(`(j.budget_max IS NULL OR j.budget_max >= $${params.length})`);
   }
-  if (keyword) {
-    params.push(`%${keyword}%`);
-    conditions.push(`(j.title ILIKE $${params.length} OR j.description ILIKE $${params.length})`);
-  }
+  // Every word must match the job's title, description, poster, required skill or category.
+  addKeywordConditions(keyword, params, conditions, (p) => `
+        j.title ILIKE ${p} OR j.description ILIKE ${p} OR hp.display_name ILIKE ${p}
+        OR EXISTS (SELECT 1 FROM job_skills js JOIN skills sk ON sk.id = js.skill_id
+                    WHERE js.job_id = j.id AND sk.name ILIKE ${p})
+        OR EXISTS (SELECT 1 FROM categories c WHERE c.id = j.category_id AND c.name ILIKE ${p})`);
   if (skillId) {
     params.push(skillId);
     conditions.push(`EXISTS (SELECT 1 FROM job_skills js WHERE js.job_id = j.id AND js.skill_id = $${params.length})`);

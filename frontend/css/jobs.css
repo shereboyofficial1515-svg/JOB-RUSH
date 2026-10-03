@@ -55,3 +55,13 @@
 @media (max-width: 860px) {
   .job-detail-layout { grid-template-columns: 1fr; }
 }
+
+/* Professionals | Jobs switch shared by the two search pages. */
+.search-tabs { display: flex; gap: var(--space-2); margin: 0 0 var(--space-4); }
+.search-tabs a {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--space-4);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-pill);
+  font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary);
+}
+.search-tabs a:hover { color: var(--text-primary); border-color: var(--border-gold); }
+.search-tabs a.is-active { background: rgba(201, 162, 39, 0.14); border-color: var(--border-gold); color: var(--accent-text); }

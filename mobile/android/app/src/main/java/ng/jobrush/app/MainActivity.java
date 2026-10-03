@@ -13,7 +13,7 @@ import com.getcapacitor.BridgeActivity;
  * the frontend codebase at all:
  *
  *  1. A custom WebViewClient (JobRushWebViewClient) that routes the
- *     Google/Facebook/Apple sign-in buttons to a Custom Tab instead of
+ *     Google/Facebook sign-in buttons to a Custom Tab instead of
  *     loading them in this WebView — see that class for why.
  *  2. Deep link handling (jobrush://oauth-complete and the production
  *     HTTPS App Link) by loading the right URL directly into the

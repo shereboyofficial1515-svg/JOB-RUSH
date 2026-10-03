@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const env = require('../config/env');
 
 // Extracted from the original Google-only implementation so Facebook
-// and Apple sign-in reuse the exact same CSRF mechanism instead of
+// sign-in reuse the exact same CSRF mechanism instead of
 // each hand-rolling their own -- one state scheme for every provider.
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -13,7 +13,7 @@ const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
  * OAuth callback tell whether the flow started from the Android app's
  * Custom Tab, without a server-side session to look it up in, since
  * this token is the only thing that survives the round trip to
- * Google/Facebook/Apple and back.
+ * Google/Facebook and back.
  */
 function createState(payload = '') {
   const timestamp = Date.now().toString();

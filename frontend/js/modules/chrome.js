@@ -50,10 +50,15 @@ const Chrome = (function () {
     // can sign up, not have to open a menu to discover it. Only one
     // button gets this treatment so the header row doesn't wrap/overlap
     // the way it did when both auth buttons sat in the row (see below).
-    const authButtonsHtml = user
-      ? `<a href="${pageHref('dashboard')}" class="btn btn-secondary btn-sm">Dashboard</a>
+    // user === undefined means "not known yet": the header is drawn straight
+    // away without account buttons (see mountHeader), then redrawn once the
+    // session answer arrives. null = signed out, object = signed in.
+    const authButtonsHtml = user === undefined
+      ? ''
+      : user
+        ? `<a href="${pageHref('dashboard')}" class="btn btn-secondary btn-sm">Dashboard</a>
          <button class="btn btn-ghost btn-sm" data-action="logout">Log out</button>`
-      : `<a href="${pageHref('login')}" class="btn btn-ghost btn-sm">Log in</a>
+        : `<a href="${pageHref('login')}" class="btn btn-ghost btn-sm">Log in</a>
          <a href="${pageHref('register')}" class="btn btn-primary btn-sm mobile-cta">Sign Up</a>`;
 
     const themeToggleHtml = `
@@ -77,10 +82,10 @@ const Chrome = (function () {
           </nav>
           <div class="header-actions">${actionsHtml}</div>
           <button class="nav-toggle" aria-label="Open menu" aria-expanded="false" data-action="toggle-nav">
-            <svg class="nav-toggle-icon-open" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <svg class="nav-toggle-icon-open" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
-            <svg class="nav-toggle-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden>
+            <svg class="nav-toggle-icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
           </button>
@@ -101,16 +106,12 @@ const Chrome = (function () {
     const nav = mount.querySelector('.main-nav');
     const backdrop = mount.querySelector('.main-nav-backdrop');
     if (toggleBtn && nav) {
-      const openIcon = toggleBtn.querySelector('.nav-toggle-icon-open');
-      const closeIcon = toggleBtn.querySelector('.nav-toggle-icon-close');
-
       function setNavOpen(isOpen) {
         nav.classList.toggle('is-open', isOpen);
+        toggleBtn.classList.toggle('is-open', isOpen); // CSS swaps the hamburger for the X
         if (backdrop) backdrop.classList.toggle('is-open', isOpen);
         toggleBtn.setAttribute('aria-expanded', String(isOpen));
         toggleBtn.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
-        openIcon.hidden = isOpen;
-        closeIcon.hidden = !isOpen;
       }
 
       toggleBtn.addEventListener('click', () => setNavOpen(!nav.classList.contains('is-open')));
@@ -162,14 +163,37 @@ const Chrome = (function () {
     // load (which already rendered with a correct `user` a moment
     // ago). One listener per mount, not per render, since this
     // function re-renders itself into the same mount below.
+    mount._headerOpts = { activeLink };
     if (!mount.dataset.bfcacheGuard) {
       mount.dataset.bfcacheGuard = 'true';
       window.addEventListener('pageshow', async (event) => {
         if (!event.persisted) return;
         const freshUser = await Auth.getCurrentUser();
-        renderHeader(mount, { activeLink, user: freshUser });
+        renderHeader(mount, { ...mount._headerOpts, user: freshUser });
       });
+      // The session answer arrived after the header was already drawn (or the
+      // person signed in/out in another tab): redraw with the real state.
+      document.addEventListener('jr:user-updated', (event) => renderHeader(mount, { ...mount._headerOpts, user: event.detail.user }));
+      document.addEventListener('jr:session-lost', () => renderHeader(mount, { ...mount._headerOpts, user: null }));
     }
+  }
+
+  /**
+   * Draws the header immediately from what this tab already knows (a cached
+   * user, a recently-confirmed signed-out state, or "unknown" = no account
+   * buttons yet), then resolves the real session and redraws only if it
+   * differs. The header used to wait for GET /auth/me before drawing anything.
+   * Resolves to the user (or null) so pages keep one line of init code.
+   */
+  async function mountHeader(mount, opts = {}) {
+    const guess = typeof Auth.peekUser === 'function' ? Auth.peekUser() : undefined;
+    renderHeader(mount, { ...opts, user: guess });
+    let user = null;
+    try { user = await Auth.getCurrentUser(); } catch { /* treated as signed out */ }
+    if (guess === undefined || (guess === null) !== (user === null) || (guess && user && guess.id !== user.id)) {
+      renderHeader(mount, { ...opts, user });
+    }
+    return user;
   }
 
   function renderFooter(mount) {
@@ -225,5 +249,5 @@ const Chrome = (function () {
     `;
   }
 
-  return { renderHeader, renderFooter };
+  return { renderHeader, renderFooter, mountHeader };
 })();

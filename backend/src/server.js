@@ -1,4 +1,6 @@
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -91,30 +93,21 @@ app.use(
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
         'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://cdnjs.cloudflare.com'],
-        'img-src': ["'self'", 'data:', 'https://*.supabase.co'],
-        'media-src': ["'self'", 'https://*.supabase.co'],
+        // blob: = object URLs the page itself creates (the preview of a photo being
+        // sent, a voice note just recorded). Not a network origin: nothing external is allowed.
+        'img-src': ["'self'", 'data:', 'blob:', 'https://*.supabase.co'],
+        'media-src': ["'self'", 'blob:', 'https://*.supabase.co'],
         'connect-src': ["'self'", ...livekitConnectSrc],
       },
     },
   })
 );
 
-// Sign in with Apple uses response_mode=form_post: Apple's own page
-// submits an actual cross-origin POST form to this route, which
-// browsers tag with an Origin: https://appleid.apple.com header (a
-// plain top-level GET redirect, like Google/Facebook's callbacks,
-// normally doesn't send one). That Origin would never match this
-// app's own allowlist below, so this route -- like the Paystack
-// webhook -- must be mounted with its own body parser and BEFORE the
-// CORS middleware, or every Apple login would be rejected as a CORS
-// violation before ever reaching the handler.
-app.post('/api/auth/apple/callback', express.urlencoded({ extended: false }), authController.appleCallback);
-
 // Meta's User Data Deletion Callback — a server-to-server POST from
 // Facebook's own infrastructure, form-urlencoded (a single
 // `signed_request` field), with no Origin header and no Job Rush
-// session. Mounted the same way as the Apple callback above so it
-// never depends on CORS or the global JSON body parser; authorization
+// session. Mounted before the CORS middleware with its own body parser
+// so it never depends on CORS or the global JSON body parser; authorization
 // here is entirely the HMAC signature check inside
 // facebookDataDeletionService, not anything from this middleware chain.
 app.post(
@@ -151,6 +144,16 @@ app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+
+// API responses are per-user and must never be stored by a browser or a
+// proxy -- except the two catalogue endpoints below, which are the same for
+// everyone, change rarely, and were being re-fetched on every page load
+// (categories on the homepage, location pickers on every profile form).
+app.use('/api', (req, res, next) => {
+  const sharedCatalogue = req.method === 'GET' && (req.path.startsWith('/catalog/') || req.path.startsWith('/locations'));
+  res.set('Cache-Control', sharedCatalogue ? 'public, max-age=300, stale-while-revalidate=3600' : 'no-store');
+  next();
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/profiles', profileRoutes);
@@ -249,7 +252,65 @@ app.get('/terms', (req, res) => {
 // index.html for anything unmatched" fallback: express.static already
 // serves index.html for "/" on its own, and correctly 404s a genuinely
 // missing path instead of masking it as a fake success.
-app.use(express.static(path.join(__dirname, '..', '..', 'frontend')));
+const frontendDir = path.join(__dirname, '..', '..', 'frontend');
+
+/**
+ * Build id for the service worker's cache. Every deploy changes the files,
+ * so the id changes and the worker discards the old cache. Taken from
+ * Render's commit hash when available; otherwise derived from the static
+ * files themselves (NOT from process start time: Render restarts the
+ * service whenever it wakes from idle, which would throw the cache away
+ * every time for no reason).
+ */
+function computeBuildId() {
+  if (process.env.RENDER_GIT_COMMIT) return process.env.RENDER_GIT_COMMIT.slice(0, 12);
+  const hash = crypto.createHash('sha1');
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else {
+        const stat = fs.statSync(full);
+        hash.update(`${path.relative(frontendDir, full)}:${stat.size}:${Math.floor(stat.mtimeMs)}
+`);
+      }
+    }
+  };
+  try { walk(frontendDir); } catch (err) { logger.warn('Could not derive a build id from the frontend files', { error: err.message }); }
+  return hash.digest('hex').slice(0, 12);
+}
+const BUILD_ID = computeBuildId();
+// The worker caches the app shell in production. In local development it is
+// left as a pass-through (so edits show immediately) unless SW_CACHE=1.
+const SW_CACHE_ENABLED = env.NODE_ENV === 'production' || process.env.SW_CACHE === '1';
+
+// Served by a route rather than express.static so the build id can be
+// stamped in. no-cache makes the browser re-check it on every visit, which
+// is how a new deploy reaches users.
+app.get('/service-worker.js', (req, res) => {
+  const source = fs.readFileSync(path.join(frontendDir, 'service-worker.js'), 'utf8')
+    .replace(/__BUILD_ID__/g, BUILD_ID)
+    .replace(/__CACHE_ENABLED__/g, String(SW_CACHE_ENABLED));
+  res.set({ 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' });
+  res.send(source);
+});
+
+// Cache policy for static files. Before this they were all served with
+// `max-age=0`, so every navigation re-validated every CSS/JS/image file with
+// the origin: about a dozen round trips per page at ~1s each on the live
+// service. HTML stays revalidated (the service worker serves it instantly);
+// scripts/styles are fresh for 5 minutes and may be served stale while they
+// refresh; images, fonts and audio change rarely and are kept for a day.
+app.use(express.static(frontendDir, {
+  setHeaders(res, filePath) {
+    // Local development keeps plain revalidation so edits show up on reload.
+    if (!SW_CACHE_ENABLED) res.setHeader('Cache-Control', 'no-cache');
+    else if (/\.html$/i.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+    else if (/\.(css|js)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+    else if (/\.(png|jpe?g|webp|gif|svg|ico|woff2?|ttf|mp3|ogg|wav|m4a|json)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  },
+}));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
