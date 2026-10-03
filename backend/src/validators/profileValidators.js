@@ -162,6 +162,38 @@ const updateCvSchema = z.object({
   visibility: z.enum(['public', 'private', 'verified_hirers_only']).optional(),
 });
 
+/**
+ * Business opening hours: always all 7 days, Monday..Sunday, one entry per
+ * day. A day is Closed, Open 24 hours, or Open with an opening and a closing
+ * time (24-hour HH:MM, what <input type="time"> sends). A closing time that
+ * is not after the opening time is rejected unless the day says it closes
+ * the next day (overnight) -- we never reinterpret "10:00 -> 05:00" as
+ * something the owner did not say.
+ */
+const businessDaySchema = z.object({
+  day: z.enum(WEEKDAY_IDS),
+  open: z.boolean(),
+  is24h: z.boolean().optional(),
+  opens: timeSchema.optional(),
+  closes: timeSchema.optional(),
+  endsNextDay: z.boolean().optional(),
+}).superRefine((d, ctx) => {
+  if (!d.open || d.is24h) return;
+  if (!d.opens || !d.closes) {
+    ctx.addIssue({ code: 'custom', path: ['opens'], message: `Set opening and closing times for ${d.day}, or mark it Closed or Open 24 hours.` });
+  } else if (d.opens === d.closes) {
+    ctx.addIssue({ code: 'custom', path: ['closes'], message: `Opening and closing time cannot be the same on ${d.day}. Choose "Open 24 hours" if that is what you mean.` });
+  } else if (d.closes < d.opens && !d.endsNextDay) {
+    ctx.addIssue({ code: 'custom', path: ['closes'], message: `On ${d.day}, closing time must be after opening time. Tick "Closes next day" for overnight hours.` });
+  }
+});
+
+const openingHoursStructuredSchema = z.array(businessDaySchema).length(7, 'Provide all 7 days, Monday to Sunday.').superRefine((days, ctx) => {
+  days.forEach((d, i) => {
+    if (d.day !== WEEKDAY_IDS[i]) ctx.addIssue({ code: 'custom', path: [i, 'day'], message: `Entry ${i + 1} must be ${WEEKDAY_IDS[i]}.` });
+  });
+});
+
 const upsertBusinessProfileSchema = z.object({
   // Required to CREATE a business profile, but a PUT that only touches
   // one field (e.g. just the storefront photo or isEnabled) on an
@@ -174,7 +206,7 @@ const upsertBusinessProfileSchema = z.object({
   areaId: uuid.optional(),
   address: z.string().trim().max(255).optional(),
   landmark: z.string().trim().max(255).optional(),
-  openingHours: z.string().trim().max(255).optional(),
+  openingHoursStructured: openingHoursStructuredSchema.nullable().optional(),
   contactPhone: z.string().trim().max(30).optional(),
   contactEmail: z.string().trim().email().max(255).optional(),
   storefrontPhotoUrl: z.string().url().nullable().optional(),
@@ -182,16 +214,35 @@ const upsertBusinessProfileSchema = z.object({
 });
 const addBusinessMediaSchema = z.object({ mediaUrl: z.string().url() });
 
-const createProfessionalServiceSchema = z.object({
+const DURATION_UNITS = ['hours', 'days', 'weeks', 'months', 'years'];
+const SERVICE_PRICING_TYPES = ['hourly', 'daily', 'weekly', 'monthly', 'project', 'fixed', 'negotiable', 'contact_for_quote'];
+
+// Price and duration are different things: price + priceCurrency + pricingType
+// say what it costs and per what; durationValue + durationUnit say how long
+// the work takes. A duration always travels as a pair, so there is never an
+// unexplained number: send both, or both null to clear it.
+const serviceFields = {
   name: z.string().trim().min(2).max(150),
   description: z.string().trim().max(2000).optional(),
-  pricingType: z.enum(['hourly', 'daily', 'project', 'fixed', 'negotiable', 'contact_for_quote']).optional(),
+  pricingType: z.enum(SERVICE_PRICING_TYPES).optional(),
   price: z.number().nonnegative().max(100000000).optional(),
   priceCurrency: z.enum(['NGN', 'USD']).optional(),
-  durationEstimate: z.string().trim().max(100).optional(),
+  durationValue: z
+    .number({ invalid_type_error: 'Duration must be a number.' })
+    .int('Duration must be a whole number.')
+    .min(1, 'Duration must be at least 1.')
+    .max(999, 'Duration can be at most 999.')
+    .nullable()
+    .optional(),
+  durationUnit: z.enum(DURATION_UNITS, { errorMap: () => ({ message: 'Choose hours, days, weeks, months or years.' }) }).nullable().optional(),
   isActive: z.boolean().optional(),
-});
-const updateProfessionalServiceSchema = createProfessionalServiceSchema.partial();
+};
+const durationPairRule = [
+  (body) => (body.durationValue == null) === (body.durationUnit == null),
+  { message: 'A duration needs both an amount and a unit (hours, days, weeks, months or years).', path: ['durationUnit'] },
+];
+const createProfessionalServiceSchema = z.object(serviceFields).refine(...durationPairRule);
+const updateProfessionalServiceSchema = z.object(serviceFields).partial().refine(...durationPairRule);
 
 const upsertSocialLinkSchema = z.object({
   url: z.string().trim().min(1).max(2048),
@@ -241,14 +292,15 @@ function toSnakeCaseProfileInput(body) {
     isCurrent: 'is_current',
     skillsUsed: 'skills_used',
     businessName: 'business_name',
-    openingHours: 'opening_hours',
+    openingHoursStructured: 'opening_hours_structured',
     contactPhone: 'contact_phone',
     contactEmail: 'contact_email',
     storefrontPhotoUrl: 'storefront_photo_url',
     isEnabled: 'is_enabled',
     pricingType: 'pricing_type',
     priceCurrency: 'price_currency',
-    durationEstimate: 'duration_estimate',
+    durationValue: 'duration_value',
+    durationUnit: 'duration_unit',
     isActive: 'is_active',
     gender: 'gender',
     genderCustom: 'gender_custom',

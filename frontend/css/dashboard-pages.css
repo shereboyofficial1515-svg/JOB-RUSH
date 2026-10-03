@@ -124,9 +124,11 @@
        call-room.css) instead of a fixed vh/auto height, so mobile
        Safari's address-bar show/hide doesn't leave the composer
        stranded below the visible viewport. */
-    height: 100vh;
-    height: 100dvh;
-    margin: calc(var(--space-5) * -1);
+    height: calc(100vh - var(--space-4) - var(--mobile-header-h) - var(--bottom-nav-h));
+    height: calc(100dvh - var(--space-4) - var(--mobile-header-h) - var(--bottom-nav-h) - env(safe-area-inset-bottom, 0px));
+    /* Sized to the space between the header row and the bottom nav, so the
+       list's last conversation scrolls fully above the nav. */
+    margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) 0;
   }
   /* Mobile shows one pane at a time: the conversation list by
      default, switching to the open thread once one is selected (see
@@ -146,18 +148,19 @@
   .thread-messages { min-height: 0; }
 
   /* An open conversation is a full-screen view: the page heading and
-     bell above it are hidden and the pane is sized to the space below
-     the (fixed) hamburger row, so the composer sits on the bottom edge
-     of the screen instead of ~100px below it. The mobile bottom nav is
-     hidden in this state too (components.css). The list view is
-     untouched. 56px = the hamburger toggle's row (see components.css
-     .dashboard-main padding-top). */
-  body:has(.thread-panel.is-open-on-mobile) .dashboard-topbar { display: none; }
-  body:has(.thread-panel.is-open-on-mobile) .dashboard-main { padding-top: calc(var(--space-5) + 56px); padding-bottom: 0; }
+     bell are hidden but the header row keeps its menu button (it is the
+     slot inside .dashboard-topbar), and the pane is sized to the space
+     below that row so the composer sits on the bottom edge of the screen.
+     The mobile bottom nav is hidden in this state too (components.css).
+     The list view is untouched. */
+  body:has(.thread-panel.is-open-on-mobile) .dashboard-topbar { margin-bottom: 0; }
+  body:has(.thread-panel.is-open-on-mobile) .dashboard-topbar > :not(.topbar-lead),
+  body:has(.thread-panel.is-open-on-mobile) .topbar-lead > :not(.mobile-nav-slot) { display: none; }
+  body:has(.thread-panel.is-open-on-mobile) .dashboard-main { padding-bottom: 0; }
   body:has(.thread-panel.is-open-on-mobile) .messages-layout {
-    height: calc(100vh - 56px);
-    height: calc(100dvh - 56px);
-    margin-bottom: 0;
+    height: calc(100vh - var(--space-4) - var(--mobile-header-h));
+    height: calc(100dvh - var(--space-4) - var(--mobile-header-h) - env(safe-area-inset-top, 0px));
+    margin: 0 calc(var(--space-5) * -1);
   }
 }
 

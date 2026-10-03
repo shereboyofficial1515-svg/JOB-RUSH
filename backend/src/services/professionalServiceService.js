@@ -3,7 +3,7 @@ const AppError = require('../utils/AppError');
 const { ensureWorkerProfileRow } = require('./profileService');
 const referralService = require('./referralService');
 
-const EDITABLE_FIELDS = ['name', 'description', 'pricing_type', 'price', 'price_currency', 'duration_estimate', 'is_active'];
+const EDITABLE_FIELDS = ['name', 'description', 'pricing_type', 'price', 'price_currency', 'duration_value', 'duration_unit', 'is_active'];
 const QUOTE_ONLY_TYPES = ['negotiable', 'contact_for_quote'];
 
 function pickAllowed(input) {
@@ -15,6 +15,17 @@ function pickAllowed(input) {
 }
 
 /** A price only means something for pricing types that quote one -- mirrors the DB CHECK constraint so a bad request fails with a clear message instead of a raw constraint-violation error. */
+/**
+ * Saving a structured duration (or clearing it) retires the old free-text
+ * duration_estimate, so a service never carries two conflicting durations.
+ */
+function retireLegacyDuration(fields) {
+  if (Object.prototype.hasOwnProperty.call(fields, 'duration_value') || Object.prototype.hasOwnProperty.call(fields, 'duration_unit')) {
+    fields.duration_estimate = null;
+  }
+  return fields;
+}
+
 function normalizePricing(fields) {
   if (QUOTE_ONLY_TYPES.includes(fields.pricing_type)) {
     fields.price = null;
@@ -41,7 +52,7 @@ async function assertOwnedByWorker(id, workerUserId) {
 }
 
 async function create(workerUserId, input) {
-  const fields = normalizePricing(pickAllowed(input));
+  const fields = retireLegacyDuration(normalizePricing(pickAllowed(input)));
   if (!fields.name) throw new AppError('Service name is required.', 400, 'VALIDATION_ERROR');
   if (QUOTE_ONLY_TYPES.includes(fields.pricing_type)) fields.price = null;
 
@@ -68,7 +79,7 @@ async function create(workerUserId, input) {
 
 async function update(id, workerUserId, input) {
   const current = await assertOwnedByWorker(id, workerUserId);
-  const fields = normalizePricing(pickAllowed(input));
+  const fields = retireLegacyDuration(normalizePricing(pickAllowed(input)));
   const effectivePricingType = fields.pricing_type || current.pricing_type;
   if (QUOTE_ONLY_TYPES.includes(effectivePricingType)) fields.price = null;
 

@@ -861,25 +861,34 @@
      on top of this drawer once it's open, directly over the brand
      logo at the drawer's own top-left padding — push the drawer's
      content down to clear it instead of letting them overlap. */
-  .dashboard-sidebar { padding-top: calc(var(--space-5) + 56px); }
-  /* App header: the page title sits on the same row as the hamburger
-     (44px toggle + gap reserved on the left) instead of under a blank
-     56px band, with contextual actions (bell, page button) on the right. */
-  .dashboard-main { padding: var(--space-5); padding-top: var(--space-4); }
-  .dashboard-topbar { min-height: var(--touch-target); padding-left: calc(var(--touch-target) + var(--space-3)); margin-bottom: var(--space-5); }
+  .dashboard-sidebar { padding-top: calc(var(--space-5) + var(--touch-target) + var(--space-3) + env(safe-area-inset-top, 0px)); }
+  /* App header: the topbar is the mobile app bar. The menu button is its
+     first child (see SidebarNav.setupMobileDrawer), so it takes real space
+     in the row -- nothing is reserved with padding and nothing floats over
+     the page. Contextual actions (bell, page button) sit on the right.
+     env(safe-area-inset-top) is 0 inside the Android app (Capacitor's
+     SystemBars pads the WebView natively) but covers notched browsers. */
+  .dashboard-main { padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-5) var(--space-5); }
+  .dashboard-topbar { min-height: var(--touch-target); margin-bottom: var(--space-5); }
+  .topbar-lead > :not(.mobile-nav-slot) { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 }
 
 /* Hamburger toggle + backdrop for the dashboard sidebar drawer,
-   injected by SidebarNav.render() so every dashboard page gets this
-   without duplicating the markup 15 times. */
+   injected by SidebarNav.setupMobileDrawer() so every dashboard page gets
+   this without duplicating the markup.
+
+   The toggle lives in a fixed-size slot inside .dashboard-topbar, so it is
+   part of the header's own layout. While the drawer is open the button
+   (not the slot) is lifted to position:fixed so it stays above the drawer
+   and backdrop as the close "X"; the slot keeps its 44px so the title does
+   not shift sideways behind the backdrop. */
+/* Title (and, on mobile, the menu button) at the start of the header row. */
+.topbar-lead { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.mobile-nav-slot { display: none; flex: 0 0 var(--touch-target); width: var(--touch-target); height: var(--touch-target); }
 .mobile-nav-toggle {
   display: none;
-  position: fixed;
-  top: var(--space-4);
-  left: var(--space-4);
-  z-index: 310;
-  width: 44px;
-  height: 44px;
+  width: var(--touch-target);
+  height: var(--touch-target);
   border-radius: var(--radius-md);
   background: var(--bg-elevated);
   border: 1px solid var(--border-subtle);
@@ -887,6 +896,19 @@
   align-items: center;
   justify-content: center;
 }
+.mobile-nav-toggle.is-drawer-open,
+.mobile-nav-toggle--floating {
+  position: fixed;
+  top: calc(var(--space-4) + env(safe-area-inset-top, 0px));
+  left: var(--space-4);
+  z-index: 310;
+}
+.mobile-nav-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The icon follows the drawer state (SVG elements ignore the `hidden`
+   attribute/property, so state is expressed with a class). */
+.mobile-nav-toggle .mobile-nav-toggle-icon-close,
+.mobile-nav-toggle.is-drawer-open .mobile-nav-toggle-icon-open { display: none; }
+.mobile-nav-toggle.is-drawer-open .mobile-nav-toggle-icon-close { display: block; }
 
 .mobile-nav-backdrop {
   position: fixed;
@@ -900,6 +922,7 @@
 .mobile-nav-backdrop.is-open { opacity: 1; pointer-events: auto; }
 
 @media (max-width: 900px) {
+  .mobile-nav-slot { display: block; }
   .mobile-nav-toggle { display: flex; }
 }
 
@@ -1491,7 +1514,7 @@ html.ptr-enabled { overscroll-behavior-y: contain; }
    controls get a 44x44 hit area. Mouse layouts keep their compact size. */
 @media (pointer: coarse) {
   .btn { min-height: var(--touch-target); }
-  .btn-sm { min-height: 40px; padding-left: var(--space-4); padding-right: var(--space-4); }
+  .btn-sm { min-height: var(--touch-target); padding-left: var(--space-4); padding-right: var(--space-4); }
   .modal-close, .notif-bell-btn, .mobile-nav-toggle { min-width: var(--touch-target); min-height: var(--touch-target); }
   .settings-tab, .wallet-tab { min-height: var(--touch-target); display: inline-flex; align-items: center; }
   .toggle-switch { min-height: var(--touch-target); }
@@ -1636,7 +1659,10 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 .app-lock {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  /* Above every other layer, including a page's own boot gate (the
+     dashboard's #auth-boot-gate is 9999) — a lock screen that can sit
+     underneath something is not a lock screen. */
+  z-index: 100000;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1647,7 +1673,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
   color: var(--text-on-navy);
   text-align: center;
 }
-.app-lock img { width: 72px; height: 72px; }
+.app-lock img { width: 72px; height: 72px; border-radius: 18px; }
 .app-lock h1 { margin: 0; color: var(--text-on-navy); font-size: var(--type-page-title); }
 .app-lock p { max-width: 32ch; margin: 0; color: rgba(255, 255, 255, 0.75); font-size: var(--type-body); }
 .app-lock-unlock {
@@ -1688,3 +1714,77 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 .page-title--with-sub { margin-bottom: var(--space-1); }
 
 .notif-row-icon svg { width: 16px; height: 16px; }
+
+/* ---------- Service editor: amount + unit, and per-day opening hours ---------- */
+.duration-input { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-2); }
+.duration-input input, .duration-input select { min-height: 44px; }
+
+.service-entry-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.service-entry-main { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
+.service-entry-actions { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.hours-editor { border: 0; padding: 0; margin: var(--space-4) 0 0; min-width: 0; }
+.hours-editor legend { font-weight: 600; font-size: var(--text-sm); padding: 0; margin-bottom: var(--space-2); }
+.hours-presets { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
+.hours-rows { display: grid; gap: var(--space-2); }
+.hours-row { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr); gap: var(--space-2) var(--space-3); align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle, var(--border-default, rgba(128,128,128,.2))); }
+.hours-day { font-weight: 500; font-size: var(--text-sm); }
+.hours-row select, .hours-row input[type="time"] { min-height: 44px; min-width: 0; width: 100%; }
+.hours-times { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: var(--space-2); align-items: center; }
+.hours-times[hidden] { display: none; }
+.hours-to { color: var(--text-secondary); font-size: var(--text-sm); }
+.hours-next { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); min-height: 44px; }
+@media (max-width: 360px) {
+  .hours-row { grid-template-columns: 1fr; }
+}
+.hours-presets .btn, .service-entry-actions .btn { min-height: 44px; }
+#service-submit, #service-edit-submit { min-height: 44px; }
+
+/* ============================================================
+   Mobile shell + profile layout primitives (reusable)
+   ============================================================ */
+:root { --mobile-header-h: var(--touch-target); }
+
+/* Section titles inside dashboard pages: h3 defaults to the 24px marketing
+   scale, which is oversized for a card title on a phone. The existing
+   section-title role (tokens.css --type-section-title) is the right size. */
+@media (max-width: 640px) {
+  .dashboard-main h3 { font-size: var(--type-section-title); line-height: 1.3; }
+}
+
+/* Card header: title on the left, optional status on the right; wraps
+   instead of colliding when the title is long. */
+.card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.card-head > h3, .card-head > .card-title { margin: 0; min-width: 0; }
+.card-note { margin: 0 0 var(--space-4); color: var(--text-secondary); font-size: var(--type-body); max-width: none; }
+.card-stack { display: grid; gap: var(--space-5); margin-bottom: var(--space-5); }
+
+/* Action row: buttons get their OWN layout space (flex + gap), never
+   inline-flow siblings that wrap into each other. Stacks full-width on
+   phones, sits side by side when there is room. */
+.btn-row { display: flex; flex-direction: column; gap: var(--space-3); }
+.btn-row > .btn { width: 100%; }
+@media (min-width: 520px) {
+  .btn-row { flex-direction: row; flex-wrap: wrap; }
+  .btn-row > .btn { width: auto; }
+}
+
+/* Avatar + control, wrapping on very narrow screens. */
+.media-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3) var(--space-4); }
+.media-row > :first-child { flex: none; }
+
+/* Uploaded-document row: type + file name/size, long names truncate. */
+/* minmax(0,1fr): a grid track defaults to min-content, so one long file name would widen the whole page. */
+.doc-list { display: grid; grid-template-columns: minmax(0, 1fr); margin-bottom: var(--space-4); }
+.doc-row { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--border-subtle); }
+.doc-row:last-child { border-bottom: 0; }
+.doc-row-icon { flex: none; display: inline-flex; color: var(--accent-text); }
+.doc-row-icon svg { width: 20px; height: 20px; }
+.doc-row-text { flex: 1 1 auto; min-width: 0; }
+.doc-row-title { display: block; font-size: var(--type-body); font-weight: var(--weight-semibold); }
+.doc-row-meta { display: block; font-size: var(--type-caption); color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-row .btn { flex: none; }
+.doc-empty { margin: 0 0 var(--space-4); font-size: var(--type-body); color: var(--text-secondary); }
+
+.status-pill--danger { background: var(--status-danger-bg); color: var(--status-danger); }
+.card-spaced { margin-bottom: var(--space-5); }

@@ -44,6 +44,11 @@ const Auth = (function () {
     return runtimeReady;
   }
 
+  async function enforceLock(user) {
+    await ensureRuntimeModules();
+    if (typeof AppLock !== 'undefined') await AppLock.guard(user);
+  }
+
   // A password login just proved who the user is, so don't immediately
   // ask for a biometric scan on top of it.
   function markFreshLogin() {
@@ -131,6 +136,13 @@ const Auth = (function () {
     for (let i = 0; i < attempts; i++) {
       try {
         const result = await API.get('/auth/me');
+        // Every page learns "who is signed in" through here — including the
+        // public homepage and header, which show account state and the
+        // notification bell. The biometric app lock therefore applies at
+        // this one choke point, so no page can reveal account data while
+        // the app is locked. (No-op on the web and for users who haven't
+        // opted in.)
+        if (result.user) await enforceLock(result.user);
         return result.user;
       } catch (err) {
         const isNetworkError = err instanceof API.ApiError && err.status === 0;
@@ -164,10 +176,9 @@ const Auth = (function () {
       return null;
     }
     await runtime;
-    // Biometric app lock (native app + opted-in users only; resolves
-    // immediately otherwise). Page init waits here, so protected data
-    // isn't requested while the lock screen is up.
-    if (typeof AppLock !== 'undefined') await AppLock.guard(user);
+    // The biometric lock was already applied inside getCurrentUser(), so
+    // page init has waited for it: protected data isn't requested while
+    // the lock screen is up.
     return user;
   }
 

@@ -177,56 +177,83 @@ const SidebarNav = (function () {
     if (!sidebar || document.querySelector('.mobile-nav-toggle')) return; // already set up or no sidebar on this page
 
     const toggle = document.createElement('button');
+    toggle.type = 'button';
     toggle.className = 'mobile-nav-toggle';
     toggle.setAttribute('aria-label', 'Open menu');
     toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', sidebar.id || (sidebar.id = 'dashboard-drawer'));
     toggle.innerHTML = `
-      <svg class="mobile-nav-toggle-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      <svg class="mobile-nav-toggle-icon-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" hidden><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      <svg class="mobile-nav-toggle-icon-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg class="mobile-nav-toggle-icon-close" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     `;
-    const openIcon = toggle.querySelector('.mobile-nav-toggle-icon-open');
-    const closeIcon = toggle.querySelector('.mobile-nav-toggle-icon-close');
-
     const backdrop = document.createElement('div');
     backdrop.className = 'mobile-nav-backdrop';
 
-    document.body.appendChild(toggle);
+    // The menu button is the first item of the page's own header row, so it
+    // takes real layout space there. Pages without a topbar fall back to a
+    // floating button rather than losing mobile navigation.
+    const topbar = document.querySelector('.dashboard-topbar');
+    if (topbar) {
+      const slot = document.createElement('span');
+      slot.className = 'mobile-nav-slot';
+      slot.appendChild(toggle);
+      // The button and the page title (a bare heading, or a heading + subtitle
+      // block) share one "lead" group, so the title always sits beside the
+      // button and only the right-hand actions wrap to their own row.
+      const lead = document.createElement('div');
+      lead.className = 'topbar-lead';
+      const title = topbar.firstElementChild;
+      lead.appendChild(slot);
+      if (title) lead.appendChild(title);
+      topbar.prepend(lead);
+    } else {
+      toggle.classList.add('mobile-nav-toggle--floating');
+      document.body.appendChild(toggle);
+    }
     document.body.appendChild(backdrop);
 
-    function closeDrawer() {
+    function isOpen() { return sidebar.classList.contains('is-open'); }
+
+    // `fromPopstate`: the Back gesture/button already popped our history
+    // entry, so don't pop another one.
+    function closeDrawer({ fromPopstate = false } = {}) {
+      if (!isOpen()) return;
       sidebar.classList.remove('is-open');
       backdrop.classList.remove('is-open');
+      toggle.classList.remove('is-drawer-open');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Open menu');
-      openIcon.hidden = false;
-      closeIcon.hidden = true;
       document.body.style.overflow = '';
+      if (!fromPopstate && window.history.state && window.history.state.jrDrawerOpen) window.history.back();
     }
 
     function openDrawer() {
+      if (isOpen()) return;
       document.dispatchEvent(new CustomEvent('jr:dropdown-opening', { detail: { mount: sidebar } }));
       sidebar.classList.add('is-open');
       backdrop.classList.add('is-open');
+      toggle.classList.add('is-drawer-open');
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Close menu');
-      openIcon.hidden = true;
-      closeIcon.hidden = false;
       document.body.style.overflow = 'hidden';
+      // Android hardware Back / browser Back closes the drawer instead of
+      // leaving the page (same pattern as the modal and notification panel).
+      window.history.pushState({ jrDrawerOpen: true }, '');
     }
 
-    toggle.addEventListener('click', () => {
-      const isOpen = sidebar.classList.contains('is-open');
-      if (isOpen) closeDrawer(); else openDrawer();
-    });
-    backdrop.addEventListener('click', closeDrawer);
+    toggle.addEventListener('click', () => { if (isOpen()) closeDrawer(); else openDrawer(); });
+    backdrop.addEventListener('click', () => closeDrawer());
 
     // Tapping a nav link should close the drawer, not leave it open
     // behind the page the link just navigated to.
-    sidebar.querySelectorAll('a').forEach((link) => link.addEventListener('click', closeDrawer));
+    sidebar.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => closeDrawer({ fromPopstate: true })));
 
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeDrawer();
-    });
+    window.addEventListener('popstate', () => closeDrawer({ fromPopstate: true }));
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+    // Rotating or resizing up to the desktop layout must not strand an open
+    // drawer's scroll lock.
+    window.matchMedia('(min-width: 901px)').addEventListener('change', (e) => { if (e.matches) closeDrawer(); });
   }
 
   return { render, itemsForRole, setUnread, refreshMessageUnread };

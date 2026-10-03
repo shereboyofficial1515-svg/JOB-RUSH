@@ -79,7 +79,9 @@ const AppLock = (function () {
   function showLock(caps) {
     if (pending) return pending;
     pending = new Promise((resolve) => {
-      const isFace = /face/i.test(caps.label);
+      // Face icon only when face is the only biometric; phones with both (the
+      // usual case) show the fingerprint icon, which is also the primary sensor.
+      const isFace = /face/i.test(caps.label) && !/fingerprint/i.test(caps.label);
       // "Unlock with fingerprint" / "Use face unlock" — never "Unlock with face unlock".
       const action = caps.label && caps.label !== 'biometrics'
         ? (/unlock/i.test(caps.label) ? `Use ${caps.label}` : `Unlock with ${caps.label}`)
