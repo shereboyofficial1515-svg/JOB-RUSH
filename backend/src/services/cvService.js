@@ -92,6 +92,7 @@ async function getForViewer(workerUserId, viewerUser) {
 async function upsert(workerUserId, input) {
   await ensureWorkerProfileRow(workerUserId);
   const fields = pickAllowed(input);
+  if (fields.storage_path) storageService.assertOwnStoragePath(workerUserId, fields.storage_path);
   const existing = await getRow(workerUserId);
 
   const { rows } = await query(

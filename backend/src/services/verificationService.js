@@ -3,6 +3,7 @@ const AppError = require('../utils/AppError');
 const notificationService = require('./notificationService');
 const { recordAuditEvent } = require('../security/auditLogger');
 
+const storageService = require('./storageService');
 const SUBMITTABLE_STATUSES = ['not_submitted', 'rejected', 'resubmission_required'];
 
 /**
@@ -17,6 +18,8 @@ async function submitVerification(workerUserId, documents) {
   if (!Array.isArray(documents) || documents.length === 0) {
     throw new AppError('At least one verification document is required.', 400, 'MISSING_DOCUMENTS');
   }
+
+  for (const doc of documents) storageService.assertOwnStoragePath(workerUserId, doc.storagePath);
 
   const { rows: profileRows } = await query(
     'SELECT verification_status FROM worker_profiles WHERE user_id = $1',

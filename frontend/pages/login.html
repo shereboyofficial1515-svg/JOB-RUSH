@@ -147,7 +147,19 @@
     FormHelpers.wirePasswordToggles();
 
     const params = new URLSearchParams(window.location.search);
-    const returnTo = params.get('returnTo');
+    // Where to go after signing in. Only a page of this site is accepted: an external address, a
+    // protocol-relative "//host" or a "javascript:" URL here would turn the login page into an open
+    // redirect / script-injection link, so anything else falls back to the dashboard.
+    function safeReturnTo(raw) {
+      if (!raw) return null;
+      try {
+        const u = new URL(raw, window.location.origin);
+        if (u.origin !== window.location.origin) return null;
+        if (!(u.pathname === '/' || u.pathname === '/index.html' || /^\/pages\/[A-Za-z0-9_-]+\.html$/.test(u.pathname))) return null;
+        return u.pathname + u.search;
+      } catch { return null; }
+    }
+    const returnTo = safeReturnTo(params.get('returnTo'));
 
     // A provider redirected back with a pending 2FA challenge — skip
     // straight to the code-entry step rather than showing the password

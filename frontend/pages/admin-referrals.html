@@ -204,7 +204,7 @@
     try {
       const { referrer, referrals } = await API.get(`/admin/referrals/${referrerUserId}/detail`);
       Modal.open({
-        title: `${referrer.full_name} — Referral Detail`,
+        title: `${esc(referrer.full_name)} — Referral Detail`,
         bodyHtml: `
           <p class="text-secondary text-sm">Referral code: <strong>${esc(referrer.referral_code || '—')}</strong> · Account created ${new Date(referrer.created_at).toLocaleDateString()}</p>
           <div class="admin-table-scroll" style="margin-top: var(--space-4);">

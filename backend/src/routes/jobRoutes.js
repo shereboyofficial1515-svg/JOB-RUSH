@@ -16,10 +16,11 @@ const {
   inviteWorkerSchema,
 } = require('../validators/jobValidators');
 
+const { searchLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 // Public
-router.get('/', validateQuery(jobSearchSchema), jobController.search);
+router.get('/', searchLimiter, validateQuery(jobSearchSchema), jobController.search);
 
 // Hirer's own postings, and smart-match recommendations — must come
 // before '/:id' so these aren't parsed as a job ID.

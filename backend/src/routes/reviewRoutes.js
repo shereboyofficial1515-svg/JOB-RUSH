@@ -4,9 +4,10 @@ const { authenticate } = require('../middleware/authenticate');
 const { requireRole, requireAdmin } = require('../middleware/authorize');
 const { validateBody, createReviewSchema, reportReviewSchema, hideReviewSchema } = require('../validators/reviewDisputeValidators');
 
+const { publicWorkerGuard } = require('../middleware/publicWorkerGuard');
 const router = express.Router();
 
-router.get('/worker/:workerUserId', controller.listForWorker); // public
+router.get('/worker/:workerUserId', ...publicWorkerGuard('workerUserId'), controller.listForWorker); // public
 
 router.use(authenticate);
 router.post('/', requireRole('hirer'), validateBody(createReviewSchema), controller.create);

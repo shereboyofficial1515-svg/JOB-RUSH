@@ -3,6 +3,7 @@ const AppError = require('../utils/AppError');
 const contractService = require('./contractService');
 const escrowService = require('./escrowService');
 const notificationService = require('./notificationService');
+const storageService = require('./storageService');
 const { recordAuditEvent } = require('../security/auditLogger');
 
 /** Loads a dispute the caller must be a party to (either side), or throws. */
@@ -63,6 +64,7 @@ async function openDispute(userId, { contractId, reason, description }) {
 
 async function addEvidence(disputeId, userId, { fileType, storagePath, description }) {
   await getOwnedDispute(disputeId, userId); // authorization check
+  storageService.assertOwnStoragePath(userId, storagePath);
 
   const { rows } = await query(
     `INSERT INTO dispute_evidence (dispute_id, uploaded_by, file_type, storage_path, description)

@@ -3,6 +3,7 @@ const controller = require('../controllers/profileController');
 const extras = require('../controllers/profileExtrasController');
 const { authenticate, attachUserIfPresent } = require('../middleware/authenticate');
 const { requireRole } = require('../middleware/authorize');
+const { publicWorkerGuard } = require('../middleware/publicWorkerGuard');
 const {
   validateBody,
   updateWorkerProfileSchema,
@@ -24,12 +25,13 @@ const {
   reportProfileSchema,
 } = require('../validators/profileValidators');
 
+const { searchLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 // Public profile views — /search and /me must come before /:userId, or
 // Express matches them as :userId ("me"/"search") and the DB throws on
 // the non-UUID value.
-router.get('/worker/search', controller.searchWorkers);
+router.get('/worker/search', searchLimiter, controller.searchWorkers);
 
 // Own-profile management — identity comes from the session, not the URL
 router.get('/worker/me', authenticate, requireRole('worker'), controller.getOwnWorkerProfile);
@@ -157,7 +159,7 @@ router.patch(
 router.delete('/worker/me/social-links/:platform', authenticate, requireRole('worker'), extras.deleteSocialLink);
 
 // ---------- Public read of a worker's enabled social links ----------
-router.get('/worker/:userId/social-links', extras.listSocialLinksForWorker);
+router.get('/worker/:userId/social-links', ...publicWorkerGuard('userId'), extras.listSocialLinksForWorker);
 
 // ---------- Professional services (own, worker-only) ----------
 router.get('/worker/me/services', authenticate, requireRole('worker'), extras.listOwnServices);
@@ -178,11 +180,11 @@ router.patch(
 router.delete('/worker/me/services/:id', authenticate, requireRole('worker'), extras.deleteService);
 
 // ---------- Public reads for another worker's experience/education/cv/business/services ----------
-router.get('/worker/:userId/experience', extras.listExperienceForWorker);
-router.get('/worker/:userId/education', extras.listEducationForWorker);
-router.get('/worker/:userId/cv', attachUserIfPresent, extras.getCvForWorker);
-router.get('/worker/:userId/business', extras.getBusinessProfileForUser);
-router.get('/worker/:userId/services', extras.listServicesForWorker);
+router.get('/worker/:userId/experience', ...publicWorkerGuard('userId'), extras.listExperienceForWorker);
+router.get('/worker/:userId/education', ...publicWorkerGuard('userId'), extras.listEducationForWorker);
+router.get('/worker/:userId/cv', ...publicWorkerGuard('userId'), extras.getCvForWorker);
+router.get('/worker/:userId/business', ...publicWorkerGuard('userId'), extras.getBusinessProfileForUser);
+router.get('/worker/:userId/services', ...publicWorkerGuard('userId'), extras.listServicesForWorker);
 
 // ---------- Public read for a hirer's business profile ----------
 router.get('/hirer/:userId/business', extras.getBusinessProfileForUser);

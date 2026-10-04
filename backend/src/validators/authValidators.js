@@ -8,7 +8,7 @@ const registerSchema = z
     email: emailSchema.optional(),
     phone: phoneSchema.optional(),
     password: z.string().min(8).max(128),
-    fullName: z.string().trim().min(2).max(150),
+    fullName: z.string().trim().min(2).max(150).regex(/^[^<>]*$/, 'Name cannot contain < or >.'),
     role: z.enum(['worker', 'hirer', 'both']).default('worker'),
     referralCode: z.string().trim().max(20).optional(),
   })

@@ -8,13 +8,14 @@ const {
   refundEscrowSchema,
 } = require('../validators/paymentValidators');
 
+const { moneyActionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 router.use(authenticate);
 
-router.post('/fund', requireRole('hirer'), validateBody(initiateFundingSchema), controller.initiateFunding);
+router.post('/fund', moneyActionLimiter, requireRole('hirer'), validateBody(initiateFundingSchema), controller.initiateFunding);
 router.get('/verify/:reference', requireRole('hirer'), controller.verifyFunding);
-router.post('/:id/release', requireRole('hirer'), controller.releaseEscrow);
+router.post('/:id/release', moneyActionLimiter, requireRole('hirer'), controller.releaseEscrow);
 router.get('/contract/:contractId', controller.getForContract);
 
 // Real money movement back to the payer — admin-only, not reachable by either party directly.

@@ -12,9 +12,10 @@ const {
 } = require('../validators/profileValidators');
 const { reportPortfolioSchema } = require('../validators/adminValidators');
 
+const { publicWorkerGuard } = require('../middleware/publicWorkerGuard');
 const router = express.Router();
 
-router.get('/worker/:workerUserId', controller.listForWorker); // public
+router.get('/worker/:workerUserId', ...publicWorkerGuard('workerUserId'), controller.listForWorker); // public
 router.get('/me', authenticate, requireRole('worker'), controller.listOwn);
 // Must come after the two literal-path routes above — a bare :id
 // param route registered first would swallow /me and /worker/... too.

@@ -17,6 +17,23 @@ function redactGenderForViewer(profile, isOwner) {
 }
 
 /**
+ * The profile queries pull back every column plus the account's email and phone, which is right
+ * for the owner's own read and wrong for anyone else's: this endpoint is public (no login), and
+ * search hands out user ids, so leaving these in let anyone harvest contact details and the
+ * private home address. Non-owners get only what the public profile page shows.
+ */
+const PRIVATE_PROFILE_FIELDS = [
+  'email', 'phone', 'email_verified_at', 'phone_verified_at', 'street_address', 'landmark',
+  'account_status', 'deactivated_at', 'profile_visibility', 'service_radius_km', 'profile_completion_percent',
+];
+function redactPrivateForViewer(profile, isOwner) {
+  if (!profile || isOwner) return profile;
+  const out = { ...profile };
+  for (const f of PRIVATE_PROFILE_FIELDS) delete out[f];
+  return out;
+}
+
+/**
  * GET /api/profiles/worker/:userId — public profile view.
  * A private profile (or a deactivated/disabled account) reads as
  * "not found" to anyone but the profile's own owner — never revealed
@@ -32,7 +49,7 @@ const getWorkerProfile = asyncHandler(async (req, res) => {
     (profile.profile_visibility === 'private' && !isOwner);
 
   if (isHidden) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
-  res.status(200).json({ profile: redactGenderForViewer(profile, isOwner) });
+  res.status(200).json({ profile: redactPrivateForViewer(redactGenderForViewer(profile, isOwner), isOwner) });
 });
 
 /** GET /api/profiles/worker/search — public browse/search */
@@ -64,7 +81,7 @@ const getHirerProfile = asyncHandler(async (req, res) => {
   const profile = await profileService.getHirerProfile(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
   const isOwner = req.user?.id === req.params.userId;
-  res.status(200).json({ profile: redactGenderForViewer(profile, isOwner) });
+  res.status(200).json({ profile: redactPrivateForViewer(redactGenderForViewer(profile, isOwner), isOwner) });
 });
 
 const getOwnHirerProfile = asyncHandler(async (req, res) => {

@@ -16,6 +16,7 @@ const {
   updateCallStatusSchema,
 } = require('../validators/messagingValidators');
 
+const { messageSendLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 router.use(authenticate);
@@ -40,7 +41,7 @@ router.get('/conversations/:id/messages', conversationController.listMessages);
 router.get('/conversations/:id/messages/search', conversationController.searchConversation);
 router.get('/conversations/:id/pins', conversationController.listPinned);
 router.get('/conversations/:id/media', conversationController.listConversationMedia);
-router.post('/conversations/:id/messages', validateBody(sendMessageSchema), conversationController.sendMessage);
+router.post('/conversations/:id/messages', messageSendLimiter, validateBody(sendMessageSchema), conversationController.sendMessage);
 router.patch('/messages/:messageId', validateBody(editMessageSchema), conversationController.editMessage);
 router.delete('/messages/:messageId', conversationController.deleteMessage);
 router.post('/messages/:messageId/pin', conversationController.pinMessage);

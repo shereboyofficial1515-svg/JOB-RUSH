@@ -11,6 +11,7 @@ const {
   updateProPriceSchema,
 } = require('../validators/paymentValidators');
 
+const { moneyActionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 
 router.use(authenticate);
@@ -18,7 +19,7 @@ router.use(authenticate);
 router.get('/', controller.getOwnWallet);
 router.get('/transactions', controller.getOwnTransactions);
 
-router.post('/withdrawals', requireRole('worker'), validateBody(requestWithdrawalSchema), controller.requestWithdrawal);
+router.post('/withdrawals', moneyActionLimiter, requireRole('worker'), validateBody(requestWithdrawalSchema), controller.requestWithdrawal);
 router.get('/withdrawals', requireRole('worker'), controller.listOwnWithdrawals);
 router.get('/withdrawals/:id', requireRole('worker'), controller.getOwnWithdrawal);
 
