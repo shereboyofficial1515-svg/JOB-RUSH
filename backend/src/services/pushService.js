@@ -47,11 +47,11 @@ async function sendPushToUser(userId, { title, body, data, tag, requireInteracti
   // Android FCM token are independent, unrelated delivery paths for
   // the same logical notification, exactly like the existing
   // email/SMS/in-app channels already sent alongside each other.
-  const [webResult] = await Promise.all([
+  const [webResult, fcmResult] = await Promise.all([
     sendWebPush(userId, { title, body, data, tag, requireInteraction }),
     fcmService.sendDataToUser(userId, { ...(data || {}), title: title || '', body: body || '', tag: tag || '' }),
   ]);
-  return webResult;
+  return { ...webResult, fcm: fcmResult };
 }
 
 async function sendWebPush(userId, { title, body, data, tag, requireInteraction = false } = {}) {

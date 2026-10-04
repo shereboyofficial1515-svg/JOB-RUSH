@@ -164,6 +164,12 @@ async function notify(userId, type, { title, body, data, email, phone, firstName
             tag: `notification-${notification.id}`,
           });
           await recordDelivery(notification.id, 'web_push', result.sent > 0 ? 'sent' : 'skipped');
+          // The Android (FCM) outcome gets its own audit row so a push that never arrives can be
+          // diagnosed: sent, skipped with the reason (not configured / no device), or failed with Firebase's error.
+          const fcm = result.fcm || {};
+          if (fcm.sent > 0) await recordDelivery(notification.id, 'fcm', 'sent');
+          else if (fcm.failed > 0) await recordDelivery(notification.id, 'fcm', 'failed', fcm.lastError);
+          else await recordDelivery(notification.id, 'fcm', 'skipped', fcm.skipped || null);
         } catch (err) {
           await recordDelivery(notification.id, 'web_push', 'failed', err.message);
         }
