@@ -42,11 +42,11 @@
         <select name="skillId" id="skillId" aria-label="Skill"><option value="">Any skill</option></select>
         <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
         <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
-        <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
-          <input type="checkbox" name="verifiedOnly" style="width:auto;" /> Verified only
+        <label class="filter-check">
+          <input type="checkbox" name="verifiedOnly" /> Verified only
         </label>
-        <label style="display:flex; align-items:center; gap: var(--space-2); font-size: var(--text-sm);">
-          <input type="checkbox" name="hasVideo" style="width:auto;" /> Has work video
+        <label class="filter-check">
+          <input type="checkbox" name="hasVideo" /> Has work video
         </label>
         <button type="submit" class="btn btn-primary" id="search-submit">Search</button>
       </form>
@@ -61,6 +61,8 @@
 
   <script src="../js/config/assets.js"></script>
   <script src="../js/config/env.js"></script>
+  <script src="../js/utils/scrollLock.js"></script>
+  <script src="../js/utils/jrSelect.js"></script>
   <script src="../js/config/api.js"></script>
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
@@ -88,28 +90,41 @@
     function workerCardHtml(w) {
       const location = [w.lga_name, w.state_name].filter(Boolean).join(', ');
       const price = formatMoney(w.starting_price, w.price_currency);
+      const initials = esc(String(w.full_name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase());
+      // A real profile photo when there is one; otherwise the person's initials (never a stock photo
+      // standing in for a face, and never a broken image).
+      const avatar = w.profile_picture_url
+        ? `<img class="result-avatar" src="${esc(w.profile_picture_url)}" alt="" width="48" height="48" loading="lazy" onerror="this.outerHTML='<span class=&quot;result-avatar result-avatar-initials&quot;>${initials}</span>'" />`
+        : `<span class="result-avatar result-avatar-initials" aria-hidden="true">${initials}</span>`;
+      const badges = [
+        w.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : '',
+        w.is_pro ? '<span class="badge badge-pro">PRO</span>' : '',
+      ].join('');
+      const business = w.business_name
+        ? `<div class="result-business">
+             ${w.business_photo_url ? `<img src="${esc(w.business_photo_url)}" alt="" width="28" height="28" loading="lazy" onerror="this.remove()" />` : ''}
+             <span>${esc(w.business_name)}</span>
+           </div>`
+        : '';
+      const meta = [
+        w.rating_count > 0 ? `<span class="text-gold">${ratingStars(w.rating_avg)} <span class="text-secondary">(${w.rating_count})</span></span>` : '',
+        location ? `<span class="text-secondary">${esc(location)}</span>` : '',
+        w.availability_status ? `<span class="text-secondary" style="text-transform:capitalize;">${esc(w.availability_status)}</span>` : '',
+      ].filter(Boolean).join('<span class="result-sep" aria-hidden="true">·</span>');
       return `
-      <a class="card card-interactive job-card" href="worker-profile.html?id=${w.user_id}" style="display:block; color: inherit;">
-        <div style="display:flex; gap: var(--space-3); align-items:center; margin-bottom: var(--space-3);">
-          ${AvatarBadge.wrap(
-            `<img src="${w.profile_picture_url || ASSETS.defaultAvatar}" alt="" width="44" height="44" loading="lazy" style="border-radius:50%; object-fit:cover;" />`,
-            { verified: w.verification_status === 'approved', isPro: !!w.is_pro, size: 'sm' }
-          )}
-          <div>
-            <strong>${esc(w.full_name)}</strong>
+      <a class="card card-interactive job-card result-card" href="worker-profile.html?id=${w.user_id}">
+        <div class="result-head">
+          ${avatar}
+          <div class="result-id">
+            <div class="result-name"><strong>${esc(w.full_name)}</strong>${badges}</div>
             <div class="text-sm text-secondary">${esc(w.professional_title) || 'Professional'}</div>
           </div>
         </div>
-        <div style="display:flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap:wrap;">
-          ${w.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
-          ${w.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
-          ${w.has_video ? '<span class="badge badge-neutral">Has video</span>' : ''}
-          <span class="badge badge-neutral" style="text-transform:capitalize;">${esc(w.availability_status)}</span>
-        </div>
-        <div class="text-gold text-sm">${ratingStars(w.rating_avg)} <span class="text-secondary">(${w.rating_count})</span></div>
-        ${location ? `<div class="text-secondary text-sm" style="margin-top: var(--space-2);">${esc(location)}</div>` : ''}
-        ${price ? `<div style="margin-top: var(--space-2); font-weight:600; color: var(--accent);">${price} starting</div>` : ''}
-        <p class="text-secondary text-sm" style="margin-top: var(--space-3);">${esc((w.bio || 'No bio yet.').slice(0, 100))}</p>
+        ${business}
+        ${meta ? `<div class="result-meta text-sm">${meta}</div>` : ''}
+        ${price ? `<div class="result-price">${price} starting</div>` : ''}
+        ${w.bio ? `<p class="text-secondary text-sm result-bio">${esc(w.bio.slice(0, 110))}${w.bio.length > 110 ? '…' : ''}</p>` : ''}
+        ${w.has_video ? '<div><span class="badge badge-neutral">Has video</span></div>' : ''}
       </a>
     `;
     }

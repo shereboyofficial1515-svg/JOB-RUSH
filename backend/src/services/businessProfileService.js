@@ -1,6 +1,7 @@
 const { query } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
+const storageService = require('./storageService');
 const { ensureWorkerProfileRow, ensureHirerProfileRow } = require('./profileService');
 
 const EDITABLE_FIELDS = [
@@ -108,7 +109,14 @@ async function upsert(role, userId, input) {
     areaId: fields.area_id,
   });
 
-  const existing = await query(`SELECT id FROM business_profiles WHERE ${column} = $1`, [userId]);
+  const existing = await query(`SELECT id, storefront_photo_url FROM business_profiles WHERE ${column} = $1`, [userId]);
+
+  // The photo must be one this user uploaded; a replaced or removed one is deleted from storage afterwards.
+  const previousPhoto = existing.rows[0] ? existing.rows[0].storefront_photo_url : null;
+  const photoChanged = Object.prototype.hasOwnProperty.call(fields, 'storefront_photo_url') && fields.storefront_photo_url !== previousPhoto;
+  if (photoChanged && fields.storefront_photo_url) {
+    storageService.assertOwnedPublicUrl('BUSINESS_PHOTOS', userId, fields.storefront_photo_url, 'photo');
+  }
 
   if (existing.rows.length === 0) {
     if (!fields.business_name) throw new AppError('Business name is required.', 400, 'VALIDATION_ERROR');
@@ -124,12 +132,15 @@ async function upsert(role, userId, input) {
     ]);
   }
 
+  if (photoChanged && previousPhoto) await storageService.removeOwnedPublicUrl('BUSINESS_PHOTOS', userId, previousPhoto);
+
   return getOwn(role, userId);
 }
 
 async function remove(role, userId) {
   const column = ownerColumn(role);
-  await query(`DELETE FROM business_profiles WHERE ${column} = $1`, [userId]);
+  const { rows } = await query(`DELETE FROM business_profiles WHERE ${column} = $1 RETURNING storefront_photo_url`, [userId]);
+  if (rows[0] && rows[0].storefront_photo_url) await storageService.removeOwnedPublicUrl('BUSINESS_PHOTOS', userId, rows[0].storefront_photo_url);
 }
 
 async function listMedia(businessProfileId) {
@@ -142,6 +153,7 @@ async function addMedia(role, userId, mediaUrl) {
   const owns = await query(`SELECT id FROM business_profiles WHERE ${column} = $1`, [userId]);
   if (owns.rows.length === 0) throw new AppError('Create a business profile before adding photos.', 400, 'NO_BUSINESS_PROFILE');
   const businessProfileId = owns.rows[0].id;
+  storageService.assertOwnedPublicUrl('BUSINESS_PHOTOS', userId, mediaUrl, 'photo');
 
   const { rows: countRows } = await query('SELECT COUNT(*)::int AS count FROM business_media WHERE business_profile_id = $1', [businessProfileId]);
   if (countRows[0].count >= 10) throw new AppError('A business profile can have at most 10 additional photos.', 400, 'LIMIT_REACHED');
@@ -155,10 +167,11 @@ async function addMedia(role, userId, mediaUrl) {
 
 async function removeMedia(id, role, userId) {
   const column = ownerColumn(role);
-  await query(
-    `DELETE FROM business_media WHERE id = $1 AND business_profile_id = (SELECT id FROM business_profiles WHERE ${column} = $2)`,
+  const { rows } = await query(
+    `DELETE FROM business_media WHERE id = $1 AND business_profile_id = (SELECT id FROM business_profiles WHERE ${column} = $2) RETURNING media_url`,
     [id, userId]
   );
+  if (rows[0]) await storageService.removeOwnedPublicUrl('BUSINESS_PHOTOS', userId, rows[0].media_url);
 }
 
 module.exports = { getOwn, getPublicByUserId, upsert, remove, listMedia, addMedia, removeMedia };

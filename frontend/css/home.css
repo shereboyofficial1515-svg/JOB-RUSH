@@ -77,16 +77,6 @@
 @media (min-width: 861px) { .hero-badge { display: inline-flex; } }
 
 .hero-search { margin: var(--space-6) 0 var(--space-5); max-width: 560px; }
-.hero-search-type { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); flex-wrap: wrap; }
-.hero-search-type label { cursor: pointer; }
-.hero-search-type input { position: absolute; opacity: 0; pointer-events: none; }
-.hero-search-type span {
-  display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--space-4);
-  border: 1px solid rgba(255, 255, 255, 0.3); border-radius: var(--radius-pill);
-  font-size: var(--text-sm); font-weight: 600; color: var(--text-secondary);
-}
-.hero-search-type input:checked + span { background: var(--color-primary-gold); border-color: var(--color-primary-gold); color: var(--text-on-gold); }
-.hero-search-type input:focus-visible + span { outline: 2px solid #fff; outline-offset: 2px; }
 .hero-search-row { display: flex; gap: var(--space-3); }
 .hero-search-row input {
   flex: 1; min-width: 0; min-height: 48px;

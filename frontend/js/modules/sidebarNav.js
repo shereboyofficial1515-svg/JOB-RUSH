@@ -279,7 +279,7 @@ const SidebarNav = (function () {
       toggle.classList.remove('is-drawer-open');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-label', 'Open menu');
-      document.body.style.overflow = '';
+      ScrollLock.release('drawer');
       if (!fromPopstate && window.history.state && window.history.state.jrDrawerOpen) window.history.back();
     }
 
@@ -291,7 +291,7 @@ const SidebarNav = (function () {
       toggle.classList.add('is-drawer-open');
       toggle.setAttribute('aria-expanded', 'true');
       toggle.setAttribute('aria-label', 'Close menu');
-      document.body.style.overflow = 'hidden';
+      ScrollLock.acquire('drawer');
       // Android hardware Back / browser Back closes the drawer instead of
       // leaving the page (same pattern as the modal and notification panel).
       window.history.pushState({ jrDrawerOpen: true }, '');

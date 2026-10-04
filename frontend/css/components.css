@@ -245,6 +245,11 @@
   border: 1px solid transparent;
   white-space: nowrap;
 }
+/* With a mouse and room to spare, every tab is simply visible (wrapping onto a second line)
+   instead of hiding behind a thin horizontal scrollbar; touch layouts keep the swipe row. */
+@media (min-width: 901px) {
+  .settings-tabs { flex-wrap: wrap; overflow-x: visible; }
+}
 .settings-tab:hover { color: var(--text-primary); background: rgba(11, 31, 58, 0.05); }
 .settings-tab.is-active { color: var(--accent-text); background: rgba(201, 162, 39, 0.12); border-color: var(--border-gold); }
 
@@ -784,6 +789,23 @@
   -ms-overflow-style: none; /* legacy Edge */
 }
 .sidebar-nav::-webkit-scrollbar { display: none; } /* Chrome, Android WebView, Safari */
+/* Desktop (mouse): a hidden scrollbar made nav items below the fold undiscoverable on
+   short screens, so show a slim one there and tighten spacing before it is ever needed.
+   Touch layouts (drawer, <= 900px) keep the hidden-scrollbar swipe list above. */
+@media (min-width: 901px) {
+  .dashboard-sidebar { height: 100vh; height: 100dvh; overflow-y: hidden; }
+  .sidebar-nav { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.28) transparent; -ms-overflow-style: auto; padding-right: var(--space-1); }
+  .sidebar-nav::-webkit-scrollbar { display: block; width: 6px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.28); border-radius: 3px; }
+  .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
+}
+@media (min-width: 901px) and (max-height: 820px) {
+  .dashboard-sidebar { padding-block: var(--space-4); }
+  .dashboard-sidebar .brand { margin-bottom: var(--space-4); }
+  .dashboard-sidebar .sidebar-nav { gap: 2px; }
+  .dashboard-sidebar .sidebar-nav a { padding-block: var(--space-2); }
+  .dashboard-sidebar #logout-btn { margin-top: var(--space-2); padding-top: var(--space-2); }
+}
 .sidebar-nav a {
   display: flex;
   align-items: center;
@@ -1130,6 +1152,7 @@
      past the viewport with no way to scroll to either, so the title,
      close button, and submit button all become unreachable. */
   max-height: calc(100vh - var(--space-5) * 2);
+  max-height: calc(100dvh - var(--space-5) * 2);
   display: flex;
   flex-direction: column;
 }
@@ -1138,8 +1161,24 @@
 .modal-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-5); flex-shrink: 0; }
 .modal-close { background: none; border: none; color: var(--text-secondary); padding: var(--space-1); }
 .modal-close:hover { color: var(--text-primary); }
-.modal-body { overflow-y: auto; }
-.modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-6); }
+.modal-body { overflow-y: auto; min-height: 0; flex: 1 1 auto; overscroll-behavior: contain; }
+.modal-footer {
+  flex-shrink: 0;
+  display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: var(--space-3);
+  margin-top: var(--space-4); padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+@media (max-width: 480px) {
+  .modal-footer { flex-direction: column-reverse; align-items: stretch; }
+  .modal-footer .btn { width: 100%; text-align: center; }
+}
+.modal-actions {
+  display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6);
+  /* Stay on screen while a long form scrolls underneath, so Save / Cancel are never out of reach. */
+  position: sticky; bottom: 0; z-index: 1;
+  background: var(--bg-surface);
+  padding-block: var(--space-3);
+}
 
 /* ---------- Onboarding + referral-intro modals ----------
    Reuse .modal/.modal-body as-is (already mobile-height-capped with
@@ -1148,7 +1187,7 @@
    10-step numbered list reads cramped at the default 480px on
    anything above phone width; width:100% + the backdrop's own
    padding still keeps it safe on small screens regardless. */
-.referral-intro-modal { max-width: 560px; }
+.referral-intro-modal { max-width: 640px; }
 
 /* ---------- CV / résumé card ----------
    Shared by the public worker profile and the owner's Settings > CV
@@ -1779,3 +1818,127 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 
 .status-pill--danger { background: var(--status-danger-bg); color: var(--status-danger); }
 .card-spaced { margin-bottom: var(--space-5); }
+
+/* ---------- Business photo (profile > business) ---------- */
+.biz-photo-title { font-size: var(--text-sm); font-weight: 600; margin: 0 0 var(--space-1); }
+.biz-photo-frame {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 16 / 9;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--border-subtle);
+  display: flex; align-items: center; justify-content: center;
+}
+.biz-photo-frame.has-photo { border-style: solid; }
+.biz-photo-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.biz-photo-empty { color: var(--text-secondary); font-size: var(--text-sm); padding: var(--space-4); text-align: center; }
+.biz-photo-progress {
+  position: absolute; inset: auto 0 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(0, 8, 16, 0.72); color: #fff; font-size: var(--text-sm);
+}
+.biz-photo-actions { margin-top: var(--space-3); }
+
+/* ---------- JRSelect: the one dropdown (js/utils/jrSelect.js) ---------- */
+.jr-select { position: relative; display: inline-block; max-width: 100%; min-width: 0; vertical-align: middle; }
+.field .jr-select, .settings-field-grid .jr-select, .hours-row .jr-select, .duration-input .jr-select, .settings-row-control .jr-select { display: block; width: 100%; }
+.jr-select-native {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; pointer-events: none; border: 0; padding: 0; margin: 0;
+}
+.jr-select-trigger {
+  display: flex; align-items: center; gap: var(--space-2);
+  width: 100%; min-height: var(--touch-target); min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--duration-micro) var(--ease-standard);
+}
+.field .jr-select-trigger { padding: var(--space-3) var(--space-4); }
+.jr-select-trigger:hover:not(:disabled) { border-color: var(--text-secondary); }
+.jr-select-trigger:focus-visible, .jr-select-trigger[aria-expanded="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--radius-md); }
+.jr-select-trigger:disabled { opacity: 0.55; cursor: not-allowed; }
+.jr-select-trigger.is-placeholder .jr-select-value { color: var(--text-secondary); }
+.jr-select-trigger.is-invalid { border-color: var(--status-danger); }
+.jr-select-trigger.is-loading .jr-select-value::after { content: ''; display: inline-block; width: 12px; height: 12px; margin-left: var(--space-2); border: 2px solid var(--border-subtle); border-top-color: var(--accent); border-radius: 50%; vertical-align: -2px; animation: jr-select-spin 0.8s linear infinite; }
+.jr-select-trigger.is-error .jr-select-value { color: var(--status-danger); }
+.jr-select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jr-select-caret { flex-shrink: 0; color: var(--text-secondary); transition: transform var(--duration-micro) var(--ease-standard); }
+.jr-select-trigger[aria-expanded="true"] .jr-select-caret { transform: rotate(180deg); }
+.jr-select-clear { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; color: var(--text-secondary); }
+.jr-select-clear:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.jr-select-clear[hidden], .jr-select-avatar[hidden] { display: none; }
+
+.jr-select-avatar { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; background: var(--bg-elevated); display: inline-flex; align-items: center; justify-content: center; }
+.jr-select-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.jr-select-initials { font-size: 11px; font-weight: 600; color: var(--text-secondary); line-height: 1; }
+
+.jr-select-panel {
+  position: fixed; z-index: var(--z-popover);
+  display: flex; flex-direction: column;
+  background: var(--bg-surface); color: var(--text-primary);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  overflow: hidden;
+}
+.jr-select-search { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-subtle); color: var(--text-secondary); }
+.jr-select-search input { flex: 1; min-width: 0; width: 100%; border: 0; outline: none; background: transparent; color: var(--text-primary); padding: var(--space-2) 0; min-height: 32px; }
+.jr-select-search:focus-within { color: var(--accent-text); }
+.jr-select-list { list-style: none; margin: 0; padding: var(--space-1); overflow-y: auto; overscroll-behavior: contain; min-height: 0; flex: 1 1 auto; outline: none; }
+.jr-select-option { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); min-height: 40px; border-radius: var(--radius-sm); cursor: pointer; }
+.jr-select-option.is-active { background: var(--bg-elevated); }
+.jr-select-option.is-selected { font-weight: 600; color: var(--accent-text); }
+.jr-select-option.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.jr-select-option.is-placeholder .jr-select-label { color: var(--text-secondary); }
+.jr-select-option.is-not-listed { border-top: 1px solid var(--border-subtle); border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-top: var(--space-1); font-style: italic; }
+.jr-select-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.jr-select-label { overflow-wrap: anywhere; }
+.jr-select-sub { font-size: var(--text-xs); color: var(--text-secondary); }
+.jr-select-check { flex-shrink: 0; }
+.jr-select-group { padding: var(--space-3) var(--space-3) var(--space-1); font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
+.jr-select-state { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3); color: var(--text-secondary); font-size: var(--text-sm); }
+.jr-select-state.is-error { color: var(--status-danger); }
+.jr-select-spinner { width: 14px; height: 14px; border: 2px solid var(--border-subtle); border-top-color: var(--accent); border-radius: 50%; animation: jr-select-spin 0.8s linear infinite; }
+@keyframes jr-select-spin { to { transform: rotate(360deg); } }
+
+.jr-select-scrim { position: fixed; inset: 0; z-index: var(--z-popover); background: rgba(0, 8, 16, 0.55); }
+@media (max-width: 640px) {
+  .jr-select-panel.is-sheet {
+    z-index: calc(var(--z-popover) + 1);
+    left: 0; right: 0; bottom: 0; top: auto; width: 100%;
+    max-height: min(78vh, 78dvh);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0; border-bottom: 0;
+    box-shadow: var(--shadow-sheet);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .jr-select-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-shrink: 0; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+  .jr-select-sheet-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .jr-select-sheet-close { background: none; border: 0; color: var(--accent-text); font-weight: 600; padding: var(--space-2); min-height: var(--touch-target); }
+  .jr-select-option { min-height: var(--touch-target); }
+}
+@media (min-width: 641px) { .jr-select-sheet-head { display: none; } }
+@media (prefers-reduced-motion: reduce) { .jr-select-caret, .jr-select-trigger { transition: none; } .jr-select-spinner, .jr-select-trigger.is-loading .jr-select-value::after { animation-duration: 3s; } }
+
+/* ---------- Public search result card (pages/search.html) ---------- */
+.result-card { display: flex; flex-direction: column; gap: var(--space-3); color: inherit; }
+.result-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.result-avatar { flex-shrink: 0; width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.result-avatar-initials { display: inline-flex; align-items: center; justify-content: center; background: var(--bg-elevated); color: var(--text-secondary); font-weight: 600; font-size: var(--text-sm); border: 1px solid var(--border-subtle); }
+.result-id { min-width: 0; }
+.result-name { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.result-name strong { overflow-wrap: anywhere; }
+.result-business { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); font-weight: 500; }
+.result-business img { width: 28px; height: 28px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; }
+.result-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.result-sep { color: var(--text-secondary); }
+.result-price { font-weight: 600; color: var(--accent-text); }
+.result-bio { margin: 0; }
+
+/* A labelled checkbox in a filter bar: box and text sit together, never stretched apart. */
+.filter-check { display: inline-flex; align-items: center; justify-content: flex-start; gap: var(--space-2); width: auto; min-height: var(--touch-target); font-size: var(--text-sm); cursor: pointer; }
+.filter-check input[type="checkbox"] { width: auto; flex-shrink: 0; margin: 0; }

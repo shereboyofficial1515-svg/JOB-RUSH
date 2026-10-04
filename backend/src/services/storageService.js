@@ -450,6 +450,41 @@ function getPublicUrlForPath(bucketKey, storagePath) {
   return data?.publicUrl || null;
 }
 
+/**
+ * If `url` is a public URL of an object this same user uploaded to `bucketKey`
+ * (`<bucket>/<userId>/<file>`), returns its storage path; otherwise null.
+ * Image URL fields are written by the client after an upload, so without this
+ * check a client could point a profile photo at any address on the internet
+ * or at another user's file.
+ */
+function ownedPathFromPublicUrl(bucketKey, userId, url) {
+  if (typeof url !== 'string' || !userId) return null;
+  let prefix;
+  try {
+    prefix = getPublicUrlForPath(bucketKey, '_').slice(0, -1);
+  } catch { return null; }
+  if (!prefix || !url.startsWith(prefix)) return null;
+  let path;
+  try { path = decodeURIComponent(url.slice(prefix.length).split(/[?#]/)[0]); } catch { return null; }
+  const parts = path.split('/');
+  if (parts.length !== 2 || parts[0] !== userId || !parts[1] || parts[1].includes('..')) return null;
+  return path;
+}
+
+/** Throws 400 unless `url` is one of this user's own uploads in `bucketKey`. */
+function assertOwnedPublicUrl(bucketKey, userId, url, label = 'image') {
+  if (!ownedPathFromPublicUrl(bucketKey, userId, url)) {
+    throw new AppError(`That ${label} wasn't uploaded through Job Rush. Please upload the file again.`, 400, 'INVALID_IMAGE_URL');
+  }
+}
+
+/** Best-effort removal of a replaced/removed image so storage doesn't accumulate orphans. Never throws. */
+async function removeOwnedPublicUrl(bucketKey, userId, url) {
+  const path = ownedPathFromPublicUrl(bucketKey, userId, url);
+  if (!path) return;
+  try { await removeObjects(bucketKey, [path]); } catch { /* an orphan is better than a failed save */ }
+}
+
 async function deleteObject(bucketKey, storagePath) {
   const bucket = BUCKETS[bucketKey];
   if (!bucket) throw new AppError('Unknown bucket.', 400, 'INVALID_BUCKET');
@@ -499,6 +534,9 @@ async function deleteAllUserFiles(userId) {
 
 module.exports = {
   BUCKETS,
+  ownedPathFromPublicUrl,
+  assertOwnedPublicUrl,
+  removeOwnedPublicUrl,
   MAX_VIDEO_DURATION_SECONDS,
   uploadPortfolioImage,
   uploadProcessedPortfolioVideo,

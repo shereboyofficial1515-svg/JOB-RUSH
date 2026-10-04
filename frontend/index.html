@@ -38,10 +38,6 @@
             professionals get discovered, hired and paid securely.</p>
 
           <form class="hero-search" id="hero-search-form" role="search">
-            <div class="hero-search-type" role="radiogroup" aria-label="What are you looking for?">
-              <label><input type="radio" name="type" value="talent" checked /><span>Find a professional</span></label>
-              <label><input type="radio" name="type" value="jobs" /><span>Find a job</span></label>
-            </div>
             <div class="hero-search-row">
               <input type="search" name="keyword" id="hero-keyword" placeholder="e.g. electrician, graphic designer, Warri"
                 aria-label="Search by skill, profession or place" autocomplete="off" />
@@ -145,6 +141,8 @@
 
   <script src="js/config/assets.js"></script>
   <script src="js/config/env.js"></script>
+  <script src="js/utils/scrollLock.js"></script>
+  <script src="js/utils/jrSelect.js"></script>
   <script src="js/config/api.js"></script>
   <script src="js/modules/accessibility.js"></script>
   <script src="js/utils/sanitize.js"></script>
@@ -203,13 +201,12 @@
       const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'home' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
-      // Search goes to the page that actually searches what was asked for, carrying the
-      // keyword: professionals (search.html) or jobs (jobs.html). Both read ?keyword=.
+      // Search goes to the unified search page, carrying the keyword. That page has
+      // Professionals | Jobs tabs, so one box covers both without a pre-selection step.
       document.getElementById('hero-search-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const keyword = e.target.keyword.value.trim();
-        const page = e.target.type.value === 'jobs' ? 'jobs' : 'search';
-        window.location.href = `pages/${page}.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
+        window.location.href = `pages/search.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
       });
 
       // Real numbers and real people only: nothing here is hardcoded. If a request

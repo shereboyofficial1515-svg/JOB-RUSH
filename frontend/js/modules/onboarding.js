@@ -125,13 +125,12 @@ const Onboarding = (function () {
           </ol>
 
           <p class="text-secondary text-sm"><strong>Important:</strong> registration alone does not count as a qualified referral — the referred person has to actually use Job Rush and share their experience first.</p>
-
-          <div class="onboarding-actions onboarding-actions-referral">
-            <button type="button" class="btn btn-ghost" data-action="close-modal">Maybe Later</button>
-            <a href="documentation.html#referral-program" class="btn btn-secondary" data-action="referral-guide">View Referral Guide</a>
-            <a href="referral.html" class="btn btn-primary" data-action="referral-start">Start Referring</a>
-          </div>
         </div>
+      `,
+      footerHtml: `
+        <button type="button" class="btn btn-ghost" data-action="close-modal">Maybe Later</button>
+        <a href="documentation.html#referral-program" class="btn btn-secondary" data-action="referral-guide">View Referral Guide</a>
+        <a href="referral.html" class="btn btn-primary" data-action="referral-start">Start Referring</a>
       `,
       onMount: (modalEl) => {
         modalEl.classList.add('onboarding-modal', 'referral-intro-modal');
@@ -142,6 +141,9 @@ const Onboarding = (function () {
         // either of those two actions instead of dismissing normally.
         modalEl.querySelector('[data-action="referral-guide"]')?.addEventListener('click', markSeenOnce);
         modalEl.querySelector('[data-action="referral-start"]')?.addEventListener('click', markSeenOnce);
+        // Showing it counts as seeing it: otherwise leaving the page any other way
+        // (browser Back, closing the tab) brought the same modal up on every load.
+        markSeenOnce();
       },
       onClose: markSeenOnce,
     });
