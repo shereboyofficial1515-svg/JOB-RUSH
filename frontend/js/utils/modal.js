@@ -13,6 +13,8 @@
  *                                // then a stray tap outside or Escape can't throw away input
  *                                // or cancel a confirmation (X, Cancel and Back still can)
  *     initialFocus: '#selector', // defaults to the first field in the body
+ *     footerHtml,                // optional action row pinned under the scrolling body, so
+ *                                // Save / Continue buttons are always on screen however long the body is
  *   })
  *   Modal.confirm({ title, message, confirmLabel, cancelLabel, danger }) -> Promise<boolean>
  *
@@ -24,7 +26,6 @@ const Modal = (function () {
   let lastFocused = null;
   let activeOnClose = null;
   let dismissOnBackdrop = true;
-  let previousOverflow = '';
   let historyPushed = false;
   let ignoreNextPop = false;
 
@@ -34,7 +35,7 @@ const Modal = (function () {
     return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
   }
 
-  function open({ title, bodyHtml, onMount, onClose, variant = 'auto', dismissOnBackdrop: dismissible = true, initialFocus }) {
+  function open({ title, bodyHtml, onMount, onClose, variant = 'auto', dismissOnBackdrop: dismissible = true, initialFocus, footerHtml }) {
     // Opening a modal while another is open replaces it rather than
     // stacking a second backdrop; the browser-history entry is reused.
     if (activeBackdrop) closeNow({ keepHistory: true });
@@ -42,8 +43,7 @@ const Modal = (function () {
     activeOnClose = onClose || null;
     dismissOnBackdrop = dismissible;
     lastFocused = document.activeElement;
-    previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    ScrollLock.acquire('modal');
 
     const asSheet = variant !== 'dialog' && prefersSheet();
 
@@ -61,6 +61,7 @@ const Modal = (function () {
           </button>
         </div>
         <div class="modal-body">${bodyHtml}</div>
+        ${footerHtml ? `<div class="modal-footer">${footerHtml}</div>` : ''}
       </div>
     `;
 
@@ -89,7 +90,7 @@ const Modal = (function () {
 
     const target = (initialFocus && backdrop.querySelector(initialFocus))
       || backdrop.querySelector('.modal-body input:not([type="hidden"]), .modal-body textarea, .modal-body select')
-      || backdrop.querySelector('.modal-body button, .modal-body a[href]')
+      || backdrop.querySelector('.modal-body button, .modal-body a[href], .modal-footer button, .modal-footer a[href]')
       || backdrop.querySelector('.modal-close');
     if (target) target.focus();
   }
@@ -144,7 +145,7 @@ const Modal = (function () {
     const onClose = activeOnClose;
     activeBackdrop = null;
     activeOnClose = null;
-    document.body.style.overflow = previousOverflow;
+    ScrollLock.release('modal');
     document.removeEventListener('keydown', keyHandler);
 
     if (historyPushed && !keepHistory && window.history.state && window.history.state.jrModal) {

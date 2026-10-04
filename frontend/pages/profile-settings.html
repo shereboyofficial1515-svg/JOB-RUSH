@@ -25,7 +25,7 @@
       <button class="btn btn-ghost btn-block" id="logout-btn" style="justify-content: flex-start;">Log out</button>
     </aside>
 
-    <div class="dashboard-main" style="max-width: 760px;">
+    <div class="dashboard-main" style="max-width: 920px;">
       <div class="dashboard-topbar">
         <h1 id="page-heading" class="page-title">Profile</h1>
         <div id="notif-bell-mount"></div>
@@ -42,6 +42,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="../js/config/assets.js"></script>
   <script src="../js/config/env.js"></script>
+  <script src="../js/utils/scrollLock.js"></script>
+  <script src="../js/utils/jrSelect.js"></script>
   <script src="../js/config/api.js"></script>
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
@@ -1565,67 +1567,87 @@
     // was last viewed for the duration of this page load only.
     let businessViewAs = 'worker';
 
-    function storefrontPhotoHtml(profile) {
-      const url = profile?.storefront_photo_url;
-      const canUpload = !!profile; // needs an existing (saved) business profile to attach a photo to
+    // The "Business photo" section. It owns its own state (`url`) and redraws only
+    // itself, so changing the photo never reloads the form and loses unsaved edits.
+    // With a saved business profile the change is stored at once; before the first
+    // save the new image is held and sent with the form (see getPendingUrl()).
+    function storefrontPhotoHtml() {
       return `
-      <div class="field">
-        <label>Storefront / business photo</label>
-        <div class="field-hint" style="margin-bottom: var(--space-3);">A real photo of your shop, workspace, or business front — shown as a banner on your business profile card. Not your profile picture.</div>
-        <div id="storefront-photo-preview" style="width:100%; max-width:480px; aspect-ratio:16/9; border-radius: var(--radius-lg, 12px); overflow:hidden; background: var(--bg-muted, #f3f4f6); border: 1px solid var(--border-subtle, #e5e7eb); display:flex; align-items:center; justify-content:center;">
-          ${url
-          ? `<img src="${url}" alt="Storefront photo" style="width:100%; height:100%; object-fit:cover;" />`
-          : `<span class="text-secondary text-sm">No storefront photo yet</span>`
-        }
-        </div>
-        ${canUpload ? `
-        <div style="margin-top: var(--space-3); display:flex; gap: var(--space-2);">
-          <button type="button" class="btn btn-sm btn-secondary" id="storefront-photo-btn">${url ? 'Replace photo' : 'Upload photo'}</button>
-          ${url ? `<button type="button" class="btn btn-sm btn-ghost" id="storefront-photo-remove-btn">Remove photo</button>` : ''}
-        </div>
-        ` : `<div class="field-hint" style="margin-top: var(--space-2);">Save your business name below first, then come back to add a photo.</div>`}
-      </div>
-    `;
+      <section class="biz-photo field" id="biz-photo" aria-labelledby="biz-photo-title"></section>`;
     }
 
-    function wireStorefrontPhotoUpload(businessApiPath) {
-      const btn = document.getElementById('storefront-photo-btn');
-      const removeBtn = document.getElementById('storefront-photo-remove-btn');
-      if (!btn) return;
+    function wireStorefrontPhotoUpload(businessApiPath, profile) {
+      const root = document.getElementById('biz-photo');
+      let url = profile?.storefront_photo_url || null;
+      let hasProfile = !!profile;
+      let busy = false;
 
-      btn.addEventListener('click', async () => {
-        const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
-        if (!file) return;
-        const originalLabel = btn.textContent;
-        btn.disabled = true;
-        try {
-          const uploaded = await Upload.uploadStorefrontPhoto(file, (percent) => {
-            btn.textContent = `Uploading… ${percent}%`;
+      function render(progress) {
+        const uploading = typeof progress === 'number';
+        root.innerHTML = `
+          <h4 class="biz-photo-title" id="biz-photo-title">Business photo</h4>
+          <p class="field-hint">A real photo of your shop, workspace or business front. It appears as the banner on your business profile — it is not your profile picture.</p>
+          <div class="biz-photo-frame ${url ? 'has-photo' : ''}">
+            ${url
+              ? `<img src="${esc(url)}" alt="Your business photo" />`
+              : `<div class="biz-photo-empty"><span>No business photo yet</span></div>`}
+            ${uploading ? `<div class="biz-photo-progress" role="status" aria-live="polite">Uploading… ${progress}%</div>` : ''}
+          </div>
+          <div class="btn-row biz-photo-actions">
+            <button type="button" class="btn btn-sm btn-secondary" data-act="pick" ${busy ? 'disabled' : ''}>${url ? 'Replace photo' : 'Upload photo'}</button>
+            ${url ? `<button type="button" class="btn btn-sm btn-ghost" data-act="preview" ${busy ? 'disabled' : ''}>Preview</button>
+            <button type="button" class="btn btn-sm btn-ghost" data-act="remove" ${busy ? 'disabled' : ''}>Remove photo</button>` : ''}
+          </div>
+          ${!hasProfile ? `<p class="field-hint">${url ? 'This photo is saved when you save your business profile below.' : 'You can add the photo now; it is saved together with your business profile.'}</p>` : ''}`;
+      }
+
+      async function save(nextUrl) {
+        if (!hasProfile) { url = nextUrl; return; }
+        await API.put(businessApiPath, { storefrontPhotoUrl: nextUrl });
+        url = nextUrl;
+      }
+
+      root.addEventListener('click', async (e) => {
+        const act = e.target.closest('[data-act]')?.dataset.act;
+        if (!act || busy) return;
+        if (act === 'preview') {
+          Modal.open({
+            title: 'Business photo',
+            variant: 'dialog',
+            bodyHtml: `<img src="${esc(url)}" alt="Your business photo" style="display:block; width:100%; height:auto; max-height:70vh; object-fit:contain; border-radius: var(--radius-md);" />`,
           });
-          await API.put(businessApiPath, { storefrontPhotoUrl: uploaded.publicUrl });
-          Toast.success('Storefront photo updated.');
-          loadTab('business');
-        } catch (err) {
-          Toast.error(err.message);
-        } finally {
-          btn.textContent = originalLabel;
-          btn.disabled = false;
+          return;
+        }
+        if (act === 'pick') {
+          const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
+          if (!file) return;
+          busy = true; render(0);
+          try {
+            const uploaded = await Upload.uploadStorefrontPhoto(file, (percent) => { render(percent); });
+            await save(uploaded.publicUrl);
+            Toast.success(hasProfile ? 'Business photo saved.' : 'Photo added. Save your business profile to keep it.');
+          } catch (err) {
+            Toast.error(err.message);
+          } finally { busy = false; render(); }
+          return;
+        }
+        if (act === 'remove') {
+          busy = true; render();
+          try {
+            await save(null);
+            Toast.success('Business photo removed.');
+          } catch (err) {
+            Toast.error(err.message);
+          } finally { busy = false; render(); }
         }
       });
 
-      if (removeBtn) {
-        removeBtn.addEventListener('click', async () => {
-          removeBtn.disabled = true;
-          try {
-            await API.put(businessApiPath, { storefrontPhotoUrl: null });
-            Toast.success('Storefront photo removed.');
-            loadTab('business');
-          } catch (err) {
-            Toast.error(err.message);
-            removeBtn.disabled = false;
-          }
-        });
-      }
+      render();
+      return {
+        /** Photo chosen before the business profile existed; sent with the first save. */
+        getPendingUrl() { return hasProfile ? undefined : (url || undefined); },
+        markSaved() { hasProfile = true; render(); },
+      };
     }
 
     // ------------------------------------------------------------
@@ -1754,7 +1776,7 @@
             Show my business profile publicly
           </label>
         </div>
-        ${storefrontPhotoHtml(profile)}
+        ${storefrontPhotoHtml()}
         <div class="field">
           <label for="biz-name">Business name</label>
           <input type="text" id="biz-name" name="businessName" value="${esc(profile?.business_name || '')}" placeholder="e.g. ABC Electricals" />
@@ -1811,7 +1833,7 @@
         initial: { stateId: profile?.state_id, lgaId: profile?.lga_id, areaId: profile?.area_id },
       });
 
-      wireStorefrontPhotoUpload(businessApiPath);
+      const photo = wireStorefrontPhotoUpload(businessApiPath, profile);
       const hoursEditor = wireBusinessHoursEditor(form, Array.isArray(profile && profile.opening_hours_structured));
 
       form.addEventListener('submit', async (e) => {
@@ -1839,8 +1861,10 @@
             landmark: form.landmark.value.trim() || undefined,
             contactPhone: form.contactPhone.value.trim() || undefined,
             isEnabled: form.isEnabled.checked,
+            storefrontPhotoUrl: photo.getPendingUrl(),
             ...hoursPayload,
           });
+          photo.markSaved();
           Toast.success('Business profile saved.');
         } catch (err) {
           Toast.error(err.message);

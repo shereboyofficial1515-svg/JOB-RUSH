@@ -158,6 +158,8 @@
   /* Minimum touch target (WCAG 2.5.5 / Material): every tappable
      control on a touch device is at least this tall/wide. */
   --touch-target: 44px;
+  /* Floating layers that must sit above modals (500) and the drawer: dropdown panels, sheets. */
+  --z-popover: 1200;
 
   /* ---- Motion (spec section 8) ---- */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);

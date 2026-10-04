@@ -98,6 +98,13 @@ const LocationSelect = (function () {
       if (preselect.lgaId) await loadAreas(preselect.lgaId, preselect.areaId);
     }
 
+    // Long lists are searched, never scrolled: a state has up to ~30 LGAs and an LGA can have
+    // hundreds of areas. An area missing from the list must never block the profile, so the
+    // Area dropdown always offers "Other / Not listed" (leaves it blank, which is valid).
+    stateSelect.dataset.search = 'true';
+    if (lgaSelect) lgaSelect.dataset.search = 'true';
+    if (areaSelect) { areaSelect.dataset.search = 'true'; areaSelect.dataset.notListed = 'Other / Not listed'; }
+
     resetLga('Select a state first');
     resetArea('Select an LGA first');
 

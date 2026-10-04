@@ -74,6 +74,14 @@ body.has-bottom-nav
 
 Touch targets: every `.btn`, including `.btn-sm`, is at least `--touch-target` (44px) on coarse pointers. On phones, `h3` inside dashboard pages uses `--type-section-title`.
 
+## Desktop shell, scrolling and overlays
+
+* **One scroller.** On desktop the page (the document) scrolls; `.dashboard-sidebar` is `position: sticky; height: 100dvh` and its nav scrolls inside it with a slim visible scrollbar (hidden only on touch layouts, <= 900px). There is no `overflow` on `html`/`body`, no fixed-height main column, and no `overflow-y: scroll` band-aid.
+* **`ScrollLock` (js/utils/scrollLock.js) is the only thing that locks scrolling.** Modal, mobile drawer, app-lock overlay and bottom sheets call `ScrollLock.acquire('name')` / `release('name')`. Never write `document.body.style.overflow` directly: two overlays restoring each other's saved value is what used to leave a page permanently unscrollable. A stuck lock is also cleared on `pageshow`.
+* **Modals.** `.modal` is capped to the viewport; only `.modal-body` scrolls. Pass `footerHtml` to `Modal.open` for the action row (it stays pinned under the scrolling body), or put buttons in `.modal-actions`, which is `position: sticky; bottom: 0` inside the body. Either way Save / Cancel are always on screen.
+* **Dropdowns: `JRSelect` (js/utils/jrSelect.js).** Every `<select>` is upgraded automatically (opt out with `data-native`). The native select stays in the DOM (hidden) so `.value`, `change`, `innerHTML` rebuilds and form submit keep working. Lists over 7 options get a search box (`data-search="true|false"` overrides). `data-not-listed="Other / Not listed"` adds a final choice that clears the value. Options may carry `data-image`, `data-initials`, `data-sub`. Panels are appended to `<body>` on the `--z-popover` layer (above modals) and flip above the trigger when there is no room below; at <= 640px they are bottom sheets. Do not add new z-index values above `--z-popover`.
+* **Images saved on a profile** (profile photo, cover, business photo) must be one the user uploaded to that bucket: the API rejects any other URL (`storageService.assertOwnedPublicUrl`) and deletes the previous object when a photo is replaced or removed.
+
 ## Rules of thumb
 
 - A value is never shown without its meaning: "12 years of experience", "30 jobs completed", "Starting from ₦200,000", "Mon – Fri".

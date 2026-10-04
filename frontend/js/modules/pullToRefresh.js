@@ -133,7 +133,7 @@ const PullToRefresh = (function () {
     pulling = false;
     distance = 0;
     if (!onRefresh || refreshing || e.touches.length !== 1) return;
-    if (document.body.style.overflow === 'hidden') return; // modal or drawer is open
+    if (ScrollLock.isLocked() || document.body.style.overflow === 'hidden') return; // modal or drawer is open
     if (scrollTop() > 0) return;
     if (!isEnabled()) return;
     if (startsInsideOwnScroller(e.target)) return;

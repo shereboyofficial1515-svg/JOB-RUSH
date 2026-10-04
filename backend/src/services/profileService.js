@@ -2,6 +2,7 @@ const { addKeywordConditions } = require('../utils/searchTerms');
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const locationService = require('./locationService');
+const storageService = require('./storageService');
 const referralService = require('./referralService');
 
 // Fields a user may set on their own worker profile. Trust/visibility
@@ -54,6 +55,21 @@ function pickAllowed(input, allowedFields) {
     }
   }
   return out;
+}
+
+/**
+ * Image URL fields must point at a file this user uploaded to the matching
+ * bucket. A value that is unchanged is accepted as is, so profiles saved before
+ * this check existed can still be edited without re-uploading.
+ */
+async function assertOwnImages(userId, table, updates, bucketByField) {
+  const fields = Object.keys(bucketByField).filter((f) => updates[f]);
+  if (fields.length === 0) return;
+  const { rows } = await query(`SELECT ${fields.join(', ')} FROM ${table} WHERE user_id = $1`, [userId]);
+  const current = rows[0] || {};
+  for (const f of fields) {
+    if (updates[f] !== current[f]) storageService.assertOwnedPublicUrl(bucketByField[f], userId, updates[f], 'photo');
+  }
 }
 
 function computeWorkerCompletionPercent(profile, skillCount) {
@@ -121,6 +137,7 @@ async function updateWorkerProfile(userId, input) {
   await ensureWorkerProfileRow(userId);
 
   const updates = pickAllowed(input, WORKER_EDITABLE_FIELDS);
+  await assertOwnImages(userId, 'worker_profiles', updates, { profile_picture_url: 'PROFILE_PICTURES', cover_photo_url: 'PROFILE_COVERS' });
 
   await locationService.assertLocationAllowed({
     stateId: updates.state_id,
@@ -279,6 +296,7 @@ async function searchWorkers({
             wp.verification_status, wp.is_pro, wp.rating_avg, wp.rating_count,
             wp.completed_jobs_count, wp.availability_status, wp.starting_price,
             wp.price_currency, u.full_name, st.name AS state_name, l.name AS lga_name,
+            bz.business_name, bz.storefront_photo_url AS business_photo_url,
             EXISTS (
               SELECT 1 FROM portfolios p JOIN portfolio_media pm ON pm.portfolio_id = p.id
                WHERE p.worker_user_id = wp.user_id AND pm.media_type = 'video'
@@ -288,6 +306,7 @@ async function searchWorkers({
        LEFT JOIN user_settings us ON us.user_id = wp.user_id
        LEFT JOIN states st ON st.id = wp.state_id
        LEFT JOIN lgas l ON l.id = wp.lga_id
+       LEFT JOIN business_profiles bz ON bz.worker_user_id = wp.user_id AND bz.is_enabled = true
       WHERE ${conditions.join(' AND ')}
       ORDER BY ${firstTerm ? `(wp.professional_title ILIKE ${firstTerm}) DESC, ` : ''}wp.is_pro DESC, wp.rating_avg DESC, wp.profile_completion_percent DESC
       LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -311,6 +330,7 @@ async function updateHirerProfile(userId, input) {
   await ensureHirerProfileRow(userId);
 
   const updates = pickAllowed(input, HIRER_EDITABLE_FIELDS);
+  await assertOwnImages(userId, 'hirer_profiles', updates, { profile_picture_url: 'PROFILE_PICTURES' });
 
   await locationService.assertLocationAllowed({
     stateId: updates.state_id,

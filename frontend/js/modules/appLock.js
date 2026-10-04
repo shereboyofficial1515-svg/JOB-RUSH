@@ -99,8 +99,7 @@ const AppLock = (function () {
         <div class="app-lock-message" id="app-lock-message" role="status" aria-live="polite"></div>
         <button type="button" class="btn-link-light" id="app-lock-password">Use password instead</button>
       `;
-      const previousOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      ScrollLock.acquire('app-lock');
       document.body.appendChild(overlay);
 
       const unlockBtn = overlay.querySelector('#app-lock-unlock');
@@ -126,7 +125,7 @@ const AppLock = (function () {
           overlay.remove();
           overlay = null;
           pending = null;
-          document.body.style.overflow = previousOverflow;
+          ScrollLock.release('app-lock');
           resolve();
           return;
         }
