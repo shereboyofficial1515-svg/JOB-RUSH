@@ -56,6 +56,8 @@ async function sendDataToUser(userId, data) {
   const stringData = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)]));
 
   let sent = 0;
+  let failed = 0;
+  let lastError = null;
   await Promise.all(
     devices.map(async (device) => {
       try {
@@ -77,10 +79,12 @@ async function sendDataToUser(userId, data) {
         } else {
           logger.error('FCM send failed', { userId, error: err.message, code: err.code });
         }
+        failed += 1;
+        lastError = `${err.code || 'error'}: ${err.message}`;
       }
     })
   );
-  return { sent };
+  return { sent, failed, lastError };
 }
 
 module.exports = { isConfigured, registerToken, unregisterToken, sendDataToUser };
