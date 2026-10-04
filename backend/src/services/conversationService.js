@@ -146,7 +146,8 @@ async function listConversationsForUser(userId, { archived = false } = {}) {
             CASE WHEN lm.id IS NULL THEN NULL
                  ELSE COALESCE(NULLIF(lm.content, ''),
                       CASE lm.message_type WHEN 'image' THEN 'Photo' WHEN 'voice_note' THEN 'Voice message'
-                                           WHEN 'document' THEN 'File' WHEN 'video' THEN 'Video' END)
+                                           WHEN 'document' THEN 'File' WHEN 'video' THEN 'Video'
+                                           WHEN 'call' THEN 'Call' END)
             END AS last_message_preview,
             lm.message_type AS last_message_type,
             lm.sender_id AS last_message_sender_id,

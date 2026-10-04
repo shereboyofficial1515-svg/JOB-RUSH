@@ -68,46 +68,31 @@
   <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     const PAGE_SIZE = 20;
-    let nextPage = 1;
+    let cursor = null; // created_at of the oldest notification shown; the next batch is older than this
     let loading = false;
 
-    function wireRows(root) {
-      root.querySelectorAll('.notif-row.is-unread').forEach((row) => {
-        row.addEventListener('click', async () => {
-          row.classList.remove('is-unread');
-          try {
-            await API.post(`/notifications/${row.dataset.notifId}/read`);
-            NotificationBell.refresh();
-          } catch {
-            // The row already looks read; the next refresh reconciles if the write failed.
-          }
-        }, { once: true });
-      });
-    }
-
-    // reset=true replaces the list with page 1 (first load, pull-to-
-    // refresh); otherwise appends the next page. Throws on a failed
-    // request so a refresh can report it instead of silently showing
-    // stale data.
+    // reset=true replaces the list with the newest batch (first load, pull-to-refresh); otherwise it
+    // appends the next, older batch. Throws on a failed request so a refresh can report it instead of
+    // silently showing stale data.
     async function loadNotifications(reset) {
       if (loading) return;
       loading = true;
       const list = document.getElementById('notifications-list');
       const moreBtn = document.getElementById('load-more-btn');
       try {
-        const page = reset ? 1 : nextPage;
-        const { notifications } = await API.get(`/notifications?page=${page}&pageSize=${PAGE_SIZE}`);
+        const before = reset || !cursor ? '' : `&before=${encodeURIComponent(cursor)}`;
+        const { notifications, nextBefore } = await API.get(`/notifications?pageSize=${PAGE_SIZE}${before}`);
         if (reset) list.innerHTML = '';
         if (reset && notifications.length === 0) {
-          StateView.empty(list, { icon: 'bell', title: 'You’re all caught up', message: 'New messages, applications, interviews and payments will appear here.' });
+          StateView.empty(list, { icon: 'bell', title: 'You’re all caught up', message: 'New messages, calls, applications, interviews and payments will appear here.' });
         } else {
           const holder = document.createElement('div');
-          holder.innerHTML = notifications.map(NotificationBell.rowHtml).join('');
-          wireRows(holder);
+          holder.innerHTML = NotificationBell.rowsHtml(notifications);
+          NotificationBell.wireRows(holder, () => NotificationBell.refresh());
           while (holder.firstChild) list.appendChild(holder.firstChild);
         }
-        nextPage = page + 1;
-        moreBtn.hidden = notifications.length < PAGE_SIZE;
+        cursor = nextBefore;
+        moreBtn.hidden = !nextBefore;
         NotificationBell.refresh();
       } catch (err) {
         if (reset && !list.querySelector('.notif-row')) {

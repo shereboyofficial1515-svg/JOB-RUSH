@@ -142,7 +142,7 @@ const Chat = (function () {
     });
   }
   function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch { /* not supported */ } }
-  function typeLabel(t) { return ({ image: 'Photo', voice_note: 'Voice message', document: 'File', video: 'Video' })[t] || ''; }
+  function typeLabel(t) { return ({ image: 'Photo', voice_note: 'Voice message', document: 'File', video: 'Video', call: 'Call' })[t] || ''; }
   function previewOf(m) {
     if (m.deleted_at) return 'This message was deleted';
     return m.content || typeLabel(m.message_type) || '';
@@ -412,7 +412,31 @@ const Chat = (function () {
     }).join('');
   }
 
+  /**
+   * A call outcome in the conversation. The facts (type, status, who called, length) come from the
+   * call itself on the server; what is shown depends on who is looking. A call that was never answered
+   * (timed out, or cancelled by the caller) reads "Missed" to the person who was called.
+   */
+  function callCardHtml(m) {
+    const c = m.call || {};
+    const type = c.call_type === 'video' ? 'video' : 'audio';
+    const iAmCaller = c.caller_user_id === me();
+    let text; let missed = false;
+    if (c.status === 'ended') text = `${type === 'video' ? 'Video' : 'Audio'} call · ${fmtDuration(c.duration_seconds)}`;
+    else if (c.status === 'declined') text = iAmCaller ? `${type === 'video' ? 'Video' : 'Audio'} call declined` : `You declined a ${type} call`;
+    else if (c.status === 'cancelled') { text = iAmCaller ? `Cancelled ${type} call` : `Missed ${type} call`; missed = !iAmCaller; }
+    else if (c.status === 'missed') { text = iAmCaller ? `No answer · ${type} call` : `Missed ${type} call`; missed = !iAmCaller; }
+    else text = `${type === 'video' ? 'Video' : 'Audio'} call`;
+    const icon = type === 'video' ? I.video : I.phone;
+    return `<div class="call-card ${missed ? 'is-missed' : ''}" data-message-id="${m.id}" role="group" aria-label="${esc(text)}, ${esc(fmtTime(m.created_at))}">
+      <span class="call-card-icon" aria-hidden="true">${icon}</span>
+      <span class="call-card-text"><strong>${esc(text)}</strong><span>${fmtTime(m.created_at)}</span></span>
+      <button type="button" class="call-card-back" data-callback="${type}" aria-label="Call back with ${type} call">Call back</button>
+    </div>`;
+  }
+
   function bubbleHtml(m, isNew) {
+    if (m.message_type === 'call' && m.call) return callCardHtml(m);
     const isOwn = m.sender_id === me();
     const deleted = !!m.deleted_at;
     const failed = m._status === 'failed';
@@ -1548,6 +1572,7 @@ const Chat = (function () {
     els.messages.addEventListener('click', (e) => {
       const retry = e.target.closest('[data-retry]'); if (retry) { retrySend(retry.dataset.retry); return; }
       const discard = e.target.closest('[data-discard]'); if (discard) { discardPending(discard.dataset.discard); return; }
+      const callBack = e.target.closest('[data-callback]'); if (callBack) { startCall(callBack.dataset.callback); return; }
       const go = e.target.closest('[data-goto]'); if (go) { jumpTo(go.dataset.goto); return; }
       const bubble = e.target.closest('[data-message-id]');
       const menu = e.target.closest('[data-bubble-menu]'); if (menu && bubble) { const m = findMsg(bubble.dataset.messageId); if (m) openMessageActions(bubble, m); return; }

@@ -118,37 +118,76 @@ self.addEventListener('push', (event) => {
     payload = { title: 'JOB RUSH', body: event.data ? event.data.text() : '' };
   }
 
+  const data = payload.data || {};
   const title = payload.title || 'JOB RUSH';
+  const isIncomingCall = data.type === 'incoming_call';
   const options = {
     body: payload.body || '',
     icon: 'assets/images/logo-160.png',
     badge: 'assets/images/logo-96.png',
     tag: payload.tag || undefined,
     requireInteraction: !!payload.requireInteraction,
-    data: payload.data || {},
+    data,
   };
+  // A call is not an ordinary notification: it can be answered or declined right from it.
+  if (isIncomingCall) {
+    options.actions = [
+      { action: 'accept', title: 'Accept' },
+      { action: 'decline', title: 'Decline' },
+    ];
+    options.renotify = true;
+  }
+  // The call is over (cancelled, declined or answered on another device). Same tag => this REPLACES
+  // the ringing alert, so no stale "incoming call" is left behind. A missed call stays as a normal
+  // notification; anything else is a quiet "Call ended" that removes itself.
+  const quiet = data.quiet === true || data.type === 'call_ended';
+  if (quiet) {
+    options.silent = true;
+    options.requireInteraction = false;
+  }
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, options);
+      if (quiet && payload.tag) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const shown = await self.registration.getNotifications({ tag: payload.tag });
+        shown.forEach((n) => { if (n.data && n.data.type === 'call_ended') n.close(); });
+      }
+    })()
+  );
 });
 
 /**
- * Routes a click on the OS-level notification to the right in-app
- * screen: an incoming call goes to the dashboard (where
- * IncomingCallWatcher is already running and will surface the
- * answer/reject modal within its next 3s poll), a new message goes
- * straight to that conversation. If a Job Rush tab is already open,
- * it's focused and navigated in place rather than opening a duplicate
- * tab.
+ * Routes a click on the OS-level notification to the right in-app screen: an incoming call can be
+ * accepted (opens the call) or declined (tells the server, no page needed) straight from the
+ * notification; a message or missed call opens that conversation; everything else opens the app.
+ * If a Job Rush tab is already open it is focused and navigated in place rather than opening a
+ * duplicate tab.
  */
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
 
+  if (data.type === 'incoming_call' && event.action === 'decline' && data.callId) {
+    event.waitUntil(
+      fetch(`/api/messaging/calls/${encodeURIComponent(data.callId)}/status`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'declined' }),
+      }).catch(() => { /* the server's own timeout still ends it */ })
+    );
+    return;
+  }
+
   let targetPath = 'pages/dashboard.html';
-  if (data.type === 'incoming_call') {
-    targetPath = 'pages/dashboard.html';
+  if (data.type === 'incoming_call' && event.action === 'accept' && data.callId) {
+    targetPath = `pages/call-room.html?type=call&id=${encodeURIComponent(data.callId)}`;
   } else if (data.conversationId) {
     targetPath = `pages/messages.html?conversation=${encodeURIComponent(data.conversationId)}`;
+  } else if (data.type === 'incoming_call') {
+    targetPath = 'pages/dashboard.html';
   }
 
   event.waitUntil(

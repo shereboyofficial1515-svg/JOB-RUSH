@@ -324,3 +324,19 @@
   .chat-scrim, .chat-sheet { animation: none; }
   .message-bubble.is-flash { animation: none; box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.65); }
 }
+
+/* ---------- Call event card (a real message of type "call") ---------- */
+.call-card {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: min(360px, 92%); margin: var(--space-3) auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+}
+.call-card-icon { flex-shrink: 0; display: inline-flex; width: 36px; height: 36px; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-elevated); color: var(--text-secondary); }
+.call-card-icon svg { width: 18px; height: 18px; }
+.call-card.is-missed .call-card-icon { background: rgba(220, 53, 69, 0.12); color: var(--status-danger); }
+.call-card.is-missed strong { color: var(--status-danger); }
+.call-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--text-sm); }
+.call-card-text span { font-size: var(--text-xs); color: var(--text-secondary); }
+.call-card-back { flex-shrink: 0; min-height: var(--touch-target); padding: 0 var(--space-3); border: 1px solid var(--accent); border-radius: var(--radius-pill); background: transparent; color: var(--accent-text); font-weight: 600; }
+.call-card-back:hover { background: rgba(201, 162, 39, 0.12); }

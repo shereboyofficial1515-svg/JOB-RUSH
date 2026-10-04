@@ -317,6 +317,9 @@ app.use(errorHandler);
 
 app.listen(env.PORT, () => {
   logger.info(`JOB RUSH auth service listening on port ${env.PORT}`, { env: env.NODE_ENV });
+  // Unanswered calls are timed out here, on the server, so "missed" never depends on a browser
+  // staying open (see callService.sweepStaleCalls).
+  require('./services/callService').startCallSweeper();
 });
 
 module.exports = app;

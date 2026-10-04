@@ -88,11 +88,24 @@ async function hydrateMessages(messages) {
   }]));
   const pinned = new Set(pinRes.rows.map((r) => r.message_id));
 
+  // Call cards: the facts come from the `calls` row, never from anything stored on the message.
+  const callIds = [...new Set(messages.map((m) => m.call_id).filter(Boolean))];
+  const callById = {};
+  if (callIds.length) {
+    const { rows: callRows } = await query(
+      `SELECT id, call_type, status, caller_user_id, callee_user_id, duration_seconds, connected_at, started_at, ended_at
+         FROM calls WHERE id = ANY($1::uuid[])`,
+      [callIds]
+    );
+    for (const c of callRows) callById[c.id] = c;
+  }
+
   return messages.map((m) => ({
     ...m,
     media: m.deleted_at ? [] : (mediaByMessage[m.id] || []),
     reply_to: m.reply_to_message_id ? (replyById[m.reply_to_message_id] || null) : null,
     is_pinned: pinned.has(m.id),
+    call: m.call_id ? (callById[m.call_id] || null) : null,
   }));
 }
 

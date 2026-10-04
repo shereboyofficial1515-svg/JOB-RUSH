@@ -2795,6 +2795,63 @@
       btn.dataset.subscribed = subscribed ? 'true' : 'false';
     }
 
+    // Server-side notification preferences: the master Push switch and one switch per category.
+    const NOTIF_CATEGORY_ROWS = [
+      ['messages', 'Messages', 'New chat messages.'],
+      ['audio_calls', 'Audio calls', 'An alert when someone starts an audio call to you.'],
+      ['video_calls', 'Video calls', 'An alert when someone starts a video call to you.'],
+      ['missed_calls', 'Missed calls', 'A notification when you miss a call.'],
+      ['jobs', 'Jobs', 'Invitations, contracts and reviews.'],
+      ['applications', 'Applications', 'Applications you send or receive, and their status.'],
+      ['interviews', 'Interviews', 'Scheduling, reminders and changes.'],
+      ['payments', 'Payments', 'Escrow, withdrawals, referral rewards and your PRO plan.'],
+      ['security', 'Security alerts', 'New sign-ins and account changes. Always on.'],
+      ['marketing', 'Announcements', 'News and offers from Job Rush.'],
+    ];
+
+    async function loadNotificationSettings() {
+      const body = document.getElementById('notif-settings-body');
+      if (!body) return;
+      try {
+        const { preferences } = await API.get('/notifications/preferences');
+        const cats = preferences.categories || {};
+        body.innerHTML = `
+          ${settingsRowHtml('Push notifications', 'Master switch. Off means Job Rush sends nothing to your devices (your in-app notifications are still kept).', toggleHtml('notif-push-master', preferences.push_enabled !== false))}
+          <div id="notif-category-rows">
+            ${NOTIF_CATEGORY_ROWS.map(([key, title, desc]) => settingsRowHtml(title, desc, toggleHtml(`notif-cat-${key}`, cats[key] !== false && (key !== 'marketing' || cats[key] === true), key === 'security' ? 'title="Always on"' : ''))).join('')}
+          </div>`;
+        const sec = document.getElementById('notif-cat-security');
+        if (sec) { sec.checked = true; sec.disabled = true; }
+        const syncDisabled = () => {
+          const off = !document.getElementById('notif-push-master').checked;
+          document.getElementById('notif-category-rows').classList.toggle('is-disabled', off);
+          NOTIF_CATEGORY_ROWS.forEach(([key]) => { if (key !== 'security') document.getElementById(`notif-cat-${key}`).disabled = off; });
+        };
+        syncDisabled();
+        const save = async (patch, input) => {
+          input.disabled = true;
+          try {
+            await API.patch('/notifications/preferences', patch);
+            Toast.success('Notification settings saved.');
+          } catch (err) {
+            input.checked = !input.checked; // put the switch back: the server did not take it
+            Toast.error(err.message);
+          } finally {
+            input.disabled = false;
+            syncDisabled();
+          }
+        };
+        document.getElementById('notif-push-master').addEventListener('change', (e) => save({ pushEnabled: e.target.checked }, e.target).then(syncDisabled));
+        NOTIF_CATEGORY_ROWS.forEach(([key]) => {
+          if (key === 'security') return;
+          document.getElementById(`notif-cat-${key}`).addEventListener('change', (e) => save({ categories: { [key]: e.target.checked } }, e.target));
+        });
+      } catch (err) {
+        body.innerHTML = `<p class="text-secondary text-sm">${esc(err.message)}</p><button type="button" class="btn btn-ghost btn-sm" id="notif-settings-retry">Retry</button>`;
+        document.getElementById('notif-settings-retry').addEventListener('click', loadNotificationSettings);
+      }
+    }
+
     function wirePushNotificationsButton() {
       const btn = document.getElementById('push-notifications-btn');
       refreshPushButton(btn);
@@ -2886,6 +2943,12 @@
           </select>`)}
       </div>
 
+      <div class="card card-spaced" id="notif-settings-card">
+        <h3>Notification settings</h3>
+        <p class="text-secondary text-sm" style="margin-bottom: var(--space-3);">What Job Rush sends to your devices. Whether this phone or browser lets notifications appear at all is controlled by its own permission, below.</p>
+        <div id="notif-settings-body"><div class="skeleton" style="height:48px;"></div></div>
+      </div>
+
       <div class="card card-spaced">
         <h3>Notifications & media</h3>
         ${settingsRowHtml('Push notifications', 'Get a phone/desktop notification for new messages and incoming calls, even when Job Rush isn\'t the tab you\'re looking at.', `<button type="button" class="btn btn-sm btn-secondary" id="push-notifications-btn">Checking...</button>`)}
@@ -2928,6 +2991,7 @@
     `;
 
       wirePushNotificationsButton();
+      loadNotificationSettings();
       document.getElementById('chat-theme-select').addEventListener('change', (e) => patchSettings({ chatTheme: e.target.value }, 'Chat theme updated.'));
       document.getElementById('wallpaper-grid').addEventListener('click', async (e) => {
         const btn = e.target.closest('[data-wallpaper-id]');

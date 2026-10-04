@@ -37,6 +37,8 @@ public class IncomingCallService extends Service {
     static final String ACTION_INCOMING = "ng.jobrush.app.action.INCOMING_CALL";
     static final String ACTION_ANSWER = "ng.jobrush.app.action.ANSWER_CALL";
     static final String ACTION_REJECT = "ng.jobrush.app.action.REJECT_CALL";
+    // The server says the call is over (caller hung up, answered on another device, timed out): stop at once.
+    static final String ACTION_CANCEL = "ng.jobrush.app.action.CANCEL_CALL";
 
     static final String EXTRA_CALL_ID = "callId";
     static final String EXTRA_CALL_TYPE = "callType";
@@ -71,6 +73,12 @@ public class IncomingCallService extends Service {
             case ACTION_REJECT:
                 reject();
                 break;
+            case ACTION_CANCEL: {
+                String callId = intent.getStringExtra(EXTRA_CALL_ID);
+                // Only the call that is actually ringing; a late message about an older call must not cut a new one short.
+                if (currentCallId == null || callId == null || callId.equals(currentCallId)) stopForSelf();
+                break;
+            }
         }
         return START_NOT_STICKY;
     }

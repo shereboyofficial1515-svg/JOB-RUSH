@@ -7,40 +7,154 @@
 const NotificationBell = (function () {
   let pollTimer = null;
 
-  // Notification type -> shared icon (js/utils/icons.js). No emoji: they
-  // render differently per device and don't match the rest of the UI.
-  const TYPE_ICONS = {
-    new_message: 'message',
-    application_submitted: 'document',
-    interview_scheduled: 'calendar',
-    contract_created: 'document',
-    withdrawal_requested: 'wallet',
-    subscription_renewed: 'star',
-    referral_new_signup: 'link',
-    referral_qualified: 'check',
-    referral_milestone_reached: 'star',
-    referral_reward_approved: 'wallet',
-    referral_reward_paid: 'wallet',
-    referred_welcome: 'user',
+  // Notification type -> { icon, tone }. One consistent event model: the type decides the icon, the
+  // colour and where a tap goes. No emoji: they render differently per device.
+  const TYPE_META = {
+    new_message: { icon: 'message', tone: 'info' },
+    call_missed: { icon: 'phone', tone: 'danger' },
+    application_submitted: { icon: 'document', tone: 'info' },
+    application_received: { icon: 'document', tone: 'info' },
+    application_status_changed: { icon: 'document', tone: 'info' },
+    job_invitation: { icon: 'briefcase', tone: 'info' },
+    contract_created: { icon: 'document', tone: 'info' },
+    review_received: { icon: 'star', tone: 'gold' },
+    interview_scheduled: { icon: 'calendar', tone: 'info' },
+    interview_response: { icon: 'calendar', tone: 'info' },
+    interview_reminder: { icon: 'calendar', tone: 'gold' },
+    interview_cancelled: { icon: 'calendar', tone: 'danger' },
+    escrow_funded: { icon: 'wallet', tone: 'success' },
+    escrow_released: { icon: 'wallet', tone: 'success' },
+    withdrawal_requested: { icon: 'wallet', tone: 'info' },
+    withdrawal_approved: { icon: 'wallet', tone: 'success' },
+    withdrawal_rejected: { icon: 'wallet', tone: 'danger' },
+    dispute_opened: { icon: 'shield', tone: 'danger' },
+    dispute_resolved: { icon: 'shield', tone: 'info' },
+    verification_approved: { icon: 'shield', tone: 'success' },
+    verification_rejected: { icon: 'shield', tone: 'danger' },
+    subscription_activated: { icon: 'star', tone: 'gold' },
+    subscription_renewed: { icon: 'star', tone: 'gold' },
+    subscription_expiring: { icon: 'star', tone: 'gold' },
+    subscription_expired: { icon: 'star', tone: 'danger' },
+    subscription_cancelled: { icon: 'star', tone: 'danger' },
+    new_device_login: { icon: 'shield', tone: 'danger' },
+    account_deactivated: { icon: 'shield', tone: 'danger' },
+    referral_new_signup: { icon: 'link', tone: 'info' },
+    referral_qualified: { icon: 'check', tone: 'success' },
+    referral_milestone_reached: { icon: 'star', tone: 'gold' },
+    referral_reward_approved: { icon: 'wallet', tone: 'success' },
+    referral_reward_paid: { icon: 'wallet', tone: 'success' },
+    referred_welcome: { icon: 'user', tone: 'info' },
+    announcement: { icon: 'bell', tone: 'info' },
   };
 
-  function timeAgo(dateStr) {
-    const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    return `${Math.floor(diff / 86400)}d ago`;
+  /**
+   * Professional timestamps in the person's own timezone: "Just now", "2 min ago", "3 hr ago",
+   * "Yesterday", the weekday for the last week, "Oct 3", and "Oct 3, 2026" for another year.
+   */
+  function timeAgo(dateStr, now = new Date()) {
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return '';
+    const sec = Math.max(0, (now.getTime() - d.getTime()) / 1000);
+    if (sec < 60) return 'Just now';
+    if (sec < 3600) return `${Math.floor(sec / 60)} min ago`;
+    const startOfDay = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const dayDiff = Math.round((startOfDay(now) - startOfDay(d)) / 86400000);
+    if (dayDiff === 0) return `${Math.floor(sec / 3600)} hr ago`;
+    if (dayDiff === 1) return 'Yesterday';
+    if (dayDiff < 7) return d.toLocaleDateString(undefined, { weekday: 'long' });
+    if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  /** Where tapping a notification goes: the specific conversation, application, interview or wallet, not just the list. */
+  function targetFor(n) {
+    const d = n.data || {};
+    if (d.conversationId) return `/pages/messages.html?conversation=${encodeURIComponent(d.conversationId)}`;
+    switch (n.type) {
+      case 'application_received': return d.jobId ? `/pages/applicants.html?jobId=${encodeURIComponent(d.jobId)}` : '/pages/applicants.html';
+      case 'application_submitted':
+      case 'application_status_changed': return '/pages/applications.html';
+      case 'job_invitation': return d.jobId ? `/pages/job-detail.html?id=${encodeURIComponent(d.jobId)}` : '/pages/jobs.html';
+      case 'interview_scheduled': case 'interview_response': case 'interview_reminder': case 'interview_cancelled': return '/pages/interviews.html';
+      case 'contract_created': case 'dispute_opened': case 'dispute_resolved': case 'escrow_funded': return '/pages/contracts.html';
+      case 'escrow_released': case 'withdrawal_requested': case 'withdrawal_approved': case 'withdrawal_rejected': return '/pages/wallet.html';
+      case 'subscription_activated': case 'subscription_renewed': case 'subscription_expiring': case 'subscription_expired': case 'subscription_cancelled': return '/pages/pro.html';
+      case 'verification_approved': case 'verification_rejected': return '/pages/profile-settings.html?tab=profile';
+      case 'new_device_login': return '/pages/profile-settings.html?tab=sessions';
+      case 'referral_new_signup': case 'referral_qualified': case 'referral_milestone_reached': case 'referral_reward_approved': case 'referral_reward_paid': return '/pages/referral.html';
+      default: return null;
+    }
+  }
+
+  /**
+   * Collapses a run of "new message" notifications from the same conversation into one row
+   * ("3 new messages"). Calls and everything else are never merged, so a missed call always stays visible.
+   */
+  function groupNotifications(list) {
+    const out = [];
+    for (const n of list) {
+      const last = out[out.length - 1];
+      const convo = n.type === 'new_message' && n.data && n.data.conversationId;
+      if (convo && last && last.type === 'new_message' && last.data && last.data.conversationId === convo) {
+        last.ids.push(n.id);
+        last.count += 1;
+        if (!n.read_at) last.read_at = null;
+        continue;
+      }
+      out.push({ ...n, ids: [n.id], count: 1 });
+    }
+    return out;
   }
 
   function notificationRowHtml(n) {
-    const icon = typeof Icons !== 'undefined' && TYPE_ICONS[n.type] ? Icons[TYPE_ICONS[n.type]] : '';
+    const meta = TYPE_META[n.type] || { icon: 'bell', tone: 'info' };
+    const icon = typeof Icons !== 'undefined' && Icons[meta.icon] ? Icons[meta.icon] : '';
+    const ids = n.ids || [n.id];
+    const grouped = (n.count || 1) > 1;
+    const title = grouped ? `${n.count} new messages` : n.title;
+    const href = targetFor(n);
+    const when = timeAgo(n.created_at);
     return `
-      <div class="notif-row ${n.read_at ? '' : 'is-unread'}" data-notif-id="${n.id}">
-        <div class="notif-row-title">${icon ? `<span class="notif-row-icon" aria-hidden="true">${icon}</span>` : ''}<span>${esc(n.title)}</span></div>
-        ${n.body ? `<div class="notif-row-body">${esc(n.body)}</div>` : ''}
-        <div class="notif-row-time">${timeAgo(n.created_at)}</div>
+      <div class="notif-row notif-tone-${meta.tone} ${n.read_at ? '' : 'is-unread'}" data-notif-id="${ids[0]}" data-notif-ids="${ids.join(',')}" ${href ? `data-href="${esc(href)}" role="link"` : ''} tabindex="0">
+        <span class="notif-row-icon" aria-hidden="true">${icon}</span>
+        <div class="notif-row-main">
+          <div class="notif-row-title"><span>${esc(title)}</span>${n.read_at ? '' : '<span class="notif-dot" role="img" aria-label="Unread"></span>'}</div>
+          ${n.body ? `<div class="notif-row-body">${esc(n.body)}</div>` : ''}
+          <time class="notif-row-time" datetime="${esc(new Date(n.created_at).toISOString())}" title="${esc(new Date(n.created_at).toLocaleString())}">${esc(when)}</time>
+        </div>
       </div>
     `;
+  }
+
+  /** Renders a batch (grouped) and returns the HTML. */
+  function rowsHtml(list) {
+    return groupNotifications(list).map(notificationRowHtml).join('');
+  }
+
+  /**
+   * Click / Enter on a row: marks it (and every notification merged into it) read, then goes to where it
+   * points. Reading a notification never touches a call's state; calls follow the server's call status.
+   */
+  function wireRows(root, onRead) {
+    root.querySelectorAll('.notif-row').forEach((row) => {
+      if (row.dataset.wired) return;
+      row.dataset.wired = '1';
+      const activate = async () => {
+        const ids = (row.dataset.notifIds || row.dataset.notifId || '').split(',').filter(Boolean);
+        const wasUnread = row.classList.contains('is-unread');
+        row.classList.remove('is-unread');
+        const dot = row.querySelector('.notif-dot'); if (dot) dot.remove();
+        const go = () => { if (row.dataset.href) window.location.href = row.dataset.href; };
+        if (!wasUnread) { go(); return; }
+        try {
+          await Promise.all(ids.map((id) => API.post(`/notifications/${id}/read`)));
+          if (onRead) onRead();
+        } catch { /* the row already looks read; the next refresh reconciles */ }
+        go();
+      };
+      row.addEventListener('click', activate);
+      row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activate(); } });
+    });
   }
 
   async function loadDropdown(panel) {
@@ -48,22 +162,11 @@ const NotificationBell = (function () {
     try {
       const { notifications } = await API.get('/notifications?pageSize=15');
       panel.innerHTML = notifications.length
-        ? notifications.map(notificationRowHtml).join('')
+        ? rowsHtml(notifications)
         : `<div class="notif-empty text-secondary text-sm">You're all caught up.</div>`;
 
       if (typeof Animate !== 'undefined') Animate.stagger(panel, { max: 6, stepMs: 30 });
-
-      panel.querySelectorAll('.notif-row.is-unread').forEach((row) => {
-        row.addEventListener('click', async () => {
-          row.classList.remove('is-unread');
-          try {
-            await API.post(`/notifications/${row.dataset.notifId}/read`);
-            refreshBadge();
-          } catch {
-            // Non-critical — the row still visually updates even if the write lags.
-          }
-        }, { once: true });
-      });
+      wireRows(panel, refreshBadge);
     } catch (err) {
       panel.innerHTML = `
         <div class="notif-empty text-secondary text-sm">
@@ -240,5 +343,5 @@ const NotificationBell = (function () {
     }
   }
 
-  return { render, refresh: refreshBadge, rowHtml: notificationRowHtml };
+  return { render, refresh: refreshBadge, rowHtml: notificationRowHtml, rowsHtml, wireRows, timeAgo, groupNotifications, targetFor };
 })();

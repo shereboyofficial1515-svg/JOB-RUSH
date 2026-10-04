@@ -4,6 +4,7 @@ const smsService = require('./smsService');
 const pushService = require('./pushService');
 const logger = require('../utils/logger');
 const { buildUnsubscribeUrl } = require('../utils/unsubscribeToken');
+const { categoryForType, resolveCategoryPrefs, sanitizeCategoryUpdate } = require('./notificationCategories');
 
 /**
  * Per-type channel policy. Not every notification should hit every
@@ -15,6 +16,8 @@ const { buildUnsubscribeUrl } = require('../utils/unsubscribeToken');
  */
 const CHANNEL_POLICY = {
   new_message: ['in_app', 'web_push'],
+  // The OS alert for a missed call is the push callService sends (it replaces the ringing alert), so this is in-app only.
+  call_missed: ['in_app'],
   application_submitted: ['in_app', 'email'],
   application_received: ['in_app', 'email'],
   application_status_changed: ['in_app', 'email'],
@@ -59,8 +62,8 @@ const CHANNEL_POLICY = {
 
 async function getPreferences(userId) {
   const { rows } = await query('SELECT * FROM notification_preferences WHERE user_id = $1', [userId]);
-  if (rows.length > 0) return rows[0];
-  return { email_enabled: true, sms_enabled: true, in_app_enabled: true, push_enabled: true };
+  if (rows.length > 0) return { ...rows[0], categories: resolveCategoryPrefs(rows[0].category_prefs) };
+  return { email_enabled: true, sms_enabled: true, in_app_enabled: true, push_enabled: true, categories: resolveCategoryPrefs(null) };
 }
 
 async function recordDelivery(notificationId, channel, status, errorMessage) {
@@ -85,7 +88,11 @@ async function notify(userId, type, { title, body, data, email, phone, firstName
     const notification = rows[0];
 
     const preferences = await getPreferences(userId);
-    const allowedChannels = CHANNEL_POLICY[type] || ['in_app'];
+    // A switched-off category (Settings > Notifications) keeps the in-app entry but sends nothing
+    // off the app. Types with no category (support replies, referral progress) are always sent.
+    const category = categoryForType(type);
+    const categoryOn = !category || preferences.categories[category] !== false;
+    const allowedChannels = (CHANNEL_POLICY[type] || ['in_app']).filter((ch) => ch === 'in_app' || categoryOn);
 
     // Shared by both the email and web-push branches below — a
     // new-message alert on either channel respects the recipient's own
@@ -200,14 +207,29 @@ async function notifyUser(userId, type, { title, body, data } = {}) {
   });
 }
 
-async function listForUser(userId, { unreadOnly = false, page = 1, pageSize = 30 } = {}) {
-  const limit = Math.min(Math.max(pageSize, 1), 100);
-  const offset = (Math.max(page, 1) - 1) * limit;
+/**
+ * Newest first. Pass `before` (the created_at of the last notification already shown) to load the
+ * next, older batch: a cursor stays fast and stable while new notifications keep arriving, which
+ * page/offset does not. `page` still works for older callers.
+ */
+async function listForUser(userId, { unreadOnly = false, page = 1, pageSize = 30, before } = {}) {
+  const limit = Math.min(Math.max(Number(pageSize) || 30, 1), 100);
   const params = [userId];
   let sql = 'SELECT * FROM notifications WHERE user_id = $1';
   if (unreadOnly) sql += ' AND read_at IS NULL';
-  params.push(limit, offset);
-  sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
+  if (before) {
+    const when = new Date(before);
+    if (!Number.isNaN(when.getTime())) {
+      params.push(when.toISOString());
+      sql += ` AND created_at < $${params.length}`;
+    }
+  }
+  params.push(limit);
+  sql += ` ORDER BY created_at DESC LIMIT $${params.length}`;
+  if (!before && Number(page) > 1) {
+    params.push((Number(page) - 1) * limit);
+    sql += ` OFFSET $${params.length}`;
+  }
   const { rows } = await query(sql, params);
   return rows;
 }
@@ -228,26 +250,30 @@ async function markAllRead(userId) {
   await query('UPDATE notifications SET read_at = now() WHERE user_id = $1 AND read_at IS NULL', [userId]);
 }
 
-async function updatePreferences(userId, { emailEnabled, smsEnabled, inAppEnabled, pushEnabled }) {
+/** Partial update: only what is sent changes. `categories` is merged into the stored switches. */
+async function updatePreferences(userId, { emailEnabled, smsEnabled, inAppEnabled, pushEnabled, categories } = {}) {
   const current = await getPreferences(userId);
+  const storedCategories = { ...resolveCategoryPrefs(current.category_prefs), ...sanitizeCategoryUpdate(categories) };
   const { rows } = await query(
-    `INSERT INTO notification_preferences (user_id, email_enabled, sms_enabled, in_app_enabled, push_enabled)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO notification_preferences (user_id, email_enabled, sms_enabled, in_app_enabled, push_enabled, category_prefs)
+     VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (user_id) DO UPDATE SET
        email_enabled = EXCLUDED.email_enabled,
        sms_enabled = EXCLUDED.sms_enabled,
        in_app_enabled = EXCLUDED.in_app_enabled,
-       push_enabled = EXCLUDED.push_enabled
+       push_enabled = EXCLUDED.push_enabled,
+       category_prefs = EXCLUDED.category_prefs
      RETURNING *`,
     [
       userId,
-      emailEnabled,
-      smsEnabled,
-      inAppEnabled,
+      emailEnabled === undefined ? (current.email_enabled ?? true) : emailEnabled,
+      smsEnabled === undefined ? (current.sms_enabled ?? true) : smsEnabled,
+      inAppEnabled === undefined ? (current.in_app_enabled ?? true) : inAppEnabled,
       pushEnabled === undefined ? (current.push_enabled ?? true) : pushEnabled,
+      JSON.stringify(storedCategories),
     ]
   );
-  return rows[0];
+  return { ...rows[0], categories: resolveCategoryPrefs(rows[0].category_prefs) };
 }
 
 module.exports = {
