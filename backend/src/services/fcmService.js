@@ -7,10 +7,15 @@ const isConfigured = !!env.FIREBASE_SERVICE_ACCOUNT_JSON;
 
 if (isConfigured) {
   try {
-    const admin = require('firebase-admin');
+    // firebase-admin 13+ exposes the modular API (admin.credential / admin.messaging() no longer exist).
+    const { initializeApp, getApps, getApp, cert } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
     const serviceAccount = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
-    const app = admin.apps.length ? admin.app() : admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-    messaging = admin.messaging(app);
+    // Pasting the key into a dashboard can turn the real line breaks in the private key into the
+    // two characters backslash + n; convert them back so either form works.
+    if (typeof serviceAccount.private_key === 'string') serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+    const app = getApps().length ? getApp() : initializeApp({ credential: cert(serviceAccount) });
+    messaging = getMessaging(app);
   } catch (err) {
     logger.error('FIREBASE_SERVICE_ACCOUNT_JSON is set but invalid — FCM push disabled.', { error: err.message });
   }
