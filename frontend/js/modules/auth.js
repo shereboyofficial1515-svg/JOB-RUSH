@@ -339,6 +339,17 @@ const Auth = (function () {
   });
   document.addEventListener('jr:session-lost', () => { clearCachedUser(); });
 
+  // Back / Forward can restore a signed-in page from the browser's back-forward cache with the
+  // previous screen (names, messages, balances) still in it, even after logging out. A restored
+  // page that needs a session but no longer has this tab's cached sign-in is reloaded, which runs
+  // the normal check and sends the visitor to the login page instead of showing stale private data.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted && pageRequiresSession && !peekUserSafe()) window.location.reload();
+  });
+  function peekUserSafe() {
+    try { return !!sessionStorage.getItem(USER_CACHE_KEY); } catch { return true; }
+  }
+
   return {
     register,
     requestOtp,

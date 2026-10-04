@@ -22,10 +22,11 @@ function validateBody(schema) {
   };
 }
 
+const { supportActionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 router.use(authenticate);
 
-router.post('/', validateBody(submitFeedbackSchema), controller.submit);
+router.post('/', supportActionLimiter, validateBody(submitFeedbackSchema), controller.submit);
 router.get('/', controller.listOwn);
 
 module.exports = router;

@@ -17,6 +17,12 @@ function errorHandler(err, req, res, next) {
     });
   }
 
+  // Client mistakes that the body parser / CORS layer raise as plain errors: report them as 4xx
+  // (they used to surface as a 500 "Something went wrong", which looks like a server bug).
+  if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Request body is not valid JSON.', code: 'INVALID_JSON' });
+  if (err.type === 'entity.too.large') return res.status(413).json({ error: 'Request body is too large.', code: 'PAYLOAD_TOO_LARGE' });
+  if (err.message === 'Not allowed by CORS') return res.status(403).json({ error: 'Origin not allowed.', code: 'CORS_FORBIDDEN' });
+
   logger.error('Unhandled error', {
     message: err.message,
     stack: err.stack,

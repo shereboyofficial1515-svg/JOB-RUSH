@@ -471,6 +471,19 @@ function ownedPathFromPublicUrl(bucketKey, userId, url) {
   return path;
 }
 
+/**
+ * Throws 400 unless a client-supplied storage path is inside the caller's own folder
+ * (`<userId>/<file>`, the layout every upload uses). Paths for private files (CV, verification
+ * documents, dispute evidence) come back from the client after the upload; without this a user
+ * could attach, or later cause deletion of, an object that belongs to someone else.
+ */
+function assertOwnStoragePath(userId, storagePath) {
+  const parts = typeof storagePath === 'string' ? storagePath.split('/') : [];
+  if (!userId || parts.length !== 2 || parts[0] !== userId || !parts[1] || parts[1].includes('..')) {
+    throw new AppError('That file was not uploaded by your account. Please upload it again.', 400, 'INVALID_STORAGE_PATH');
+  }
+}
+
 /** Throws 400 unless `url` is one of this user's own uploads in `bucketKey`. */
 function assertOwnedPublicUrl(bucketKey, userId, url, label = 'image') {
   if (!ownedPathFromPublicUrl(bucketKey, userId, url)) {
@@ -536,6 +549,7 @@ module.exports = {
   BUCKETS,
   ownedPathFromPublicUrl,
   assertOwnedPublicUrl,
+  assertOwnStoragePath,
   removeOwnedPublicUrl,
   MAX_VIDEO_DURATION_SECONDS,
   uploadPortfolioImage,

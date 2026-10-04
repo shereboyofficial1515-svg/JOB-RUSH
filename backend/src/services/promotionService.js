@@ -59,6 +59,9 @@ async function listPlacementsForAdmin() {
 
 /** Public read — active placements for a given section, used by the homepage/category/location pages. */
 async function listActivePlacements(placementType, { categoryId, stateId } = {}) {
+  if (!['homepage', 'category', 'location', 'spotlight'].includes(placementType)) {
+    throw new AppError('Unknown placement type.', 400, 'INVALID_PLACEMENT_TYPE');
+  }
   const conditions = [`placement_type = $1`, `starts_at <= now()`, `(ends_at IS NULL OR ends_at > now())`];
   const params = [placementType];
 

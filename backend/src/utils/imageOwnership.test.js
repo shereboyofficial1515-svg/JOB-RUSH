@@ -38,4 +38,11 @@ test('path tricks are rejected (traversal, nested folders, missing file name, lo
   assert.strictEqual(storage.ownedPathFromPublicUrl('BUSINESS_PHOTOS', '', own('business-photos', '', 'x.png')), null);
 });
 
+test("a client-supplied storage path must be inside the caller's own folder", () => {
+  assert.doesNotThrow(() => storage.assertOwnStoragePath(ME, `${ME}/abc.png`));
+  for (const bad of [`${OTHER}/abc.png`, `${ME}/../${OTHER}/abc.png`, `${ME}/sub/abc.png`, `${ME}/`, ME, '', null, undefined, 42]) {
+    assert.throws(() => storage.assertOwnStoragePath(ME, bad), (e) => e.code === 'INVALID_STORAGE_PATH', String(bad));
+  }
+});
+
 console.log(`${passed} tests passed`);

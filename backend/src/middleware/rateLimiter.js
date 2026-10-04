@@ -93,7 +93,36 @@ const facebookDeletionLimiter = rateLimit({
   message: { error: 'Too many requests.' },
 });
 
+// ----- limits for already-signed-in actions, keyed by account (these routes sit behind `authenticate`) -----
+// Generous for a person, tight for a script: they exist to stop floods, not to slow down real use.
+const perUser = (windowMs, max, message) => rateLimit({
+  windowMs,
+  max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : 'anon'),
+  message: { error: message },
+});
+// Sending messages: 60 a minute is far above anything typed or pasted by a person.
+const messageSendLimiter = perUser(60 * 1000, 60, 'You are sending messages too quickly. Please wait a moment.');
+// Money-moving requests (fund / release / refund escrow, request a withdrawal).
+const moneyActionLimiter = perUser(60 * 60 * 1000, 30, 'Too many payment requests. Please try again later.');
+// Support tickets, feedback and reports.
+const supportActionLimiter = perUser(60 * 60 * 1000, 20, 'Too many submissions. Please try again later.');
+// Public search / browse (no account): per IP.
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many searches. Please slow down for a moment.' },
+});
+
 module.exports = {
+  messageSendLimiter,
+  moneyActionLimiter,
+  supportActionLimiter,
+  searchLimiter,
   loginLimiter,
   registrationLimiter,
   otpRequestLimiter,

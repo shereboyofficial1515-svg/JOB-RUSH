@@ -1,7 +1,8 @@
 const { query, withTransaction } = require('../config/db');
 const AppError = require('../utils/AppError');
 const { ensureWorkerProfileRow } = require('./profileService');
-const { getPublicUrlForPath, deleteObject } = require('./storageService');
+const storageService = require('./storageService');
+const { getPublicUrlForPath, deleteObject } = storageService;
 const referralService = require('./referralService');
 
 const MAX_MEDIA_PER_PORTFOLIO = 20;
@@ -200,6 +201,12 @@ async function addPortfolioMedia(
   { mediaType, storagePath, isPrimary = false, fileSize, durationSeconds, width, height, thumbnailStoragePath }
 ) {
   await getOwnedPortfolio(portfolioId, workerUserId);
+
+  // The path comes back from the client after the upload, and removing the media later DELETES the
+  // object at that path, so it must be inside the caller's own folder (public URLs reveal other
+  // users' paths).
+  storageService.assertOwnStoragePath(workerUserId, storagePath);
+  if (thumbnailStoragePath) storageService.assertOwnStoragePath(workerUserId, thumbnailStoragePath);
 
   if (!ALLOWED_MEDIA_TYPES.includes(mediaType)) {
     throw new AppError('Invalid media type.', 400, 'INVALID_MEDIA_TYPE');

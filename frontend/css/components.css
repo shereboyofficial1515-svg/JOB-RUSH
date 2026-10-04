@@ -481,7 +481,9 @@
     padding: var(--space-4) var(--space-5);
     gap: var(--space-4);
     max-height: calc(100vh - 72px);
+    max-height: calc(100dvh - 72px);
     overflow-y: auto;
+    overscroll-behavior: contain;
     animation: drawer-fade-in var(--transition-normal) var(--ease-smooth);
   }
 
@@ -789,6 +791,7 @@
   -ms-overflow-style: none; /* legacy Edge */
 }
 .sidebar-nav::-webkit-scrollbar { display: none; } /* Chrome, Android WebView, Safari */
+.sidebar-nav { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 /* Desktop (mouse): a hidden scrollbar made nav items below the fold undiscoverable on
    short screens, so show a slim one there and tighten spacing before it is ever needed.
    Touch layouts (drawer, <= 900px) keep the hidden-scrollbar swipe list above. */
@@ -858,10 +861,14 @@
 @media (max-width: 900px) {
   .dashboard-shell { grid-template-columns: 1fr; }
   .dashboard-sidebar {
+    /* Pinned to the VISIBLE viewport with top + bottom, not height: 100vh. On phones 100vh is the
+       tall viewport that runs underneath the browser toolbar, which pushed the bottom of the drawer
+       (the end of the list and Log out) out of reach. Header / scrolling nav / footer live inside. */
     position: fixed;
     top: 0;
+    bottom: 0;
     left: 0;
-    height: 100vh;
+    height: auto;
     width: 280px;
     max-width: 85vw;
     z-index: 300;
@@ -1006,6 +1013,7 @@
   right: 12px;
   width: min(340px, calc(100vw - 24px));
   max-height: min(420px, calc(100vh - 88px));
+  max-height: min(420px, calc(100dvh - 88px));
   background: var(--bg-popover);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);

@@ -5,9 +5,10 @@ const { requireAdmin } = require('../middleware/authorize');
 const { validateBody, createTicketSchema, respondTicketSchema } = require('../validators/adminValidators');
 
 // User-facing: mounted at /api/support/tickets
+const { supportActionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router();
 router.use(authenticate);
-router.post('/', validateBody(createTicketSchema), controller.create);
+router.post('/', supportActionLimiter, validateBody(createTicketSchema), controller.create);
 router.get('/', controller.listOwn);
 router.get('/:id', controller.getOwn);
 
