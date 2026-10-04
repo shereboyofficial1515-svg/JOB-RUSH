@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -69,6 +70,14 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!-- @capacitor/push-notifications ships its own FirebaseMessagingService that
+             would compete with ours for every message (and only forwards them to
+             JavaScript, never showing a notification). The plugin is used only to
+             request the permission and fetch the token, so its service is removed. -->
+        <service
+            android:name="com.capacitorjs.plugins.pushnotifications.MessagingService"
+            tools:node="remove" />
 
         <service
             android:name=".IncomingCallService"

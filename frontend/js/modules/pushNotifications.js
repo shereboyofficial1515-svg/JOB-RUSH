@@ -46,7 +46,42 @@ const PushNotifications = (function () {
     try { return Date.now() - Number(localStorage.getItem(RESYNC_KEY) || 0) > RESYNC_EVERY_MS; } catch { return true; }
   }
 
+  /**
+   * Inside the Android app, push goes through Firebase (FCM), not the browser's
+   * Web Push. The native side only reports a device token when Firebase first
+   * creates or rotates it, which is typically before anyone has logged in, so
+   * the server never learned the token. Here, once the person is signed in,
+   * we ask for the Android notification permission (required on Android 13+,
+   * and never requested anywhere else), fetch the token and register it with
+   * the server. Safe to call on every page load: it only does work every 12h.
+   */
+  let nativeListenerBound = false;
+  async function registerNative() {
+    const cap = window.Capacitor;
+    const plugin = cap && cap.Plugins && cap.Plugins.PushNotifications;
+    if (!plugin) return;
+    try {
+      let perm = await plugin.checkPermissions();
+      if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await plugin.requestPermissions();
+      if (perm.receive !== 'granted') return;
+      if (!resyncDue()) return;
+      if (!nativeListenerBound) {
+        nativeListenerBound = true;
+        plugin.addListener('registration', (t) => {
+          API.post('/notifications/push/fcm-token', { token: t.value })
+            .then(() => { try { localStorage.setItem(RESYNC_KEY, String(Date.now())); } catch { /* ignore */ } })
+            .catch(() => { /* retried on the next page load */ });
+        });
+        plugin.addListener('registrationError', (e) => console.warn('[push] FCM registration failed', e && e.error));
+      }
+      await plugin.register();
+    } catch (err) {
+      console.warn('[push] native registration skipped', err && err.message);
+    }
+  }
+
   async function registerIfAlreadySubscribed() {
+    if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform()) return registerNative();
     if (!isSupported() || Notification.permission !== 'granted') return;
     if (!resyncDue()) return;
     try {
