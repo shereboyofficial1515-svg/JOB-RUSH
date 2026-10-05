@@ -14,7 +14,9 @@
  */
 const IncomingCallWatcher = (function () {
   const POLL_INTERVAL_MS = 3000; // fallback cadence while the realtime stream is down
-  const RING_TIMEOUT_MS = 30000;
+  // Matches the server's own timeout (callService.RING_TIMEOUT_SECONDS). The server marks the call
+  // missed and tells this page; this local timer is only a failsafe for a missed event.
+  const RING_TIMEOUT_MS = 47000;
 
   let pollTimer = null;
   let ringTimeoutTimer = null;
@@ -107,7 +109,7 @@ const IncomingCallWatcher = (function () {
         </div>
         <div class="modal-actions" style="justify-content:center;">
           <button type="button" class="btn btn-danger" id="incoming-call-decline">Decline</button>
-          <button type="button" class="btn btn-primary" id="incoming-call-accept">Answer</button>
+          <button type="button" class="btn btn-primary" id="incoming-call-accept">Accept</button>
         </div>
       `,
       onMount: (modalEl) => {
@@ -171,7 +173,15 @@ const IncomingCallWatcher = (function () {
     schedule();
     if (typeof Realtime !== 'undefined') {
       Realtime.on('call.incoming', poll);
-      Realtime.on('call.updated', poll);
+      // The server's call state is the truth: when the call being rung is answered (here or on another
+      // device), declined, cancelled, timed out or ended, stop ringing and close the card at once.
+      Realtime.on('call.updated', (e) => {
+        if (e && currentCallId && e.callId === currentCallId && !['calling', 'ringing'].includes(e.status)) {
+          dismissSilently();
+          return;
+        }
+        poll();
+      });
       // The first 'connected' arrives moments after start(), which already polled: only a RE-connect needs a catch-up.
       let firstConnect = true;
       Realtime.on('connected', () => { if (firstConnect) { firstConnect = false; } else poll(); schedule(); });

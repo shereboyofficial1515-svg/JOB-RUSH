@@ -50,6 +50,7 @@
 <script src="../js/utils/toast.js"></script>
 <script src="../js/utils/animate.js"></script>
 <script src="../js/modules/auth.js"></script>
+<script src="../js/modules/realtime.js"></script>
 <script src="../js/modules/ringtoneManager.js"></script>
 <script>
   /**
@@ -351,10 +352,10 @@
     }
 
     document.getElementById('leave-call').addEventListener('click', async () => {
+      if (finished) return;
       stopRingback();
-      if (room) await room.disconnect();
-      await endCall(callTypeParam, callId, hasConnected);
-      window.location.href = callTypeParam === 'interview' ? 'interviews.html' : 'messages.html';
+      await endCall(callTypeParam, callId, hasConnected && peerWasPresent);
+      await finishCall('Call ended.', { delayMs: 200 });
     });
   }
 
@@ -402,8 +403,11 @@
   async function updateCallStatus(id, status, failureReason) {
     try {
       await API.post(`/messaging/calls/${id}/status`, { status, failureReason });
-    } catch {
-      // Best-effort — never block the call UI on a bookkeeping write.
+      return { ok: true };
+    } catch (err) {
+      // 409 CALL_ALREADY_ENDED: the other side hung up first. Not an error to show, but it
+      // must end this screen too (see handleStatusWriteResult).
+      return { ok: false, status: err && err.status, code: err && err.code };
     }
   }
 
@@ -422,37 +426,125 @@
     }
   }
 
-  let callTypeParam, callId, hasConnected = false;
-  let ringbackPollTimer = null;
+  let callTypeParam, callId, hasConnected = false, conversationId = null;
   let ringbackTimeoutTimer = null;
+  let statusPollTimer = null;
+  let finished = false;
+  let peerWasPresent = false;
 
-  const RINGBACK_POLL_MS = 2500;
-  const RINGBACK_TIMEOUT_MS = 45000;
+  // A failsafe only: the server times an unanswered call out itself (45 s) and tells this screen
+  // over the realtime stream. This fires a little later in case that message never arrives.
+  const RINGBACK_TIMEOUT_MS = 52000;
+  const TERMINAL = ['ended', 'declined', 'missed', 'busy', 'failed', 'cancelled'];
   const CALL_OUTCOME_MESSAGES = {
+    ended: 'Call ended.',
     declined: 'Call declined.',
     missed: 'No answer.',
     busy: 'The other person is on another call.',
-    cancelled: 'Call cancelled.',
+    cancelled: 'Call ended.',
+    failed: 'The call could not connect.',
   };
 
   function stopRingback() {
-    if (ringbackPollTimer) clearInterval(ringbackPollTimer);
     if (ringbackTimeoutTimer) clearTimeout(ringbackTimeoutTimer);
-    ringbackPollTimer = null;
     ringbackTimeoutTimer = null;
     RingtoneManager.stop('outgoing');
   }
 
+  function stopStatusPolling() {
+    if (statusPollTimer) clearTimeout(statusPollTimer);
+    statusPollTimer = null;
+  }
+
+  /** Release the microphone and camera explicitly (disconnect() does too, but never rely on one path). */
+  function releaseMedia() {
+    try {
+      if (room && room.localParticipant) {
+        room.localParticipant.trackPublications.forEach((pub) => { if (pub.track) pub.track.stop(); });
+      }
+    } catch { /* already released */ }
+    hideRemoteVideo();
+    hideLocalVideo();
+  }
+
+  function leaveDestination() {
+    if (callTypeParam === 'interview') return 'interviews.html';
+    return conversationId ? `messages.html?conversation=${encodeURIComponent(conversationId)}` : 'messages.html';
+  }
+
   /**
-   * Only the side that placed a chat-originated call (not a scheduled
-   * interview) ever rings back -- and only until a REAL signal says
-   * otherwise: the other participant actually joining the LiveKit room
-   * (RoomEvent.ParticipantConnected, wired in connectCall), the call's
-   * own status flipping to something terminal (declined/missed/busy/
-   * cancelled -- polled here, since there's no push transport in this
-   * app), or this side giving up after RINGBACK_TIMEOUT_MS because
-   * nothing ever happened (e.g. the callee's client was never even
-   * open to answer).
+   * THE one place a call screen ends. Runs once however many signals arrive (realtime event, the other
+   * person leaving the media room, a catch-up check, the End button): stops ringing and timers, releases
+   * the microphone and camera, disconnects, tells the person what happened, and closes the screen by
+   * itself. Nobody has to press anything to clear a call that is already over.
+   */
+  async function finishCall(message, { delayMs = 1400 } = {}) {
+    if (finished) return;
+    finished = true;
+    stopRingback();
+    stopStatusPolling();
+    RingtoneManager.stop('incoming');
+    setCallState('ended', message || 'Call ended.');
+    releaseMedia();
+    try { if (room) await room.disconnect(); } catch { /* already disconnected */ }
+    const controls = document.getElementById('call-controls');
+    if (controls) controls.hidden = true;
+    setTimeout(() => { window.location.replace(leaveDestination()); }, delayMs);
+  }
+
+  /** Server told us the call is in this status. Anything terminal ends the screen. */
+  function applyServerStatus(status) {
+    if (finished || !TERMINAL.includes(status)) return;
+    finishCall(CALL_OUTCOME_MESSAGES[status] || 'Call ended.');
+  }
+
+  /** Catch up with the server (page just opened, stream reconnected, or the stream is down). */
+  async function syncStatus() {
+    if (callTypeParam !== 'call' || finished) return;
+    try {
+      const { call } = await API.get(`/messaging/calls/${callId}`);
+      if (call) {
+        if (call.conversationId) conversationId = call.conversationId;
+        applyServerStatus(call.status);
+      }
+    } catch (err) {
+      if (err && err.status === 404) finishCall('This call could not be found.');
+    }
+  }
+
+  // The realtime stream is the normal channel. This slow check only repairs a missed event; it speeds
+  // up to a few seconds while the stream is down, and is never a once-a-second poll.
+  function scheduleStatusPolling() {
+    stopStatusPolling();
+    if (callTypeParam !== 'call' || finished) return;
+    const live = typeof Realtime !== 'undefined' && Realtime.isConnected();
+    statusPollTimer = setTimeout(async () => {
+      if (!document.hidden) await syncStatus();
+      scheduleStatusPolling();
+    }, live ? 15000 : 4000);
+  }
+
+  function wireRealtime() {
+    if (callTypeParam !== 'call' || typeof Realtime === 'undefined') return;
+    Realtime.on('call.updated', (e) => {
+      if (!e || e.callId !== callId) return;
+      if (e.conversationId) conversationId = e.conversationId;
+      applyServerStatus(e.status);
+    });
+    // After a drop, the stream's own events were missed: ask the server where the call stands.
+    Realtime.on('connected', () => { syncStatus(); scheduleStatusPolling(); });
+    Realtime.on('disconnected', scheduleStatusPolling);
+  }
+
+  /** A 409 on our own status write means the other side already ended the call. */
+  function handleStatusWriteResult(result) {
+    if (result && !result.ok && result.status === 409) finishCall('This call has ended.');
+    return result;
+  }
+
+  /**
+   * Only the side that placed a chat-originated call (not a scheduled interview) rings back, until
+   * the other person joins or the server says the call is over.
    */
   function startRingback() {
     if (callTypeParam !== 'call' || !isCaller) return;
@@ -460,24 +552,10 @@
 
     RingtoneManager.play('outgoing');
 
-    ringbackPollTimer = setInterval(async () => {
-      try {
-        const { call } = await API.get(`/messaging/calls/${callId}`);
-        if (call && CALL_OUTCOME_MESSAGES[call.status]) {
-          stopRingback();
-          setCallState('ended', CALL_OUTCOME_MESSAGES[call.status]);
-          if (room) await room.disconnect();
-        }
-      } catch {
-        // Best-effort -- a failed poll just tries again next tick.
-      }
-    }, RINGBACK_POLL_MS);
-
     ringbackTimeoutTimer = setTimeout(async () => {
-      stopRingback();
-      setCallState('ended', 'No answer.');
+      if (finished) return;
       await updateCallStatus(callId, 'cancelled');
-      if (room) await room.disconnect();
+      finishCall('No answer.');
     }, RINGBACK_TIMEOUT_MS);
   }
 
@@ -500,6 +578,7 @@
       callType = token.callType === 'audio' ? 'audio' : 'video';
       otherParticipant = token.otherParticipant;
       isCaller = !!token.isCaller;
+      if (token.conversationId) conversationId = token.conversationId;
 
       if (callType === 'audio') renderAudioStage();
       else renderVideoStage();
@@ -519,9 +598,10 @@
       function handlePeerPresence() {
         if (markedConnected || room.remoteParticipants.size === 0) return;
         markedConnected = true;
+        peerWasPresent = true;
         stopRingback();
         setCallState('connected');
-        if (callTypeParam === 'call') updateCallStatus(callId, 'connected');
+        if (callTypeParam === 'call') updateCallStatus(callId, 'connected').then(handleStatusWriteResult);
       }
 
       room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => handleRemoteTrackSubscribed(track));
@@ -529,12 +609,24 @@
       room.on(LivekitClient.RoomEvent.ParticipantConnected, () => handlePeerPresence());
       room.on(LivekitClient.RoomEvent.Reconnecting, () => setCallState('reconnecting'));
       room.on(LivekitClient.RoomEvent.Reconnected, () => setCallState('connected'));
+      // The other person leaving the media room is a hang-up: end this screen now, and make the call row
+      // say so (the server ignores it if it already knew). Their leaving does NOT disconnect us in
+      // LiveKit, which is why this used to leave the call screen up until someone pressed End.
+      room.on(LivekitClient.RoomEvent.ParticipantDisconnected, () => {
+        if (finished) return;
+        if (peerWasPresent && room.remoteParticipants.size === 0) {
+          if (callTypeParam === 'call') updateCallStatus(callId, 'ended');
+          finishCall('Call ended.');
+        }
+      });
       room.on(LivekitClient.RoomEvent.Disconnected, () => {
-        stopRingback();
-        setCallState('ended');
+        if (!finished) finishCall('Call ended.', { delayMs: 800 });
       });
 
-      if (callTypeParam === 'call' && !isCaller) await updateCallStatus(callId, 'connecting');
+      if (callTypeParam === 'call' && !isCaller) {
+        const wrote = await updateCallStatus(callId, 'connecting');
+        if (!wrote.ok && wrote.status === 409) { finishCall('This call has ended.'); return; }
+      }
       setCallState('connecting');
       await room.connect(token.livekitUrl, token.accessToken);
       hasConnected = true;
@@ -544,6 +636,8 @@
         else setCallState('connecting', 'Waiting to connect…');
       }
     } catch (err) {
+      // The call ended before this side could join (hung up, cancelled, timed out): not a failure to retry.
+      if (err && err.code === 'NOT_JOINABLE') { finishCall('This call has ended.'); return; }
       const reason = describeConnectionError(err);
       setCallState('failed', reason);
       Toast.error(reason);
@@ -577,7 +671,18 @@
       syncControlButton('toggle-camera', cameraEnabled, ICONS.cameraOn, ICONS.cameraOff, 'Turn camera off', 'Turn camera on');
     }
 
-    window.addEventListener('beforeunload', () => {
+    window.addEventListener('pagehide', () => {
+      if (finished) return;
+      if (callTypeParam === 'call') {
+        // keepalive lets this request finish after the page is gone.
+        fetch(`${API.baseUrl}/messaging/calls/${callId}/status`, {
+          method: 'POST',
+          credentials: 'include',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: hasConnected && peerWasPresent ? 'ended' : 'cancelled' }),
+        }).catch(() => {});
+      }
       if (room) room.disconnect();
     });
   }
@@ -592,7 +697,11 @@
 
     document.getElementById('call-retry-btn').addEventListener('click', () => window.location.reload());
 
+    wireRealtime();
     await connectCall();
+    // Catch up straight away (the call may already be over) and keep a slow safety check running.
+    syncStatus();
+    scheduleStatusPolling();
   })();
 </script>
 </body>

@@ -9,8 +9,12 @@ const list = asyncHandler(async (req, res) => {
     unreadOnly: req.query.unreadOnly === 'true',
     page: req.query.page,
     pageSize: req.query.pageSize,
+    before: req.query.before,
   });
-  res.status(200).json({ notifications });
+  // `nextBefore` is the cursor for the next, older batch; null when this batch was the last one.
+  const limit = Math.min(Math.max(Number(req.query.pageSize) || 30, 1), 100);
+  const nextBefore = notifications.length === limit ? notifications[notifications.length - 1].created_at : null;
+  res.status(200).json({ notifications, nextBefore });
 });
 
 /**

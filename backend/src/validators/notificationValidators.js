@@ -1,10 +1,13 @@
 const { z } = require('zod');
 
+// Every field is optional so a single switch can be saved on its own (e.g. only "Missed calls").
 const updatePreferencesSchema = z.object({
-  emailEnabled: z.boolean(),
-  smsEnabled: z.boolean(),
-  inAppEnabled: z.boolean(),
+  emailEnabled: z.boolean().optional(),
+  smsEnabled: z.boolean().optional(),
+  inAppEnabled: z.boolean().optional(),
   pushEnabled: z.boolean().optional(),
+  // Category switches (see services/notificationCategories.js); unknown keys are ignored server-side.
+  categories: z.record(z.string(), z.boolean()).optional(),
 });
 
 const pushSubscribeSchema = z.object({

@@ -120,7 +120,7 @@ const API = (function () {
     post: (path, body) => request(path, { method: 'POST', body }),
     patch: (path, body) => request(path, { method: 'PATCH', body }),
     put: (path, body) => request(path, { method: 'PUT', body }),
-    delete: (path) => request(path, { method: 'DELETE' }),
+    delete: (path, body) => request(path, { method: 'DELETE', body }),
     upload: (path, formData) => request(path, { method: 'POST', body: formData, isFormData: true }),
     uploadWithProgress,
     ApiError,

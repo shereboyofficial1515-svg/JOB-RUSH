@@ -71,6 +71,22 @@ public class JobRushFirebaseMessagingService extends FirebaseMessagingService {
         Map<String, String> data = message.getData();
         String type = data.getOrDefault("type", "");
 
+        // The call is over (cancelled, declined, answered elsewhere, timed out): stop ringing and remove the
+        // alert right away. A missed call additionally leaves a normal notification; a quiet "call ended"
+        // shows nothing.
+        if ("call_ended".equals(type) || "missed_call".equals(type)) {
+            try {
+                Intent cancel = new Intent(this, IncomingCallService.class);
+                cancel.setAction(IncomingCallService.ACTION_CANCEL);
+                cancel.putExtra(IncomingCallService.EXTRA_CALL_ID, data.get("callId"));
+                startService(cancel);
+            } catch (Exception ignored) {
+                // Service not running and background start not allowed: nothing is ringing anyway.
+            }
+            if ("missed_call".equals(type)) showGeneralNotification(data);
+            return;
+        }
+
         if ("incoming_call".equals(type)) {
             Intent serviceIntent = new Intent(this, IncomingCallService.class);
             serviceIntent.setAction(IncomingCallService.ACTION_INCOMING);

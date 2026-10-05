@@ -9,7 +9,9 @@ const env = require('./env');
 const pool = new Pool({
   connectionString: env.DATABASE_URL,
   ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
+  // The hosted Postgres pooler allows only a few connections in total, shared by every running copy of
+  // the server; DB_POOL_MAX lets a second copy (local development) use fewer without touching production.
+  max: Number(process.env.DB_POOL_MAX) > 0 ? Number(process.env.DB_POOL_MAX) : 10,
   idleTimeoutMillis: 30000,
 });
 

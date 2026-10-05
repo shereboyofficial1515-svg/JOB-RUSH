@@ -178,6 +178,11 @@ const Auth = (function () {
   }
 
   async function logout() {
+    // First, while the session still works: stop THIS device receiving this account's notifications.
+    // Capped at 2 s so a slow network never delays signing out.
+    if (typeof PushNotifications !== 'undefined' && PushNotifications.deregisterDevice) {
+      await Promise.race([PushNotifications.deregisterDevice().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
+    }
     clearCachedUser();
     return API.post('/auth/logout');
   }

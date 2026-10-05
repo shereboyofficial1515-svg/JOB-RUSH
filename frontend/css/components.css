@@ -1036,6 +1036,7 @@
 .notif-dropdown-body { overflow-y: auto; }
 
 .notif-row {
+  display: flex; align-items: flex-start; gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
@@ -1043,17 +1044,30 @@
 }
 .notif-row:last-child { border-bottom: none; }
 .notif-row:hover { background: rgba(11, 31, 58, 0.04); }
+.notif-row:focus-visible { outline-offset: -2px; }
 .notif-row.is-unread { background: rgba(201, 162, 39, 0.08); }
-.notif-row.is-unread::before { content: ''; display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--accent); margin-right: var(--space-2); flex-shrink: 0; }
+
+/* Icon in a tinted circle (the tone says what kind of event it is), then title / description / time. */
+.notif-row-icon {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg-elevated); color: var(--text-secondary);
+}
+.notif-row-icon svg { width: 18px; height: 18px; }
+.notif-tone-info .notif-row-icon { background: rgba(37, 99, 235, 0.10); color: #2563eb; }
+.notif-tone-success .notif-row-icon { background: rgba(22, 163, 74, 0.12); color: #16a34a; }
+.notif-tone-gold .notif-row-icon { background: rgba(201, 162, 39, 0.16); color: var(--accent-text); }
+.notif-tone-danger .notif-row-icon { background: rgba(220, 53, 69, 0.12); color: var(--status-danger); }
+.notif-row-main { flex: 1; min-width: 0; }
 
 /* Long titles/messages (a verbose job title, a long name) must wrap
    inside the panel's fixed width instead of forcing it wider than the
-   viewport — the panel's own width is capped above, but text nodes
-   don't respect a parent's max-width unless told to break. */
-.notif-row-title { font-size: var(--text-sm); font-weight: 600; display: flex; align-items: flex-start; gap: var(--space-2); overflow-wrap: anywhere; }
-.notif-row-icon { flex-shrink: 0; line-height: 1.3; }
+   viewport. */
+.notif-row-title { font-size: var(--text-sm); font-weight: 600; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-2); overflow-wrap: anywhere; }
+.notif-row.is-unread .notif-row-title { font-weight: 700; }
+.notif-dot { flex-shrink: 0; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--accent); }
 .notif-row-body { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); overflow-wrap: anywhere; }
-.notif-row-time { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); }
+.notif-row-time { display: block; font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-1); }
 
 .notif-empty { padding: var(--space-6) var(--space-4); text-align: center; }
 
@@ -1950,3 +1964,5 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
 /* A labelled checkbox in a filter bar: box and text sit together, never stretched apart. */
 .filter-check { display: inline-flex; align-items: center; justify-content: flex-start; gap: var(--space-2); width: auto; min-height: var(--touch-target); font-size: var(--text-sm); cursor: pointer; }
 .filter-check input[type="checkbox"] { width: auto; flex-shrink: 0; margin: 0; }
+
+#notif-category-rows.is-disabled { opacity: 0.55; }

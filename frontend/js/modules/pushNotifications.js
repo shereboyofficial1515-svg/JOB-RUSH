@@ -55,6 +55,7 @@ const PushNotifications = (function () {
    * and never requested anywhere else), fetch the token and register it with
    * the server. Safe to call on every page load: it only does work every 12h.
    */
+  const FCM_TOKEN_KEY = 'jr.fcm.token';
   let nativeListenerBound = false;
   async function registerNative() {
     const cap = window.Capacitor;
@@ -68,6 +69,8 @@ const PushNotifications = (function () {
       if (!nativeListenerBound) {
         nativeListenerBound = true;
         plugin.addListener('registration', (t) => {
+          // Remembered only so THIS device's token can be removed again when the person logs out.
+          try { localStorage.setItem(FCM_TOKEN_KEY, t.value); } catch { /* ignore */ }
           API.post('/notifications/push/fcm-token', { token: t.value })
             .then(() => { try { localStorage.setItem(RESYNC_KEY, String(Date.now())); } catch { /* ignore */ } })
             .catch(() => { /* retried on the next page load */ });
@@ -137,5 +140,32 @@ const PushNotifications = (function () {
     await API.post('/notifications/push/unsubscribe', { endpoint }).catch(() => {});
   }
 
-  return { isSupported, getPermissionState, registerIfAlreadySubscribed, subscribe, unsubscribe };
+  /**
+   * Logout: this device stops receiving this account's notifications. Removes only THIS device's
+   * registration on the server (the Android token, or this browser's subscription), never another
+   * device's. The browser keeps its own permission and subscription, so signing in again re-registers
+   * it by itself. Must run while the session is still valid, i.e. before the logout request.
+   */
+  async function deregisterDevice() {
+    const jobs = [];
+    let token = null;
+    try { token = localStorage.getItem(FCM_TOKEN_KEY); } catch { /* ignore */ }
+    if (token) {
+      jobs.push(API.delete('/notifications/push/fcm-token', { token }).catch(() => {}));
+      try { localStorage.removeItem(FCM_TOKEN_KEY); localStorage.removeItem(RESYNC_KEY); } catch { /* ignore */ }
+    }
+    if (isSupported()) {
+      jobs.push((async () => {
+        const registration = await navigator.serviceWorker.getRegistration(SW_PATH);
+        const subscription = registration && (await registration.pushManager.getSubscription());
+        if (subscription) {
+          await API.post('/notifications/push/unsubscribe', { endpoint: subscription.endpoint }).catch(() => {});
+          try { localStorage.removeItem(RESYNC_KEY); } catch { /* ignore */ }
+        }
+      })().catch(() => {}));
+    }
+    await Promise.all(jobs);
+  }
+
+  return { isSupported, getPermissionState, registerIfAlreadySubscribed, subscribe, unsubscribe, deregisterDevice };
 })();
