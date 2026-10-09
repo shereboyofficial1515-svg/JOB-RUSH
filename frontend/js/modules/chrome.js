@@ -74,7 +74,7 @@ const Chrome = (function () {
         <div class="container">
           <a href="${homeHref()}" class="brand">
             <img src="${ASSETS.logo96}" alt="JOB RUSH" width="40" height="40" />
-            <span>JOB RUSH</span>
+            <span>JOB <span class="brand-accent">RUSH</span></span>
           </a>
           <nav class="main-nav" aria-label="Primary">
             ${navHtml}

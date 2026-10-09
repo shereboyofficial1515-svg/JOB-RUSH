@@ -13,106 +13,279 @@
   #photo-feature.section { padding-top: var(--space-5); padding-bottom: var(--space-5); }
 }
 
-/* The homepage hero is one of the deliberate navy brand surfaces (nav/
-   hero/footer) — same scoped-token pattern as .site-header in
-   components.css, so hero-copy/hero-trust text below picks up
-   light-on-navy automatically. .hero-search input and .hero-pros
-   are NOT touched by this (they don't reference --bg-surface here),
-   so they stay their normal white — a white search bar and a white
-   trust card sitting on the navy hero, matching the "navy hero, white
-   surfaces for content" brief. .hero-pros explicitly re-anchors
-   its own text tokens back to light-theme values below, since it's a
-   white card nested inside this navy-scoped section. */
-/* A photographic background sits behind the same navy gradient used
-   before (now with alpha so the photo shows through faintly), not
-   instead of it — the gradient is deliberately heavy (90%/85% opaque)
-   so the section still reads as "navy," matching the brand direction,
-   rather than becoming a colorful photo with text on top. Swapped to
-   a smaller image on narrow viewports below (spec: responsive images,
-   don't ship the desktop asset to mobile networks). */
+/* ============================================================
+   HOMEPAGE HERO — premium navy + gold.
+   Scoped to the homepage (`body.home-page` / `.hero`): nothing here
+   touches another page. The hero is a deliberate brand surface that is
+   navy in light AND dark theme, so it uses its own fixed palette
+   (--hero-*) instead of the theme tokens; the sections below it keep
+   following the theme as before.
+   ============================================================ */
 .hero {
-  --text-primary: var(--text-on-navy);
-  --text-secondary: rgba(255, 255, 255, 0.72);
-  --border-subtle: rgba(255, 255, 255, 0.16);
+  --hero-navy: #061B33;
+  --hero-navy-2: #0A2545;
+  --hero-gold: #E6B52E;
+  --hero-gold-hover: #F2C84B;
+  --hero-text: #C5D0DF;
+  --hero-muted: #8FA2BB;
+  --hero-line: rgba(255, 255, 255, 0.18);
+  /* Anything nested that still reads theme tokens gets light-on-navy values. */
+  --text-primary: #FFFFFF;
+  --text-secondary: var(--hero-text);
+  --border-subtle: var(--hero-line);
+  position: relative;
+  isolation: isolate;
+  overflow: clip; /* the photo is positioned inside the hero and must not paint outside it */
+  background: var(--hero-navy);
+  color: #FFFFFF;
+  border-bottom: 1px solid var(--hero-line);
+}
+
+/* Header on the homepage: the same navy as the hero so the two read as one surface. The header
+   markup is shared (js/modules/chrome.js); only the look is changed here, and only on this page. */
+.home-page .site-header {
+  background: #061B33;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.home-page .site-header .brand { font-weight: 800; letter-spacing: 0.01em; }
+.home-page .site-header .brand-accent { color: #E6B52E; }
+
+/* ---- Photograph -------------------------------------------------------------------------------
+   Right side on desktop, behind the text column's gradient. The gradient is strongest on the left
+   (where the words are) and fades to a light navy tint over the subject, so the face stays clear.   */
+.hero-photo {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 58%;
+  z-index: -1;
+  background: var(--hero-navy-2);
+}
+.hero-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 16%;
+}
+.hero-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background:
-    linear-gradient(160deg, rgba(11, 31, 58, 0.93), rgba(7, 22, 42, 0.9)),
-    url('../assets/images/hero-professionals-1920.jpg') center 30% / cover no-repeat;
-  color: var(--text-primary);
-  padding: var(--space-9) 0;
-  border-bottom: 1px solid var(--border-subtle);
+    linear-gradient(90deg, #061B33 0%, rgba(6, 27, 51, 0.88) 16%, rgba(6, 27, 51, 0.46) 52%, rgba(6, 27, 51, 0.3) 100%),
+    linear-gradient(0deg, #061B33 0%, rgba(6, 27, 51, 0) 30%);
 }
 
-@media (max-width: 640px) {
-  .hero {
-    background:
-      linear-gradient(160deg, rgba(11, 31, 58, 0.93), rgba(7, 22, 42, 0.9)),
-      url('../assets/images/hero-professionals-960.jpg') center 30% / cover no-repeat;
-  }
+.hero-inner {
+  padding-top: clamp(40px, 6vw, 92px);
+  padding-bottom: clamp(28px, 4vw, 52px);
 }
+.hero-copy { max-width: 640px; }
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: var(--space-8);
+/* ---- Pill label ---------------------------------------------------------------------------------- */
+.hero-pill {
+  display: inline-flex;
   align-items: center;
-}
-
-.hero-copy h1 { max-width: 18ch; }
-.hero-copy p.lede { max-width: 48ch; }
-
-/* One badge, shown on desktop only: the same markup is simply not displayed on
-   phones, so there is no second hero and no empty gap where it used to be. */
-.hero-badge {
-  display: none;
-  align-items: center;
-  margin-bottom: var(--space-4);
-  padding: var(--space-1) var(--space-4);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.08);
-  font-size: var(--text-xs);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 var(--space-5);
+  padding: 8px 18px;
+  border: 1px solid var(--hero-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--hero-text);
+  font-size: 0.75rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-@media (min-width: 861px) { .hero-badge { display: inline-flex; } }
+.hero-pill-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--hero-gold); }
 
-.hero-search { margin: var(--space-6) 0 var(--space-5); max-width: 560px; }
-.hero-search-row { display: flex; gap: var(--space-3); }
-.hero-search-row input {
-  flex: 1; min-width: 0; min-height: 48px;
-  background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
-  padding: var(--space-3) var(--space-4); color: var(--color-dark-text);
+/* ---- Headline + description ---------------------------------------------------------------------- */
+.hero h1 {
+  margin: 0 0 var(--space-5);
+  max-width: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 0.9rem + 5.2vw, 4.25rem);
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: #FFFFFF;
 }
-.hero-search-row input:focus { border-color: var(--accent); outline: none; }
-.hero-search-row .btn { min-height: 48px; background: var(--color-primary-gold); color: var(--text-on-gold); }
-.hero-search-row .btn:hover:not(:disabled) { background: var(--color-light-gold); }
-
-.hero-paths { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
-.hero-links { margin: 0 0 var(--space-5); font-size: var(--text-sm); color: var(--text-secondary); max-width: none; }
-.hero-links a { color: var(--text-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
-.hero-links a:hover { color: var(--color-light-gold); }
-.hero-links span { margin: 0 var(--space-2); }
-
-.hero-trust { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); font-size: var(--text-sm); color: var(--text-secondary); }
-.hero-trust strong { color: var(--text-primary); }
-
-.hero-visual { display: flex; justify-content: center; }
-.hero-visual[hidden] { display: none; }
-/* A white card on the navy hero: re-anchor the text tokens (same pattern the old card used). */
-.hero-pros {
-  --text-primary: var(--color-dark-text);
-  --text-secondary: var(--color-muted-text);
-  --border-subtle: rgba(11, 31, 58, 0.12);
-  width: 100%; max-width: 380px; padding: var(--space-5);
+.hero-hl { color: var(--hero-gold); }
+.hero-lede {
+  margin: 0 0 var(--space-6);
+  max-width: 52ch;
+  color: var(--hero-text);
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.15rem);
+  line-height: 1.65;
 }
-.hero-pros-title { margin: 0 0 var(--space-3); font-size: var(--text-base); font-family: var(--font-display); }
-.hero-pro { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--border-subtle); color: inherit; text-decoration: none; }
-.hero-pro:hover .hero-pro-text strong { color: var(--accent-text); }
-.hero-pro img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: none; }
-.hero-pro-text { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--text-sm); }
-.hero-pro-text > span { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hero-pro-rating { flex: none; font-size: var(--text-xs); color: var(--accent-text); font-weight: 600; }
-.hero-pros-more { display: inline-block; margin-top: var(--space-2); font-size: var(--text-sm); font-weight: 600; color: var(--accent-text); }
+
+/* ---- Search -------------------------------------------------------------------------------------- */
+.hero-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 640px;
+  margin: 0 0 var(--space-4);
+  padding: 8px 8px 8px 18px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+}
+.hero-search:focus-within { outline: 3px solid var(--hero-gold); outline-offset: 3px; }
+.hero-search-icon { flex: none; color: var(--hero-navy-2); }
+.hero-search input[type="search"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 4px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--hero-navy-2);
+  font-size: 1rem;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.hero-search input[type="search"]::placeholder { color: #667489; opacity: 1; }
+.hero-search input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+.hero-search-btn {
+  flex: none;
+  min-height: 48px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--hero-gold);
+  color: var(--hero-navy);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.hero-search-btn:hover { background: var(--hero-gold-hover); }
+.hero-search-btn:active { transform: translateY(1px); }
+.hero-search-btn:focus-visible { outline: 3px solid var(--hero-navy); outline-offset: 2px; }
+
+/* ---- Primary actions ----------------------------------------------------------------------------- */
+.hero-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 640px;
+  margin: 0 0 var(--space-5);
+}
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.hero-btn svg { flex: none; }
+.hero-btn--gold { background: var(--hero-gold); color: var(--hero-navy); }
+.hero-btn--gold:hover { background: var(--hero-gold-hover); }
+.hero-btn--white { background: #FFFFFF; color: var(--hero-navy); }
+.hero-btn--white:hover { background: #E9EEF6; }
+.hero-btn:active { transform: translateY(1px); }
+.hero-btn:focus-visible, .hero-links a:focus-visible { outline: 3px solid #FFFFFF; outline-offset: 3px; }
+
+/* ---- Secondary links ----------------------------------------------------------------------------- */
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  font-size: 0.9375rem;
+}
+.hero-links a {
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+  color: #FFFFFF;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.hero-links a:hover { color: var(--hero-gold); border-color: var(--hero-gold); }
+.hero-links-sep { width: 1px; height: 18px; background: var(--hero-line); }
+
+/* ---- Trust indicators ---------------------------------------------------------------------------- */
+.hero-trust {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: clamp(28px, 4vw, 52px) 0 0;
+  padding: 22px 0 0;
+  list-style: none;
+  border-top: 1px solid var(--hero-line);
+}
+.hero-trust li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 24px;
+  border-left: 1px solid var(--hero-line);
+}
+.hero-trust li:first-child { padding-left: 0; border-left: 0; }
+.hero-trust-icon { flex: none; color: var(--hero-gold); }
+.hero-trust strong {
+  display: block;
+  min-width: 3ch;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #FFFFFF;
+}
+.hero-trust-label { display: block; margin-top: 2px; font-size: 0.875rem; line-height: 1.4; color: var(--hero-text); }
+/* Placeholder shown while the real numbers load, so nothing jumps when they arrive. */
+.hero-trust strong.is-loading {
+  width: 72px;
+  border-radius: 6px;
+  color: transparent;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+  background-size: 200% 100%;
+  animation: hero-shimmer 1.3s linear infinite;
+}
+@keyframes hero-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .hero-trust strong.is-loading { animation: none; } .hero-btn, .hero-search-btn { transition: none; } }
+
+/* ---- Tablet / phone: the photo becomes a banner above the text, fading into the navy ------------- */
+@media (max-width: 860px) {
+  .hero-photo { position: relative; inset: auto; z-index: 0; width: 100%; height: clamp(150px, 36vw, 260px); }
+  .hero-photo img { object-position: 50% 14%; }
+  .hero-photo::after {
+    background: linear-gradient(0deg, #061B33 0%, rgba(6, 27, 51, 0.6) 42%, rgba(6, 27, 51, 0.12) 100%);
+  }
+  .hero-inner { padding-top: var(--space-4); }
+  .hero-trust li { padding: 0 14px; }
+}
+@media (max-width: 640px) {
+  .hero-pill { padding: 7px 14px; font-size: 0.6875rem; letter-spacing: 0.09em; gap: 8px; }
+  .hero-trust { grid-template-columns: 1fr; gap: 16px; padding-top: 20px; }
+  .hero-trust li { padding: 0; border-left: 0; }
+  .hero-links { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .hero-links-sep { display: none; }
+}
+@media (max-width: 360px) {
+  /* Keeps the pill on one line on the smallest phones instead of leaving the dot dangling. */
+  .hero-pill { padding: 7px 12px; font-size: 0.625rem; letter-spacing: 0.05em; gap: 6px; flex-wrap: nowrap; }
+}
+@media (max-width: 520px) {
+  .hero-actions { grid-template-columns: 1fr; }
+  .hero-search { flex-wrap: wrap; padding: 10px 10px 10px 16px; }
+  .hero-search input[type="search"] { flex: 1 1 calc(100% - 40px); }
+  .hero-search-btn { flex: 1 1 100%; }
+}
 
 .section-heading-row {
   display: flex;
@@ -196,25 +369,10 @@
 .pro-band p { margin: 0; }
 
 @media (max-width: 900px) {
-  .hero-grid { grid-template-columns: 1fr; }
-  .hero-visual { display: none; }
-  /* No `order` override here on purpose: the professional/electrician
-     card must stay BELOW the headline/search (its real DOM position —
-     see index.html), not jump above it, so mobile visitors reach the
-     search bar without first scrolling past a decorative card. */
   .how-it-works { grid-template-columns: repeat(2, 1fr); }
   .pro-band { flex-direction: column; text-align: center; }
 }
 
 @media (max-width: 560px) {
-  .hero-search { flex-direction: column; }
   .how-it-works { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 640px) {
-  .hero { padding: var(--space-7) 0; }
-  .hero-search-row { flex-direction: column; }
-  .hero-search-row .btn { width: 100%; }
-  .hero-paths .btn { flex: 1 1 100%; }
-  .hero-trust { flex-direction: column; gap: var(--space-1); }
 }

@@ -8,12 +8,11 @@
   <meta name="description"
     content="JOB RUSH connects hirers with verified professionals across Nigeria. Post a job, interview, hire, and pay securely — all in one place." />
   <link rel="icon" type="image/png" href="assets/icons/favicon-32.png" />
-  <!-- Above-the-fold hero background — preloaded so it doesn't compete
-       with other requests for bandwidth on the LCP element; each media
-       query matches the same breakpoint the CSS background-image swap
-       in home.css uses, so only one size is ever actually downloaded. -->
-  <link rel="preload" as="image" href="assets/images/hero-professionals-1920.jpg" media="(min-width: 641px)" />
-  <link rel="preload" as="image" href="assets/images/hero-professionals-960.jpg" media="(max-width: 640px)" />
+  <!-- The hero photograph is the largest element above the fold: preloaded with the same
+       srcset/sizes the <img> uses, so only the one size the screen needs is downloaded. -->
+  <link rel="preload" as="image" href="assets/images/homepage-professional.jpg"
+    imagesrcset="assets/images/homepage-professional-640.jpg 640w, assets/images/homepage-professional.jpg 1200w"
+    imagesizes="(max-width: 860px) 100vw, 58vw" fetchpriority="high" />
   <link rel="stylesheet" href="css/tokens.css" />
   <link rel="stylesheet" href="css/base.css" />
   <link rel="stylesheet" href="css/components.css" />
@@ -21,53 +20,74 @@
   <link rel="stylesheet" href="css/home.css" />
 </head>
 
-<body>
+<body class="home-page">
   <a href="#main" class="skip-link">Skip to content</a>
   <div id="header-mount"></div>
 
   <main id="main">
 
     <!-- HERO -->
-    <section class="hero">
-      <div class="container hero-grid">
+    <section class="hero" aria-labelledby="hero-title">
+      <!-- A real photograph of a tradesperson, on the right. The navy gradient over it is strongest
+           where the text sits (see css/home.css); on phones it becomes a banner above the text. -->
+      <div class="hero-photo">
+        <img src="assets/images/homepage-professional.jpg"
+          srcset="assets/images/homepage-professional-640.jpg 640w, assets/images/homepage-professional.jpg 1200w"
+          sizes="(max-width: 860px) 100vw, 58vw" width="1200" height="904"
+          alt="A Nigerian tradesman in blue work overalls and a cap, arms crossed, smiling at the camera"
+          fetchpriority="high" decoding="async" />
+      </div>
+
+      <div class="container hero-inner">
         <div class="hero-copy">
-          <!-- Desktop only (css/home.css hides it on phones); one hero, one set of markup. -->
-          <span class="hero-badge">For Nigerian artisans, freelancers &amp; hirers</span>
-          <h1>Hire skilled professionals in Nigeria, or get hired.</h1>
-          <p class="lede">JOB RUSH is where hirers find verified artisans, freelancers and professionals &mdash; and where
+          <p class="hero-pill"><span>Skilled talents</span><i class="hero-pill-dot" aria-hidden="true"></i><span>Real opportunities</span></p>
+
+          <h1 id="hero-title">Hire skilled <br class="hero-br" /><span class="hero-hl">professionals</span> <br class="hero-br" />in Nigeria, or <br class="hero-br" />get hired.</h1>
+
+          <p class="hero-lede">JOB RUSH is where hirers find verified artisans, freelancers and professionals &mdash; and where
             professionals get discovered, hired and paid securely.</p>
 
           <form class="hero-search" id="hero-search-form" role="search">
-            <div class="hero-search-row">
-              <input type="search" name="keyword" id="hero-keyword" placeholder="e.g. electrician, graphic designer, Warri"
-                aria-label="Search by skill, profession or place" autocomplete="off" />
-              <button type="submit" class="btn btn-primary" id="hero-search-btn">Search</button>
-            </div>
+            <label class="visually-hidden" for="hero-keyword">Search by skill, profession or place</label>
+            <svg class="hero-search-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" name="keyword" id="hero-keyword" placeholder="e.g. electrician, graphic designer, Warri"
+              autocomplete="off" enterkeyhint="search" />
+            <button type="submit" class="hero-search-btn" id="hero-search-btn">Search</button>
           </form>
 
-          <div class="hero-paths">
-            <a class="btn btn-premium" href="pages/search.html">Hire a professional</a>
-            <a class="btn btn-secondary" href="pages/jobs.html">Find work</a>
+          <div class="hero-actions">
+            <a class="hero-btn hero-btn--gold" href="pages/search.html">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+              Hire a professional
+            </a>
+            <a class="hero-btn hero-btn--white" href="pages/jobs.html">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+              Find work
+            </a>
           </div>
-          <p class="hero-links">
-            <a href="pages/register.html?role=hirer">Post a job</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="pages/register.html?role=worker">Create your professional profile</a>
-          </p>
 
-          <div class="hero-trust" id="hero-trust">
-            <span><strong>Escrow</strong> holds payment until the work is done</span>
+          <div class="hero-links">
+            <a href="pages/register.html?role=hirer" id="hero-post-job">Post a job <span aria-hidden="true">&rarr;</span></a>
+            <span class="hero-links-sep" aria-hidden="true"></span>
+            <a href="pages/register.html?role=worker" id="hero-create-profile">Create your professional profile <span aria-hidden="true">&rarr;</span></a>
           </div>
         </div>
 
-        <!-- Real professionals from the live directory (filled by script; stays hidden if there are none). -->
-        <aside class="hero-visual" id="hero-visual" hidden aria-label="Professionals on JOB RUSH">
-          <div class="hero-pros card">
-            <h2 class="hero-pros-title">Professionals on JOB RUSH</h2>
-            <div id="hero-pros-list"></div>
-            <a class="hero-pros-more" href="pages/search.html">Browse all professionals &rarr;</a>
-          </div>
-        </aside>
+        <!-- Real numbers only (filled from /api/catalog/stats): nothing here is a hardcoded statistic. -->
+        <ul class="hero-trust" aria-label="Why JOB RUSH">
+          <li>
+            <svg class="hero-trust-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <div><strong id="stat-pros" class="is-loading">&nbsp;</strong><span id="stat-pros-label" class="hero-trust-label">&nbsp;</span></div>
+          </li>
+          <li>
+            <svg class="hero-trust-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            <div><strong id="stat-fee" class="is-loading">&nbsp;</strong><span id="stat-fee-label" class="hero-trust-label">&nbsp;</span></div>
+          </li>
+          <li>
+            <svg class="hero-trust-icon" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1" fill="currentColor"/></svg>
+            <div><strong>Escrow</strong><span class="hero-trust-label">holds payment until the work is done</span></div>
+          </li>
+        </ul>
       </div>
     </section>
 
@@ -157,7 +177,7 @@
   <script src="js/modules/scrollReveal.js"></script>
   <script>
     PhotoCard.mount(document.getElementById('photo-feature'), {
-      photo: 'tradesperson',
+      photo: 'collaboration',
       layout: 'split',
       badge: 'Real professionals',
       title: 'Skilled professionals, ready when you need them',
@@ -169,37 +189,48 @@
     });
   </script>
   <script>
+    // Fills the two data-driven trust indicators from the real catalogue statistics. If the request
+    // fails, or there is nothing to count yet, a truthful alternative is shown instead of a made-up number.
     async function loadHeroData() {
-      const [stats, pros] = await Promise.all([
-        API.get('/catalog/stats').catch(() => null),
-        API.get('/profiles/worker/search?pageSize=3').catch(() => null),
-      ]);
-      if (stats) {
-        const bits = [];
-        if (stats.verifiedProfessionals > 0) bits.push(`<span><strong>${stats.verifiedProfessionals.toLocaleString()}</strong> verified professional${stats.verifiedProfessionals === 1 ? '' : 's'}</span>`);
-        else if (stats.professionals > 0) bits.push(`<span><strong>${stats.professionals.toLocaleString()}</strong> professional${stats.professionals === 1 ? '' : 's'}</span>`);
-        if (stats.openJobs > 0) bits.push(`<span><strong>${stats.openJobs.toLocaleString()}</strong> open job${stats.openJobs === 1 ? '' : 's'}</span>`);
-        bits.push(`<span><strong>${Number(stats.platformFeePercent)}%</strong> fee, only when the work is paid</span>`);
-        document.getElementById('hero-trust').innerHTML = bits.join('') + '<span><strong>Escrow</strong> holds payment until the work is done</span>';
+      const prosEl = document.getElementById('stat-pros');
+      const prosLabel = document.getElementById('stat-pros-label');
+      const feeEl = document.getElementById('stat-fee');
+      const feeLabel = document.getElementById('stat-fee-label');
+      let stats = null;
+      try { stats = await API.get('/catalog/stats'); } catch { /* shown as the fallback below */ }
+
+      const pros = stats ? Number(stats.professionals) : 0;
+      if (pros > 0) {
+        prosEl.textContent = pros.toLocaleString();
+        prosLabel.textContent = pros === 1 ? 'professional' : 'professionals';
+      } else {
+        prosEl.textContent = 'Verified';
+        prosLabel.textContent = 'badges for ID-checked professionals';
       }
-      const list = pros && pros.profiles ? pros.profiles : [];
-      if (list.length) {
-        document.getElementById('hero-pros-list').innerHTML = list.map((p) => {
-          const where = [p.lga_name, p.state_name].filter(Boolean).join(', ');
-          const rating = Number(p.rating_count) > 0 ? `\u2605 ${Number(p.rating_avg).toFixed(1)} (${p.rating_count})` : '';
-          return `<a class="hero-pro" href="pages/worker-profile.html?id=${encodeURIComponent(p.user_id)}">
-            <img src="${esc(p.profile_picture_url || ASSETS.defaultAvatar)}" alt="" width="44" height="44" loading="lazy" />
-            <span class="hero-pro-text"><strong>${esc(p.full_name)}</strong><span>${esc(p.professional_title || 'Professional')}${where ? ` &middot; ${esc(where)}` : ''}</span></span>
-            ${p.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}${rating ? `<span class="hero-pro-rating">${rating}</span>` : ''}
-          </a>`;
-        }).join('');
-        document.getElementById('hero-visual').hidden = false;
+
+      const fee = stats ? Number(stats.platformFeePercent) : NaN;
+      if (Number.isFinite(fee)) {
+        feeEl.textContent = `${fee}%`;
+        feeLabel.textContent = 'fee, only when the work is paid';
+      } else {
+        feeEl.textContent = 'Paystack';
+        feeLabel.textContent = 'secure card payments';
       }
+      [prosEl, feeEl].forEach((el) => el.classList.remove('is-loading'));
+    }
+
+    // "Post a job" and "Create your professional profile" go to the existing workflows: a signed-in
+    // person with the right role goes straight to the real page, everyone else to registration.
+    function wireHeroLinks(user) {
+      if (!user) return;
+      const canHire = user.role === 'hirer' || user.role === 'both';
+      const canWork = user.role === 'worker' || user.role === 'both';
+      if (canHire) document.getElementById('hero-post-job').href = 'pages/my-jobs.html';
+      if (canWork) document.getElementById('hero-create-profile').href = 'pages/profile-settings.html?tab=profile';
     }
 
     (async function init() {
-      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'home' });
-      Chrome.renderFooter(document.getElementById('footer-mount'));
+      loadHeroData(); // starts at once: the numbers must not wait for the session check
 
       // Search goes to the unified search page, carrying the keyword. That page has
       // Professionals | Jobs tabs, so one box covers both without a pre-selection step.
@@ -209,9 +240,9 @@
         window.location.href = `pages/search.html${keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''}`;
       });
 
-      // Real numbers and real people only: nothing here is hardcoded. If a request
-      // fails or a count is zero, that element is simply not shown.
-      loadHeroData();
+      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'home' });
+      Chrome.renderFooter(document.getElementById('footer-mount'));
+      wireHeroLinks(user);
 
       try {
         const { categories } = await API.get('/catalog/categories');
