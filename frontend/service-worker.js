@@ -96,7 +96,14 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
 
       try {
-        const response = await fetch(request);
+        // A file that is not in this build's cache yet is fetched past the browser's HTTP cache.
+        // Static files are served with `stale-while-revalidate`, so the HTTP cache may still hold
+        // the PREVIOUS deploy's copy for up to a day; without this, that stale copy would be stored
+        // in the new build's cache and then served from it until the next deploy (a new page with
+        // an old header/script). HTML is `no-cache` (always revalidated), so it needs no bypass.
+        const response = isHtml
+          ? await fetch(request)
+          : await fetch(request.url, { cache: 'reload', credentials: 'same-origin' });
         // Only complete, successful, same-origin responses are stored.
         if (response && response.status === 200 && response.type === 'basic') {
           cache.put(isHtml ? new Request(url.origin + url.pathname) : request, response.clone()).catch(() => {});

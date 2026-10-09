@@ -14,6 +14,7 @@ function makeWorker(buildId, enabled) {
   const listeners = {};
   const stores = new Map(); // cacheName -> Map(url -> Response)
   const network = []; // urls that hit the network
+  const fetchInits = []; // {url, init} for each network fetch
   const makeResponse = (body, status = 200) => ({ status, type: 'basic', body, clone() { return { ...this }; } });
   const caches = {
     async open(name) {
@@ -45,7 +46,12 @@ function makeWorker(buildId, enabled) {
   }
   const context = {
     self, caches, Request, URL, Promise, console,
-    fetch: async (req) => { network.push(req.url); return makeResponse('net:' + req.url); },
+    fetch: async (req, init = {}) => {
+      const url = typeof req === 'string' ? req : req.url;
+      network.push(url);
+      fetchInits.push({ url, init });
+      return makeResponse('net:' + url);
+    },
   };
   vm.createContext(context);
   vm.runInContext(source.replace(/__BUILD_ID__/g, buildId).replace(/__CACHE_ENABLED__/g, String(enabled)), context);
@@ -55,7 +61,7 @@ function makeWorker(buildId, enabled) {
     if (waited) await waited;
     return responded ? responded : undefined;
   };
-  return { fire, stores, network, Request, listeners };
+  return { fire, stores, network, fetchInits, Request, listeners };
 }
 
 (async () => {
@@ -76,6 +82,14 @@ function makeWorker(buildId, enabled) {
     const r2 = await (await w.fire('fetch', { request: new w.Request('/css/base.css') }));
     assert.strictEqual(r2.body, 'net:https://app.test/css/base.css');
     assert.strictEqual(w.network.length, before, 'second request must not touch the network');
+  });
+
+  await test('a file new to this build bypasses the HTTP cache (so last deploy\'s stale copy is never pinned into the new cache); HTML is left to its own no-cache revalidation', async () => {
+    const w = makeWorker('v1', true);
+    await (await w.fire('fetch', { request: new w.Request('/js/modules/chrome.js') }));
+    assert.strictEqual(w.fetchInits[0].init.cache, 'reload');
+    await (await w.fire('fetch', { request: new w.Request('/pages/search.html', { mode: 'navigate' }) }));
+    assert.strictEqual(w.fetchInits[1].init.cache, undefined);
   });
 
   await test('HTML pages match ignoring the query string (?tab=, ?id=) so one cached page serves every URL of it', async () => {
