@@ -142,160 +142,319 @@
 }
 
 /* ============================================================
-   Public worker profile page
+   Public professional profile (frontend/pages/worker-profile.html)
+   New markup uses the pf- prefix. The wp-section / wp-actions /
+   wp-empty-state rules further down are still shared with
+   portfolio-detail.html, so they keep their original behaviour.
+   Everything reads the theme tokens, so light and dark both work.
    ============================================================ */
+.pf-page { max-width: 960px; padding-top: var(--space-4); padding-bottom: var(--space-8); }
 
-/* ---------- Profile hero / cover ---------- */
-.wp-hero { margin-bottom: var(--space-7); }
-.wp-hero-cover {
-  position: relative;
-  width: 100%;
-  height: 180px;
-  border-radius: var(--radius-lg, 14px);
-  background: linear-gradient(135deg, var(--color-primary-navy), var(--color-secondary-navy));
-  background-size: cover;
-  background-position: center;
-  overflow: hidden;
-}
-.wp-hero-cover::after {
-  /* readability/finish layer so a bright real photo never fights the
-     avatar + edit button sitting on top of it */
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(7, 22, 42, 0.55), rgba(7, 22, 42, 0) 55%);
-}
-.wp-hero-edit-cover-btn {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  z-index: 2;
+/* ---------- Back / Share / More row ---------- */
+.pf-navrow { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-4); }
+.pf-navrow-end { display: flex; align-items: center; gap: var(--space-2); }
+.pf-navbtn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  background: rgba(7, 22, 42, 0.55);
-  color: var(--text-on-navy);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.pf-navbtn:hover { color: var(--text-primary); background: var(--bg-elevated); }
+.pf-navbtn svg { flex-shrink: 0; }
+.pf-navrow-end .more-menu-btn { color: var(--text-secondary); }
+
+/* ---------- Cover + introduction ---------- */
+.pf-cover {
+  position: relative;
+  height: 200px;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--color-primary-navy), var(--color-dark-blue));
+}
+.pf-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+/* A soft shade at the bottom only when there is a real photo, so the edit button stays readable. */
+.pf-cover.has-image::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(7, 22, 42, 0.35), rgba(7, 22, 42, 0) 50%); pointer-events: none; }
+.pf-cover-edit {
+  position: absolute;
+  z-index: 2;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  background: rgba(7, 22, 42, 0.62);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-3);
   font-size: var(--text-xs);
   font-weight: 600;
-  backdrop-filter: blur(4px);
-  transition: background var(--transition-fast, 150ms) var(--ease-standard, ease);
+  cursor: pointer;
 }
-.wp-hero-edit-cover-btn:hover { background: rgba(7, 22, 42, 0.75); }
-.wp-hero-edit-cover-btn svg { width: 16px; height: 16px; }
+.pf-cover-edit:hover:not(:disabled) { background: rgba(7, 22, 42, 0.85); }
+.pf-cover-edit svg { width: 16px; height: 16px; }
 
-.wp-hero-body {
-  display: flex;
-  gap: var(--space-5);
-  align-items: flex-start;
-  padding: var(--space-4) var(--space-2) 0;
-  position: relative;
-  z-index: 1;
-}
-
-.wp-avatar {
+.pf-intro { display: flex; align-items: flex-start; gap: var(--space-5); padding: 0 var(--space-2); }
+.pf-avatar-slot { flex: none; margin-top: -56px; position: relative; z-index: 1; }
+.pf-avatar {
+  display: block;
   width: 112px;
   height: 112px;
   border-radius: 50%;
   object-fit: cover;
   border: 4px solid var(--bg-page);
   background: var(--bg-surface);
-  flex-shrink: 0;
-  box-shadow: 0 2px 10px rgba(11, 31, 58, 0.18);
 }
-
-/* Only the avatar (or its AvatarBadge.wrap() span, for a verified/PRO
-   member) pokes up into the cover — shifted by its own negative
-   margin rather than dragging the whole flex row (and the name/meta
-   text with it) up into the cover image. */
-.wp-hero-body > img.wp-avatar,
-.wp-hero-body > .avatar-badge-wrap {
-  margin-top: -72px;
+.pf-identity { flex: 1; min-width: 0; padding-top: var(--space-4); }
+.pf-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+.pf-name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2rem);
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
+.pf-title { margin: var(--space-1) 0 0; color: var(--text-secondary); font-weight: 500; font-size: var(--text-base); max-width: none; overflow-wrap: anywhere; }
+.pf-meta { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin-top: var(--space-3); font-size: var(--text-sm); }
 
-.wp-identity { flex: 1; min-width: 0; padding-bottom: var(--space-1); }
-.wp-name-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.wp-name { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 700; }
-.wp-title { color: var(--text-secondary); margin-top: var(--space-1); font-weight: 500; }
+.pf-rating { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
+button.pf-rating { background: none; border: 0; padding: 0; min-height: 32px; font: inherit; cursor: pointer; }
+button.pf-rating:hover span:last-child { text-decoration: underline; }
+.pf-rating strong { color: var(--text-primary); }
+.pf-rating--none svg { width: 16px; height: 16px; }
+.pf-stars { color: var(--accent-text); letter-spacing: 1px; white-space: nowrap; }
+.pf-stars-off { opacity: 0.3; }
 
-.wp-info-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; margin-top: var(--space-3); font-size: var(--text-sm); color: var(--text-secondary); }
-.wp-info-item { display: flex; align-items: center; gap: var(--space-2); }
-.wp-info-item svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
+.pf-availability { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; color: var(--text-primary); }
+.pf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); }
+.pf-availability.is-available { color: var(--status-success); }
+.pf-availability.is-available .pf-dot { background: var(--status-success); }
+.pf-availability.is-busy .pf-dot { background: var(--color-primary-gold); }
+.pf-availability.is-unavailable { color: var(--text-secondary); }
+.pf-availability.is-unavailable .pf-dot { background: var(--status-danger); }
+html[data-theme="dark"] .pf-availability.is-available { color: #5BD39B; }
 
-.wp-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
+/* ---------- Key facts ---------- */
+.pf-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--space-4) var(--space-5);
+  margin: var(--space-5) 0 0;
+  padding: var(--space-4) 0;
+  border-top: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.pf-fact { min-width: 0; }
+.pf-fact dt { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.pf-fact dt svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
+.pf-fact dd { margin: var(--space-1) 0 0; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
 
-.wp-price { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--accent-text); }
-.wp-availability-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.wp-availability-dot.available { background: var(--status-success); }
-.wp-availability-dot.busy { background: var(--status-warning); }
-.wp-availability-dot.unavailable { background: var(--status-danger); }
+/* ---------- Pricing + contact ---------- */
+.pf-contact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+}
+.pf-price { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pf-price-label { font-size: var(--text-xs); color: var(--text-secondary); font-weight: 500; }
+.pf-price-amount { font-family: var(--font-display); font-size: var(--text-xl); font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+.pf-price-amount--none { font-size: var(--text-base); color: var(--text-secondary); font-weight: 600; }
+.pf-price-hint { font-size: var(--text-xs); color: var(--text-secondary); }
+.pf-cta { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pf-cta .btn, .pf-sticky .btn { min-height: 44px; gap: var(--space-2); }
+.pf-cta .btn svg, .pf-sticky .btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+/* The one primary action: gold, with the brand's dark navy text, readable in both themes. */
+.pf-cta-primary { background: var(--color-primary-gold); color: var(--color-deep-navy); border-color: var(--color-primary-gold); font-weight: 700; }
+.pf-cta-primary:hover:not(:disabled) { background: var(--color-light-gold); }
+.pf-cta-primary:focus-visible, .pf-tab:focus-visible, .pf-navbtn:focus-visible, .pf-link-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Fixed contact bar shown on phones in place of the inline buttons. The class is set by the page
+   (not :has()) so older Android WebViews behave the same. */
+.pf-sticky { display: none; }
 
+/* ---------- Tabs ---------- */
+.pf-tabs {
+  display: flex;
+  gap: var(--space-5);
+  margin-top: var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pf-tabs::-webkit-scrollbar { display: none; }
+.pf-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: 0 var(--space-1);
+  margin-bottom: -1px;
+  background: none;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pf-tab:hover { color: var(--text-primary); }
+.pf-tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+.pf-tab-count { min-width: 22px; padding: 1px 7px; border-radius: var(--radius-pill); background: var(--bg-elevated); color: var(--text-secondary); font-size: var(--text-xs); font-weight: 600; text-align: center; }
+.pf-tab[aria-selected="true"] .pf-tab-count { background: rgba(201, 162, 39, 0.18); color: var(--accent-text); }
+.pf-panel { padding-top: var(--space-5); min-height: 160px; }
+.pf-panel:focus { outline: none; }
+.pf-panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--radius-md); }
+
+/* ---------- Overview blocks ---------- */
+.pf-block { padding-bottom: var(--space-5); margin-bottom: var(--space-5); border-bottom: 1px solid var(--border-subtle); }
+.pf-block:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.pf-block h2 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+.pf-muted { color: var(--text-secondary); font-size: var(--text-sm); margin: 0; max-width: none; }
+.pf-about { margin: 0; max-width: 68ch; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pf-about.is-clamped { display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.pf-link-btn { margin-top: var(--space-2); min-height: 36px; padding: 0; background: none; border: 0; color: var(--accent-text); font: inherit; font-weight: 600; font-size: var(--text-sm); cursor: pointer; }
+.pf-link-btn:hover { text-decoration: underline; }
+
+.pf-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.pf-chips li { padding: var(--space-1) var(--space-3); background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); font-size: var(--text-sm); font-weight: 500; overflow-wrap: anywhere; }
+
+.pf-social { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.pf-social-link { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-4) 0 var(--space-2); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); color: var(--text-primary); font-size: var(--text-sm); font-weight: 600; text-decoration: none; }
+.pf-social-link:hover { border-color: var(--border-gold); }
+.pf-social-icon { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* ---------- Services ---------- */
+.pf-services { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.pf-service { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+.pf-service-main { min-width: 0; flex: 1; }
+.pf-service-name { margin: 0; font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
+.pf-service-desc { margin: var(--space-2) 0 0; color: var(--text-secondary); font-size: var(--text-sm); max-width: 64ch; overflow-wrap: anywhere; }
+.pf-service-duration { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-2) 0 0; font-size: var(--text-sm); color: var(--text-secondary); max-width: none; }
+.pf-service-duration svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
+.pf-service-duration strong { color: var(--text-primary); font-weight: 600; }
+.pf-service-price { flex: none; display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 2px; }
+.pf-service-price strong { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; line-height: 1.2; }
+.pf-service-quote { font-size: var(--text-base) !important; color: var(--text-secondary); }
+.pf-service-unit { font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ---------- Portfolio ---------- */
+.pf-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); margin: 0; padding: 0; list-style: none; }
+.pf-project { display: block; height: 100%; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); overflow: hidden; color: inherit; text-decoration: none; }
+.pf-project:hover { border-color: var(--border-gold); }
+.pf-project-thumb { position: relative; aspect-ratio: 4 / 3; background: var(--bg-elevated); }
+.pf-project-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pf-project-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: var(--text-xs); }
+.pf-project-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6)); }
+.pf-project-body { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-4) var(--space-4); }
+.pf-project-body h3 { margin: 0; font-size: var(--text-base); overflow-wrap: anywhere; }
+.pf-project-count { font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ---------- Reviews ---------- */
+.pf-review-summary { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); }
+.pf-review-avg { font-family: var(--font-display); font-size: var(--text-3xl); line-height: 1; }
+.pf-reviews { margin: 0; padding: 0; list-style: none; }
+.pf-review { padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
+.pf-review:last-child { border-bottom: 0; }
+.pf-review-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2); }
+.pf-review-text { margin: var(--space-2) 0; color: var(--text-secondary); font-size: var(--text-sm); max-width: 68ch; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pf-review-date { display: block; font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* ---------- Empty states ---------- */
+.pf-empty { padding: var(--space-6) var(--space-4); text-align: center; border: 1px dashed var(--border-subtle); border-radius: var(--radius-lg); color: var(--text-secondary); }
+.pf-empty h2 { margin: 0 0 var(--space-2); font-size: var(--text-base); color: var(--text-primary); }
+.pf-empty p { margin: 0 auto var(--space-3); max-width: 44ch; font-size: var(--text-sm); }
+.pf-empty p:last-child { margin-bottom: 0; }
+
+/* ---------- Loading skeleton: same overall shape as the finished page ---------- */
+.pf-skel-cover { height: 200px; border-radius: var(--radius-xl); }
+.pf-skel-intro { display: flex; gap: var(--space-5); padding: 0 var(--space-2); }
+.pf-skel-avatar { flex: none; width: 112px; height: 112px; border-radius: 50%; margin-top: -56px; border: 4px solid var(--bg-page); }
+.pf-skel-lines { flex: 1; display: grid; gap: var(--space-2); padding-top: var(--space-4); }
+
+/* ---------- Tablet / phone ---------- */
 @media (max-width: 680px) {
-  .wp-hero-cover { height: 140px; }
-  .wp-hero-body { flex-direction: column; align-items: center; text-align: center; }
-  .wp-avatar { width: 96px; height: 96px; }
-  .wp-hero-body > img.wp-avatar,
-  .wp-hero-body > .avatar-badge-wrap {
-    margin-top: -48px;
+  .pf-page { padding-top: var(--space-2); }
+  .pf-navbtn span { display: none; }
+  .pf-navbtn { padding: 0 var(--space-2); }
+  /* Share becomes an icon on phones; its aria-label still names it. */
+  .pf-cover { height: 140px; border-radius: var(--radius-lg); }
+  .pf-intro, .pf-skel-intro { flex-direction: column; align-items: center; text-align: center; gap: var(--space-3); padding: 0; }
+  .pf-avatar-slot { margin-top: -48px; }
+  .pf-avatar { width: 96px; height: 96px; }
+  .pf-skel-avatar { width: 96px; height: 96px; margin-top: -48px; }
+  .pf-skel-lines { width: 100%; }
+  .pf-identity { padding-top: 0; }
+  .pf-name-row, .pf-meta { justify-content: center; }
+  .pf-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+  .pf-contact { padding: var(--space-4); }
+  .pf-cta--visitor { display: none; } /* the fixed bar below replaces these on phones */
+  .pf-tabs { gap: var(--space-4); }
+  body.has-pf-sticky { padding-bottom: 80px; }
+  .pf-sticky {
+    display: flex;
+    gap: var(--space-2);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-surface);
+    border-top: 1px solid var(--border-subtle);
   }
-  .wp-info-row { justify-content: center; }
-  .wp-actions { justify-content: center; width: 100%; }
-  .wp-actions .btn { flex: 1; }
+  .pf-sticky .btn { flex: 1 1 0; min-width: 0; padding-left: var(--space-2); padding-right: var(--space-2); }
+  .pf-sticky .pf-cta-primary { flex: 1.4 1 0; }
+  .pf-service { flex-direction: column; gap: var(--space-3); }
+  .pf-service-price { align-items: flex-start; text-align: left; flex-direction: row; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
+  .pf-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 }
+@media (max-width: 400px) {
+  /* Four tabs have to fit one 288px row on the smallest phones. */
+  .pf-tabs { gap: var(--space-3); }
+  .pf-tab { font-size: 0.875rem; }
+  .pf-tab-count { min-width: 18px; padding: 0 6px; font-size: 0.75rem; }
+}
+@media (max-width: 340px) {
+  .pf-facts { grid-template-columns: 1fr; }
+  .pf-gallery { grid-template-columns: 1fr; }
+  .pf-tab-count { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .pf-tab, .pf-navbtn { transition: none; } }
 
-/* ---------- Shared section header ---------- */
+/* ---------- Shared with portfolio-detail.html (unchanged) ---------- */
 .wp-section { margin-bottom: var(--space-7); }
 .wp-section-header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); }
 .wp-section-header svg { width: 20px; height: 20px; color: var(--accent-text); flex-shrink: 0; }
 .wp-section-header h2 { font-size: var(--text-lg); margin: 0; }
 .wp-section h2 { font-size: var(--text-lg); margin-bottom: var(--space-4); }
-
-/* About */
-.wp-about-text { line-height: 1.7; max-width: 68ch; white-space: pre-wrap; }
-.wp-about-text.is-clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.wp-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); flex-wrap: wrap; }
+@media (max-width: 680px) {
+  .wp-actions { justify-content: center; width: 100%; }
+  .wp-actions .btn { flex: 1; }
 }
-.wp-read-more-btn { margin-top: var(--space-2); background: none; border: none; padding: 0; color: var(--accent-text); font-weight: 600; font-size: var(--text-sm); cursor: pointer; }
+.wp-info-item { display: flex; align-items: center; gap: var(--space-2); }
+.wp-info-item svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
 
-/* ---------- Skills ---------- */
-.wp-skills { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.wp-skill-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-  font-weight: 500;
-}
-.wp-skill-chip svg { width: 14px; height: 14px; color: var(--accent-text); }
-
-/* ---------- Services ---------- */
-.wp-service-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-4) var(--space-5);
-}
-.wp-service-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-3); flex-wrap: wrap; }
-.wp-service-name { font-weight: 600; font-size: var(--text-base); }
-.wp-service-price-block { text-align: right; flex-shrink: 0; }
-.wp-service-price-label { font-size: var(--text-xs); color: var(--text-secondary); }
-.wp-service-price { font-family: var(--font-display); font-weight: 700; color: var(--accent-text); font-size: var(--text-lg); line-height: 1.2; }
-.wp-service-price-unit { font-size: var(--text-xs); color: var(--text-secondary); }
-.wp-service-desc { margin-top: var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); max-width: none; }
-.wp-service-duration { margin-top: var(--space-2); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text-secondary); }
-.wp-service-duration svg { width: 16px; height: 16px; color: var(--accent-text); flex-shrink: 0; }
-.wp-service-duration strong { color: var(--text-primary); font-weight: 600; }
-
+/* ---------- Experience, education, business: still used inside the Overview tab ---------- */
 /* ---------- Experience timeline ---------- */
 .wp-timeline { position: relative; }
 .wp-timeline-item { position: relative; padding-left: var(--space-6); padding-bottom: var(--space-5); border-left: 2px solid var(--border-subtle); margin-left: 6px; }
@@ -331,10 +490,6 @@
 .wp-education-meta { font-size: var(--text-xs); color: var(--text-secondary); margin-top: 2px; }
 .wp-education-desc { margin-top: var(--space-2); font-size: var(--text-sm); max-width: none; }
 
-/* CV card styling now lives in components.css (.wp-cv-*) since it's
-   shared by both the public worker profile and the owner's Settings
-   CV tab, not specific to this page. */
-
 /* ---------- Business card ---------- */
 .wp-business-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg, 12px); overflow: hidden; }
 .wp-business-cover { width: 100%; aspect-ratio: 16 / 7; object-fit: cover; display: block; background: var(--bg-elevated); }
@@ -350,44 +505,6 @@
 .wp-hours-list dt { color: var(--text-secondary); }
 .wp-hours-list dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 
-/* ---------- Social cards ---------- */
-.wp-social-row { display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.wp-social-card {
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-pill);
-  text-decoration: none;
-  color: var(--text-primary);
-  font-weight: 600;
-  font-size: var(--text-sm);
-  transition: transform var(--transition-fast, 150ms) var(--ease-standard, ease), box-shadow var(--transition-fast, 150ms) var(--ease-standard, ease);
-}
-.wp-social-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(11, 31, 58, 0.12); }
-.wp-social-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-
-/* ---------- Portfolio gallery ---------- */
-.wp-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-4); }
-.wp-gallery-item { border-radius: var(--radius-md); overflow: hidden; background: var(--bg-elevated); position: relative; }
-.wp-gallery-item img { width: 100%; height: 160px; object-fit: cover; display: block; }
-.wp-gallery-item .duration-badge {
-  position: absolute; bottom: var(--space-2); right: var(--space-2);
-  background: rgba(0,0,0,0.7); color: var(--text-primary); font-size: var(--text-xs);
-  padding: 2px 6px; border-radius: var(--radius-sm);
-}
-@media (max-width: 560px) {
-  .wp-gallery { grid-template-columns: repeat(2, 1fr); gap: var(--space-3); }
-}
-@media (max-width: 380px) {
-  .wp-gallery { grid-template-columns: 1fr; }
-}
-
-/* ---------- Reviews ---------- */
-.wp-review { padding: var(--space-4) 0; border-bottom: 1px solid var(--border-subtle); }
-.wp-review:last-child { border-bottom: none; }
-.wp-review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2); }
-
 /* ---------- Empty states (owner-facing setup prompts) ---------- */
 .wp-empty-state {
   border: 1px dashed var(--border-subtle);
@@ -398,57 +515,6 @@
 }
 .wp-empty-state h3 { color: var(--text-primary); font-size: var(--text-base); margin-bottom: var(--space-2); }
 .wp-empty-state p { max-width: 40ch; margin: 0 auto var(--space-4); font-size: var(--text-sm); }
-
-/* ---------- Sticky mobile contact bar ----------
-   position: fixed (not sticky) and lifted out of .wp-hero's normal
-   flow via the page's own body-level placement, so it stays pinned to
-   the viewport bottom for the WHOLE profile page scroll, not just
-   while its immediate parent is on screen. */
-.wp-sticky-actions {
-  display: none;
-}
-@media (max-width: 680px) {
-  body:has(.wp-sticky-actions) { padding-bottom: 72px; }
-  .wp-sticky-actions {
-    display: flex;
-    gap: var(--space-3);
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--bg-surface);
-    border-top: 1px solid var(--border-subtle);
-    padding: var(--space-3) var(--space-4);
-    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
-    z-index: 50;
-  }
-  .wp-sticky-actions .btn { flex: 1; }
-  /* The inline header actions are replaced by the sticky bar on
-     mobile so the primary action isn't duplicated on screen twice. */
-  .wp-header-actions-desktop-only { display: none; }
-}
-
-/* ============================================================
-   Worker profile → one card per portfolio PROJECT (not per media
-   item) — each links to portfolio-detail.html. Kept intentionally
-   simple since the profile page itself isn't being redesigned.
-   ============================================================ */
-.wp-project-card {
-  display: block;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--bg-elevated);
-  position: relative;
-  color: inherit;
-}
-.wp-project-thumb-frame { width: 100%; height: 170px; background: var(--color-black); position: relative; }
-.wp-project-thumb-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.wp-project-thumb-frame .wp-project-video-icon {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary);
-}
-.wp-project-card-body { padding: var(--space-4); }
-.wp-project-card-body h3 { font-size: var(--text-base); margin-bottom: var(--space-1); }
-.wp-project-media-count { font-size: var(--text-xs); color: var(--text-secondary); margin-top: var(--space-2); }
 
 /* ============================================================
    Portfolio Project Details page (frontend/pages/portfolio-detail.html)

@@ -1,5 +1,6 @@
 const profileService = require('../services/profileService');
 const asyncHandler = require('../utils/asyncHandler');
+const { isUuid } = require('../middleware/publicWorkerGuard');
 const { toSnakeCaseProfileInput, normalizeGenderInput } = require('../validators/profileValidators');
 
 /**
@@ -40,6 +41,9 @@ function redactPrivateForViewer(profile, isOwner) {
  * as "exists but hidden," which would itself leak information.
  */
 const getWorkerProfile = asyncHandler(async (req, res) => {
+  // A malformed id can never be a real profile; answering 404 here (like the other public worker
+  // endpoints do) instead of letting the database reject it as an invalid uuid, which was a 500.
+  if (!isUuid(req.params.userId)) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
   const profile = await profileService.getWorkerProfile(req.params.userId);
   const isOwner = req.user?.id === req.params.userId;
   const isHidden =
@@ -78,6 +82,7 @@ const updateOwnWorkerProfile = asyncHandler(async (req, res) => {
 });
 
 const getHirerProfile = asyncHandler(async (req, res) => {
+  if (!isUuid(req.params.userId)) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
   const profile = await profileService.getHirerProfile(req.params.userId);
   if (!profile) return res.status(404).json({ error: 'Profile not found.', code: 'NOT_FOUND' });
   const isOwner = req.user?.id === req.params.userId;
