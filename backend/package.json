@@ -9,7 +9,7 @@
     "dev": "node --watch src/server.js",
     "migrate": "node src/database/runMigrations.js",
     "backfill:schedules": "node src/database/backfillStructuredSchedules.js",
-    "test": "node src/utils/legacySchedule.test.js && node src/validators/durationAndHours.test.js && node src/utils/messagingAndSearch.test.js && node src/utils/serviceWorker.test.js && node src/utils/imageOwnership.test.js && node src/utils/fcmInit.test.js && node src/utils/notificationRules.test.js"
+    "test": "node src/utils/legacySchedule.test.js && node src/validators/durationAndHours.test.js && node src/utils/messagingAndSearch.test.js && node src/utils/serviceWorker.test.js && node src/utils/imageOwnership.test.js && node src/utils/fcmInit.test.js && node src/utils/notificationRules.test.js && node src/middleware/publicWorkerGuard.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

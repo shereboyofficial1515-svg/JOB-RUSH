@@ -34,4 +34,9 @@ function publicWorkerGuard(param = 'userId') {
   ];
 }
 
-module.exports = { publicWorkerGuard };
+/** True only for a well-formed UUID; anything else can never be a real user id. */
+function isUuid(value) {
+  return typeof value === 'string' && UUID.test(value);
+}
+
+module.exports = { publicWorkerGuard, isUuid };

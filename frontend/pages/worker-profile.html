@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Worker Profile — JOB RUSH</title>
+  <title>Professional Profile — JOB RUSH</title>
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
@@ -18,15 +18,37 @@
   <a href="#main" class="skip-link">Skip to content</a>
   <div id="header-mount"></div>
 
-  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9); max-width: 900px;">
-    <button type="button" class="page-back-btn" id="page-back-btn" style="margin-top: 0;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-      Back
-    </button>
-    <div id="profile-content">
-      <div class="skeleton" style="height: 160px; margin-bottom: var(--space-6);"></div>
-      <div class="skeleton" style="height: 120px; margin-bottom: var(--space-6);"></div>
-      <div class="skeleton" style="height: 240px;"></div>
+  <main id="main" class="container pf-page">
+    <!-- Back / Share / More. Share and More are filled in once the profile has loaded. -->
+    <nav class="pf-navrow" aria-label="Profile navigation">
+      <button type="button" class="pf-navbtn" id="page-back-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Back
+      </button>
+      <div class="pf-navrow-end" id="pf-nav-actions" hidden>
+        <button type="button" class="pf-navbtn" id="share-profile-btn" aria-label="Share this profile">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>
+          <span>Share</span>
+        </button>
+        <div id="pf-more-mount"></div>
+      </div>
+    </nav>
+
+    <!-- The skeleton has the same overall shape as the finished page so nothing jumps when the data arrives. -->
+    <div id="profile-content" aria-busy="true">
+      <div class="pf-skel">
+        <div class="skeleton pf-skel-cover"></div>
+        <div class="pf-skel-intro">
+          <div class="skeleton pf-skel-avatar"></div>
+          <div class="pf-skel-lines">
+            <div class="skeleton" style="height: 28px; width: 60%;"></div>
+            <div class="skeleton" style="height: 18px; width: 40%;"></div>
+            <div class="skeleton" style="height: 18px; width: 70%;"></div>
+          </div>
+        </div>
+        <div class="skeleton" style="height: 84px; margin-top: var(--space-5);"></div>
+        <div class="skeleton" style="height: 220px; margin-top: var(--space-5);"></div>
+      </div>
     </div>
   </main>
 
@@ -44,6 +66,7 @@
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/avatarBadge.js"></script>
+  <script src="../js/utils/moreMenu.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
@@ -53,15 +76,32 @@
   <script src="../js/utils/fileFormat.js"></script>
   <script src="../js/utils/cvViewer.js"></script>
   <script>
-    function ratingStars(avg) {
-      const n = Math.round(Number(avg) || 0);
-      return '★'.repeat(n) + '☆'.repeat(5 - n);
+    // ---------------------------------------------------------------- formatting helpers
+    // Only an http(s) URL is ever used as an image source or link target; anything else is ignored.
+    function safeUrl(value) {
+      if (!value || typeof value !== 'string') return null;
+      try {
+        const u = new URL(value, window.location.href);
+        return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+      } catch { return null; }
+    }
+
+    function starsHtml(avg) {
+      const n = Math.max(0, Math.min(5, Math.round(Number(avg) || 0)));
+      return `<span class="pf-stars" role="img" aria-label="${Number(avg || 0).toFixed(1)} out of 5 stars"><span aria-hidden="true">${'★'.repeat(n)}<span class="pf-stars-off">${'★'.repeat(5 - n)}</span></span></span>`;
     }
 
     function formatMoney(amount, currency) {
-      if (amount === null || amount === undefined) return null;
-      const symbol = currency === 'USD' ? '$' : '₦';
-      return `${symbol}${Number(amount).toLocaleString()}`;
+      if (amount === null || amount === undefined || amount === '') return null;
+      const n = Number(amount);
+      if (!Number.isFinite(n)) return null;
+      const cur = currency || 'NGN';
+      const digits = Number.isInteger(n) ? 0 : 2;
+      try {
+        return new Intl.NumberFormat(cur === 'NGN' ? 'en-NG' : 'en-US', { style: 'currency', currency: cur, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+      } catch {
+        return `${cur} ${n.toLocaleString()}`;
+      }
     }
 
     function locationLine(profile) {
@@ -69,230 +109,190 @@
       return parts.length ? parts.join(', ') : null;
     }
 
-    function availabilityLabel(status) {
-      return { available: 'Available now', busy: 'Currently busy', unavailable: 'Unavailable' }[status] || status;
+    const AVAILABILITY = {
+      available: { label: 'Available for work', cls: 'is-available' },
+      busy: { label: 'Currently busy', cls: 'is-busy' },
+      unavailable: { label: 'Currently unavailable', cls: 'is-unavailable' },
+    };
+
+    function profileUrl(profile) {
+      return `${window.location.origin}${window.location.pathname}?id=${encodeURIComponent(profile.user_id)}`;
     }
 
+    function loginUrl() {
+      const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
+      return `login.html?returnTo=${returnTo}`;
+    }
+
+    // ---------------------------------------------------------------- hero / introduction
     function heroHtml(profile, isOwner) {
-      const location = locationLine(profile);
-      const price = formatMoney(profile.starting_price, profile.price_currency);
-      const coverStyle = profile.cover_photo_url ? ` style="background-image:url('${profile.cover_photo_url}');"` : '';
+      const verified = profile.verification_status === 'approved';
+      const cover = safeUrl(profile.cover_photo_url);
+      const avatar = safeUrl(profile.profile_picture_url) || ASSETS.defaultAvatar;
+      const availability = AVAILABILITY[profile.availability_status];
+      const rating = profile.rating_count > 0
+        ? `<button type="button" class="pf-rating" data-goto-tab="reviews" aria-label="See all ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}">${starsHtml(profile.rating_avg)}<strong>${Number(profile.rating_avg).toFixed(1)}</strong><span>(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></button>`
+        : `<span class="pf-rating pf-rating--none">${Icons.star}<span>No reviews yet</span></span>`;
       return `
-      <div class="wp-hero">
-        <div class="wp-hero-cover"${coverStyle}>
-          ${isOwner ? `<button type="button" class="wp-hero-edit-cover-btn" id="edit-cover-btn">${Icons.camera} Edit cover</button>` : ''}
+      <header class="pf-hero">
+        <div class="pf-cover${cover ? ' has-image' : ''}" id="pf-cover">
+          ${cover ? `<img class="pf-cover-img" src="${esc(cover)}" alt="" decoding="async" />` : ''}
+          ${isOwner ? `<button type="button" class="pf-cover-edit" id="edit-cover-btn">${Icons.camera}<span>Edit cover</span></button>` : ''}
         </div>
-        <div class="wp-hero-body">
-          ${AvatarBadge.wrap(
-            `<img src="${profile.profile_picture_url || ASSETS.defaultAvatar}" alt="" class="wp-avatar" width="112" height="112" />`,
-            { verified: profile.verification_status === 'approved', isPro: !!profile.is_pro, size: 'lg' }
-          )}
-          <div class="wp-identity">
-            <div class="wp-name-row">
-              <span class="wp-name">${esc(profile.full_name)}</span>
-              ${profile.verification_status === 'approved' ? '<span class="badge badge-verified badge-enter">Verified</span>' : ''}
-              ${profile.is_pro ? '<span class="badge badge-pro badge-enter">PRO</span>' : ''}
+        <div class="pf-intro">
+          <div class="pf-avatar-slot">
+            ${AvatarBadge.wrap(
+              `<img src="${esc(avatar)}" alt="Photo of ${esc(profile.full_name)}" class="pf-avatar" width="112" height="112" decoding="async" />`,
+              { verified, isPro: !!profile.is_pro, size: 'lg' }
+            )}
+          </div>
+          <div class="pf-identity">
+            <div class="pf-name-row">
+              <h1 class="pf-name">${esc(profile.full_name)}</h1>
+              ${verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+              ${profile.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
             </div>
-            <div class="wp-title">${esc(profile.professional_title) || 'Professional'}</div>
-            <div class="wp-info-row">
-              ${profile.rating_count > 0
-                ? `<span class="wp-info-item text-gold">${ratingStars(profile.rating_avg)} <span class="text-secondary"><strong>${Number(profile.rating_avg).toFixed(1)}</strong> · ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}</span></span>`
-                : `<span class="wp-info-item text-secondary">${Icons.star} No reviews yet</span>`}
-              ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}</span>` : ''}
-              <span class="wp-info-item"><span class="wp-availability-dot ${profile.availability_status}"></span> ${availabilityLabel(profile.availability_status)}</span>
-              ${profile.experience_years ? `<span class="wp-info-item">${Icons.clock} ${profile.experience_years} year${profile.experience_years === 1 ? '' : 's'} of experience</span>` : ''}
-              ${profile.completed_jobs_count ? `<span class="wp-info-item">${Icons.briefcase} ${profile.completed_jobs_count} job${profile.completed_jobs_count === 1 ? '' : 's'} completed</span>` : ''}
-            </div>
-            ${price ? `<div class="wp-price" style="margin-top: var(--space-3);"><span class="text-secondary text-sm" style="font-weight:400;">Starting from</span> ${price}</div>` : ''}
-            ${ScheduleFormat.scheduleLine(profile) ? `<div class="wp-info-item text-secondary text-sm" style="margin-top: var(--space-1);">${Icons.clock} ${esc(ScheduleFormat.scheduleLine(profile))}</div>` : ''}
-            <div class="wp-actions wp-header-actions-desktop-only" id="profile-actions">
-              ${isOwner ? `
-                <a href="profile-settings.html?tab=profile" class="btn btn-primary">${Icons.pencil} Edit profile</a>
-                <button type="button" class="btn btn-secondary" id="share-profile-btn">${Icons.link} Share</button>
-              ` : `
-                <button class="btn btn-primary" id="contact-btn">${Icons.message} Message</button>
-                <button class="btn btn-secondary" id="hire-btn">Hire</button>
-                <button type="button" class="btn btn-secondary" id="share-profile-btn" aria-label="Share this profile">${Icons.link} Share</button>
-                <button class="btn btn-ghost btn-sm" id="report-profile-btn" title="Report this profile">Report</button>
-              `}
+            <p class="pf-title">${esc(profile.professional_title) || 'Professional'}</p>
+            <div class="pf-meta">
+              ${rating}
+              ${availability ? `<span class="pf-availability ${availability.cls}"><span class="pf-dot" aria-hidden="true"></span>${availability.label}</span>` : ''}
             </div>
           </div>
         </div>
-        ${!isOwner ? `
-        <div class="wp-sticky-actions" id="sticky-profile-actions">
-          <button class="btn btn-primary" id="contact-btn-sticky">${Icons.message} Message</button>
-          <button class="btn btn-secondary" id="hire-btn-sticky">Hire</button>
-        </div>` : ''}
-      </div>
-    `;
+      </header>`;
     }
 
-    const GENDER_LABELS = { male: 'Male', female: 'Female', non_binary: 'Non-binary', prefer_not_to_say: 'Prefer not to say' };
-
-    // Server already omits gender/gender_custom entirely when it's not
-    // public (see profileController.redactGenderForViewer) — this only
-    // ever renders when the worker chose to show it. Its own small
-    // section rather than squeezed into the header's meta row, which
-    // is already dense with rating/location/availability.
-    function genderHtml(profile) {
-      if (!profile.gender || profile.gender_visibility !== 'public') return '';
-      const label = profile.gender === 'custom' ? profile.gender_custom : GENDER_LABELS[profile.gender];
-      if (!label) return '';
+    // ---------------------------------------------------------------- key facts
+    function factsHtml(profile) {
+      const schedule = ScheduleFormat.scheduleLine(profile);
+      const languages = Array.isArray(profile.languages) ? profile.languages.filter(Boolean) : [];
+      const facts = [
+        [Icons.location, 'Location', locationLine(profile)],
+        [Icons.briefcase, 'Experience', profile.experience_years ? `${profile.experience_years} year${profile.experience_years === 1 ? '' : 's'}` : null],
+        [Icons.clock, 'Working hours', schedule],
+        [Icons.checkShield, 'Jobs completed', profile.completed_jobs_count ? String(profile.completed_jobs_count) : null],
+        [Icons.globe, 'Languages', languages.length ? languages.join(', ') : null],
+      ].filter((f) => f[2]);
+      if (facts.length === 0) return '';
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.gender}<h2>Personal information</h2></div>
-        <div class="wp-info-item text-secondary text-sm">Gender: ${esc(label)}</div>
-      </div>`;
-    }
-
-    function educationHtml(entries) {
-      if (!entries || entries.length === 0) return '';
-      const EDUCATION_TYPE_LABELS = {
-        university: 'University', college: 'College', polytechnic: 'Polytechnic',
-        secondary_school: 'Secondary School', vocational_training: 'Vocational Training',
-        professional_training: 'Professional Training', certification: 'Certification', online: 'Online Education',
-      };
-      const rangeFor = (e) => [
-        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
-        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
-      ].filter(Boolean).join(' — ');
-      return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.graduationCap}<h2>Education</h2></div>
-        ${entries.map((e) => `
-          <div class="wp-education-card">
-            <span class="wp-education-icon">${Icons.graduationCap}</span>
-            <div>
-              <div class="wp-education-institution">${esc(e.institution)}</div>
-              <div class="wp-education-degree">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
-              <div class="wp-education-meta">${EDUCATION_TYPE_LABELS[e.education_type] || e.education_type}${rangeFor(e) ? ` · ${esc(rangeFor(e))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}</div>
-              ${e.description ? `<p class="wp-education-desc">${esc(e.description)}</p>` : ''}
-            </div>
+      <dl class="pf-facts" aria-label="Key information">
+        ${facts.map(([icon, label, value]) => `
+          <div class="pf-fact">
+            <dt>${icon}<span>${label}</span></dt>
+            <dd>${esc(value)}</dd>
           </div>`).join('')}
-      </div>`;
+      </dl>`;
     }
 
-    // The API already returns `cv: null` for a private CV or one that
-    // doesn't exist (see cvService.getForViewer) — this section simply
-    // doesn't render rather than a visitor ever seeing "CV is private."
-    function cvSectionHtml(cv) {
-      if (!cv) return '';
-      const isFile = cv.cvType === 'uploaded_file' && cv.signedUrl;
-      const metaParts = isFile
-        ? [FileFormat.mimeLabel(cv.mimeType), FileFormat.formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${new Date(cv.updatedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short' })}` : null].filter(Boolean)
-        : [];
+    // ---------------------------------------------------------------- pricing + contact
+    function contactHtml(profile, isOwner) {
+      const price = formatMoney(profile.starting_price, profile.price_currency);
+      const priceBlock = price
+        ? `<span class="pf-price-label">Starting from</span><strong class="pf-price-amount">${esc(price)}</strong>`
+        : `<span class="pf-price-label">Pricing</span><strong class="pf-price-amount pf-price-amount--none">Not listed yet</strong><span class="pf-price-hint">Message ${esc(profile.full_name.split(' ')[0])} to ask for a quote.</span>`;
+      const actions = isOwner
+        ? `<a href="profile-settings.html?tab=profile" class="btn pf-cta-primary">${Icons.pencil}<span>Edit profile</span></a>`
+        : `
+          <button type="button" class="btn pf-cta-primary" data-pf-action="message">${Icons.message}<span>Message</span></button>
+          <button type="button" class="btn btn-secondary" data-pf-action="call">${Icons.phone}<span>Call</span></button>
+          <button type="button" class="btn btn-secondary" data-pf-action="hire">Hire</button>`;
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.document}<h2>Resume / CV</h2></div>
-        <div class="wp-cv-card">
-          <div class="wp-cv-info-row">
-            <span class="wp-cv-icon">${Icons.document}</span>
-            <div>
-              <div class="wp-cv-title">${isFile ? 'Professional Resume' : 'Job Rush CV'}</div>
-              <div class="wp-cv-meta">${isFile ? metaParts.join(' • ') : 'Profile-based resume'}</div>
-            </div>
-          </div>
-          <div class="wp-cv-actions">
-            ${isFile
-              ? `<button type="button" class="btn btn-secondary btn-sm" id="cv-view-btn">View CV</button><a class="btn btn-ghost btn-sm" href="${cv.downloadUrl}" download="${esc(cv.fileName || 'cv')}">Download</a>`
-              : `<span class="text-secondary text-sm">See Experience, Education &amp; Portfolio above</span>`}
-          </div>
-        </div>
-      </div>`;
+      <section class="pf-contact" aria-label="Pricing and contact">
+        <div class="pf-price">${priceBlock}</div>
+        <div class="pf-cta${isOwner ? '' : ' pf-cta--visitor'}" id="profile-actions">${actions}</div>
+      </section>
+      ${isOwner ? '' : `
+      <div class="pf-sticky" id="sticky-profile-actions">
+        <button type="button" class="btn pf-cta-primary" data-pf-action="message">${Icons.message}<span>Message</span></button>
+        <button type="button" class="btn btn-secondary" data-pf-action="call">${Icons.phone}<span>Call</span></button>
+        <button type="button" class="btn btn-secondary" data-pf-action="hire">Hire</button>
+      </div>`}`;
     }
 
-    function wireCvViewer(cv) {
-      const btn = document.getElementById('cv-view-btn');
-      if (!btn || !cv) return;
+    // ---------------------------------------------------------------- overview blocks
+    function aboutHtml(profile) {
+      const bio = esc(profile.bio);
+      return `
+      <section class="pf-block">
+        <h2>About</h2>
+        ${bio
+          ? `<p class="pf-about is-clamped" id="pf-about-text">${bio}</p>
+             <button type="button" class="pf-link-btn" id="pf-about-toggle" aria-expanded="false" aria-controls="pf-about-text" hidden>Read more</button>`
+          : '<p class="pf-muted">This professional hasn’t added a bio yet.</p>'}
+      </section>`;
+    }
+
+    // The toggle only appears when the text really is longer than the clamp. Measured while the
+    // Overview panel is visible (a hidden panel has no height to measure).
+    function measureAbout(force) {
+      const text = document.getElementById('pf-about-text');
+      const btn = document.getElementById('pf-about-toggle');
+      if (!text || !btn || text.closest('[hidden]') || (text.dataset.measured && !force)) return;
+      text.dataset.measured = '1';
+      if (btn.getAttribute('aria-expanded') === 'true') return; // the reader already expanded it
+      text.classList.add('is-clamped'); // measure against the clamped height, whatever the width is now
+      const overflows = text.scrollHeight > text.clientHeight + 1;
+      btn.hidden = !overflows;
+      if (!overflows) text.classList.remove('is-clamped');
+    }
+
+    function wireAboutToggle() {
+      const btn = document.getElementById('pf-about-toggle');
+      const text = document.getElementById('pf-about-text');
+      if (!btn || !text) return;
       btn.addEventListener('click', () => {
-        CvViewer.open({ mimeType: cv.mimeType, viewUrl: cv.signedUrl, downloadUrl: cv.downloadUrl, fileName: cv.fileName });
+        const expand = text.classList.contains('is-clamped');
+        text.classList.toggle('is-clamped', !expand);
+        btn.setAttribute('aria-expanded', String(expand));
+        btn.textContent = expand ? 'Read less' : 'Read more';
       });
     }
 
     function skillsHtml(skills) {
       if (!skills || skills.length === 0) return '';
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.checkShield}<h2>Skills &amp; Expertise</h2></div>
-        <div class="wp-skills">${skills.map((s) => `<span class="wp-skill-chip">${Icons.checkShield}${esc(s.name)}</span>`).join('')}</div>
-      </div>`;
+      <section class="pf-block">
+        <h2>Skills &amp; expertise</h2>
+        <ul class="pf-chips">${skills.map((s) => `<li>${esc(s.name)}</li>`).join('')}</ul>
+      </section>`;
     }
 
-    function aboutHtml(profile) {
-      const bio = esc(profile.bio) || 'This professional hasn’t written a bio yet.';
-      const isLong = bio.length > 320;
+    const SOCIAL_PLATFORMS = {
+      facebook: { color: '#1877F2', label: 'Facebook', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"/></svg>' },
+      instagram: { color: '#E1306C', label: 'Instagram', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="#fff" stroke="none"/></svg>' },
+      tiktok: { color: '#000000', label: 'TikTok', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M16.6 3c.4 2.1 1.9 3.7 4 4v3c-1.5 0-2.9-.5-4-1.4v6.2a5.6 5.6 0 1 1-5.6-5.6c.2 0 .5 0 .7.05v3.1a2.5 2.5 0 1 0 1.9 2.45V3h3Z"/></svg>' },
+      youtube: { color: '#FF0000', label: 'YouTube', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M22 12s0-3.1-.4-4.6a3 3 0 0 0-2.1-2.1C17.9 5 12 5 12 5s-5.9 0-7.5.3a3 3 0 0 0-2.1 2.1C2 8.9 2 12 2 12s0 3.1.4 4.6a3 3 0 0 0 2.1 2.1C6.1 19 12 19 12 19s5.9 0 7.5-.3a3 3 0 0 0 2.1-2.1c.4-1.5.4-4.6.4-4.6ZM10 15V9l5 3-5 3Z"/></svg>' },
+      website: { color: '#0F2A4A', label: 'Website', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>' },
+    };
+
+    function socialLinksHtml(links) {
+      const items = (links || [])
+        .map((l) => ({ meta: SOCIAL_PLATFORMS[l.platform], url: safeUrl(l.url) }))
+        .filter((l) => l.meta && l.url);
+      if (items.length === 0) return '';
       return `
-      <div class="wp-section">
-        <h2>About</h2>
-        <p class="wp-about-text${isLong ? ' is-clamped' : ''}" id="wp-about-text">${bio}</p>
-        ${isLong ? `<button type="button" class="wp-read-more-btn" id="wp-about-toggle">Read more</button>` : ''}
-      </div>`;
-    }
-
-    function wireAboutToggle() {
-      const btn = document.getElementById('wp-about-toggle');
-      const text = document.getElementById('wp-about-text');
-      if (!btn || !text) return;
-      btn.addEventListener('click', () => {
-        const expanded = !text.classList.contains('is-clamped');
-        text.classList.toggle('is-clamped', expanded);
-        btn.textContent = expanded ? 'Read more' : 'Show less';
-      });
-    }
-
-    // One card per portfolio PROJECT (not per media item) — clicking a
-    // project takes the visitor to the full Portfolio Project Details
-    // page, which is where the rest of what they entered actually
-    // lives (description, category, external link, full gallery).
-    function projectCardHtml(p) {
-      const media = p.media || [];
-      const primary = media.find((m) => m.is_primary) || media[0];
-      const thumb = primary
-        ? primary.media_type === 'video'
-          ? primary.thumbnailUrl
-            ? `<img src="${primary.thumbnailUrl}" alt="" loading="lazy" /><div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="white" style="filter: drop-shadow(0 0 3px rgba(0,0,0,0.6));"><path d="M8 5v14l11-7z"/></svg></div>`
-            : `<div class="wp-project-video-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>`
-          : `<img src="${primary.thumbnailUrl || primary.url}" alt="" loading="lazy" />`
-        : `<div class="wp-project-video-icon"><span class="text-xs text-secondary">No media</span></div>`;
-
-      return `
-      <a class="wp-project-card card-img-zoom" href="portfolio-detail.html?id=${p.id}">
-        <div class="wp-project-thumb-frame card-img-zoom-frame">${thumb}</div>
-        <div class="wp-project-card-body">
-          <h3>${esc(p.title)}</h3>
-          ${p.category_name ? `<span class="badge badge-neutral">${esc(p.category_name)}</span>` : ''}
-          <div class="wp-project-media-count">${media.length} media item${media.length === 1 ? '' : 's'}</div>
+      <section class="pf-block">
+        <h2>Social media</h2>
+        <div class="pf-social">
+          ${items.map(({ meta, url }) => `
+            <a href="${esc(url)}" target="_blank" rel="noopener noreferrer nofollow" class="pf-social-link" aria-label="${meta.label} (opens in a new tab)">
+              <span class="pf-social-icon" style="background:${meta.color};">${meta.icon}</span>${meta.label}
+            </a>`).join('')}
         </div>
-      </a>`;
+      </section>`;
     }
 
-    function portfolioHtml(portfolios) {
-      if (portfolios.length === 0) {
-        return `
-        <div class="wp-section">
-          <div class="wp-section-header">${Icons.portfolio}<h2>Portfolio</h2></div>
-          <div class="wp-empty-state">
-            <h3>No portfolio projects yet.</h3>
-            <p>Showcase completed work to help clients understand what you do.</p>
-          </div>
-        </div>`;
-      }
-      return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.portfolio}<h2>Portfolio</h2></div>
-        <div class="wp-gallery" id="wp-gallery">${portfolios.map(projectCardHtml).join('')}</div>
-      </div>`;
-    }
+    const monthYear = (d) => new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short' });
+    const rangeFor = (e) => [
+      e.start_date ? monthYear(e.start_date) : '',
+      e.is_current ? 'Present' : (e.end_date ? monthYear(e.end_date) : ''),
+    ].filter(Boolean).join(' — ');
 
     function experienceHtml(entries) {
       if (!entries || entries.length === 0) return '';
-      const rangeFor = (e) => [
-        e.start_date ? new Date(e.start_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : '',
-        e.is_current ? 'Present' : (e.end_date ? new Date(e.end_date).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''),
-      ].filter(Boolean).join(' — ');
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.briefcase}<h2>Work Experience</h2></div>
+      <section class="pf-block">
+        <h2>Work experience</h2>
         <div class="wp-timeline">
           ${entries.map((e) => `
             <div class="wp-timeline-item">
@@ -303,59 +303,55 @@
               ${e.description ? `<p class="wp-timeline-desc">${esc(e.description)}</p>` : ''}
             </div>`).join('')}
         </div>
-      </div>`;
+      </section>`;
     }
 
-    function servicesHtml(services) {
-      if (!services || services.length === 0) return '';
-      const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', weekly: 'Per week', monthly: 'Per month', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
+    const EDUCATION_TYPE_LABELS = {
+      university: 'University', college: 'College', polytechnic: 'Polytechnic',
+      secondary_school: 'Secondary School', vocational_training: 'Vocational Training',
+      professional_training: 'Professional Training', certification: 'Certification', online: 'Online Education',
+    };
+
+    function educationHtml(entries) {
+      if (!entries || entries.length === 0) return '';
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.briefcase}<h2>Services &amp; Talents</h2></div>
-        <div style="display:grid; gap: var(--space-3);">
-          ${services.map((s) => {
-            const money = s.price !== null ? formatMoney(s.price, s.price_currency) : null;
-            const unitLabel = PRICING_LABELS[s.pricing_type] || s.pricing_type;
-            const duration = ScheduleFormat.serviceDuration(s);
-            return `
-            <div class="wp-service-card">
-              <div class="wp-service-top">
-                <span class="wp-service-name">${esc(s.name)}</span>
-                <div class="wp-service-price-block">
-                  ${money ? `<div class="wp-service-price-label">Starting from</div><div class="wp-service-price">${esc(money)}</div><div class="wp-service-price-unit">${esc(unitLabel)}</div>` : `<div class="wp-service-price" style="font-size: var(--text-base);">${esc(unitLabel)}</div>`}
-                </div>
-              </div>
-              ${duration ? `<div class="wp-service-duration">${Icons.clock}<span class="wp-service-duration-label">${esc(duration.label)}</span><strong>${esc(duration.text)}</strong></div>` : ''}
-              ${s.description ? `<p class="wp-service-desc">${esc(s.description)}</p>` : ''}
-            </div>`;
-          }).join('')}
-        </div>
-      </div>`;
+      <section class="pf-block">
+        <h2>Education</h2>
+        ${entries.map((e) => `
+          <div class="wp-education-card">
+            <span class="wp-education-icon">${Icons.graduationCap}</span>
+            <div>
+              <div class="wp-education-institution">${esc(e.institution)}</div>
+              <div class="wp-education-degree">${[e.degree, e.field_of_study].filter(Boolean).map(esc).join(', ')}</div>
+              <div class="wp-education-meta">${esc(EDUCATION_TYPE_LABELS[e.education_type] || e.education_type)}${rangeFor(e) ? ` · ${esc(rangeFor(e))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}</div>
+              ${e.description ? `<p class="wp-education-desc">${esc(e.description)}</p>` : ''}
+            </div>
+          </div>`).join('')}
+      </section>`;
     }
 
     function businessHtml(business, isOwner) {
       if (!business) {
-        // Only the owner ever sees a setup prompt here — a visitor
-        // simply never sees this section at all when there's nothing
-        // to show (no private "set up" controls leak to other users).
+        // Only the owner ever sees a setup prompt; a visitor never sees this section when there is nothing to show.
         if (!isOwner) return '';
         return `
-        <div class="wp-section">
-          <div class="wp-section-header">${Icons.business}<h2>Business</h2></div>
+        <section class="pf-block">
+          <h2>Business</h2>
           <div class="wp-empty-state">
-            <h3>Business Profile</h3>
+            <h3>Business profile</h3>
             <p>Showcase your business, storefront and services.</p>
-            <a href="profile-settings.html?tab=business" class="btn btn-secondary btn-sm">Set up Business Profile</a>
+            <a href="profile-settings.html?tab=business" class="btn btn-secondary btn-sm">Set up business profile</a>
           </div>
-        </div>`;
+        </section>`;
       }
       const location = [business.area_name, business.lga_name, business.state_name, 'Nigeria'].filter(Boolean).join(', ');
       const hoursRuns = ScheduleFormat.groupBusinessHours(business.opening_hours_structured);
+      const storefront = safeUrl(business.storefront_photo_url);
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.business}<h2>Business</h2></div>
+      <section class="pf-block">
+        <h2>Business</h2>
         <div class="wp-business-card">
-          ${business.storefront_photo_url ? `<img src="${business.storefront_photo_url}" alt="${esc(business.business_name)} storefront" loading="lazy" class="wp-business-cover" />` : ''}
+          ${storefront ? `<img src="${esc(storefront)}" alt="${esc(business.business_name)} storefront" loading="lazy" class="wp-business-cover" />` : ''}
           <div class="wp-business-body">
             <div class="wp-business-name">${esc(business.business_name)}</div>
             ${business.description ? `<p class="wp-business-desc">${esc(business.description)}</p>` : ''}
@@ -368,60 +364,235 @@
             ${hoursRuns.length ? `<div class="wp-hours"><div class="wp-hours-title">${Icons.clock} Opening hours</div><dl class="wp-hours-list">${hoursRuns.map((r) => `<div><dt>${esc(r.days)}</dt><dd>${esc(r.text)}</dd></div>`).join('')}</dl></div>` : ''}
           </div>
         </div>
-      </div>`;
+      </section>`;
     }
 
-    const SOCIAL_ICON_BY_PLATFORM = {
-      facebook: { color: '#1877F2', label: 'Facebook', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M22 12a10 10 0 1 0-11.56 9.88v-6.99H7.9V12h2.54V9.8c0-2.5 1.49-3.89 3.78-3.89 1.1 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56V12h2.78l-.44 2.89h-2.34v6.99A10 10 0 0 0 22 12Z"/></svg>' },
-      instagram: { color: '#E1306C', label: 'Instagram', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1.1" fill="#fff" stroke="none"/></svg>' },
-      tiktok: { color: '#000000', label: 'TikTok', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M16.6 3c.4 2.1 1.9 3.7 4 4v3c-1.5 0-2.9-.5-4-1.4v6.2a5.6 5.6 0 1 1-5.6-5.6c.2 0 .5 0 .7.05v3.1a2.5 2.5 0 1 0 1.9 2.45V3h3Z"/></svg>' },
-      youtube: { color: '#FF0000', label: 'YouTube', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M22 12s0-3.1-.4-4.6a3 3 0 0 0-2.1-2.1C17.9 5 12 5 12 5s-5.9 0-7.5.3a3 3 0 0 0-2.1 2.1C2 8.9 2 12 2 12s0 3.1.4 4.6a3 3 0 0 0 2.1 2.1C6.1 19 12 19 12 19s5.9 0 7.5-.3a3 3 0 0 0 2.1-2.1c.4-1.5.4-4.6.4-4.6ZM10 15V9l5 3-5 3Z"/></svg>' },
-      website: { color: '#0F2A4A', label: 'Website', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>' },
-    };
-
-    function socialLinksHtml(links) {
-      if (!links || links.length === 0) return '';
+    // The API already returns `cv: null` for a private CV or one that doesn't exist, so a visitor never sees "CV is private".
+    function cvSectionHtml(cv) {
+      if (!cv) return '';
+      const isFile = cv.cvType === 'uploaded_file' && cv.signedUrl;
+      const metaParts = isFile
+        ? [FileFormat.mimeLabel(cv.mimeType), FileFormat.formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${monthYear(cv.updatedAt)}` : null].filter(Boolean)
+        : [];
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.globe}<h2>Social</h2></div>
-        <div class="wp-social-row">
-          ${links.map((l) => {
-        const meta = SOCIAL_ICON_BY_PLATFORM[l.platform];
-        if (!meta) return '';
-        return `
-            <a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer nofollow" class="wp-social-card">
-              <span class="wp-social-icon" style="background:${meta.color};">${meta.icon}</span>
-              ${meta.label}
-            </a>`;
-      }).join('')}
+      <section class="pf-block">
+        <h2>Resume / CV</h2>
+        <div class="wp-cv-card">
+          <div class="wp-cv-info-row">
+            <span class="wp-cv-icon">${Icons.document}</span>
+            <div>
+              <div class="wp-cv-title">${isFile ? 'Professional Resume' : 'Job Rush CV'}</div>
+              <div class="wp-cv-meta">${isFile ? esc(metaParts.join(' • ')) : 'Profile-based resume'}</div>
+            </div>
+          </div>
+          <div class="wp-cv-actions">
+            ${isFile
+              ? `<button type="button" class="btn btn-secondary btn-sm" id="cv-view-btn">View CV</button><a class="btn btn-ghost btn-sm" href="${esc(cv.downloadUrl)}" download="${esc(cv.fileName || 'cv')}">Download</a>`
+              : `<span class="text-secondary text-sm">See Experience, Education &amp; Portfolio on this page</span>`}
+          </div>
         </div>
-      </div>`;
+      </section>`;
     }
 
+    function wireCvViewer(cv) {
+      const btn = document.getElementById('cv-view-btn');
+      if (!btn || !cv) return;
+      btn.addEventListener('click', () => {
+        CvViewer.open({ mimeType: cv.mimeType, viewUrl: cv.signedUrl, downloadUrl: cv.downloadUrl, fileName: cv.fileName });
+      });
+    }
+
+    const GENDER_LABELS = { male: 'Male', female: 'Female', non_binary: 'Non-binary', prefer_not_to_say: 'Prefer not to say' };
+
+    // The server omits gender entirely when it isn't public (profileController.redactGenderForViewer);
+    // this only ever renders when the professional chose to show it.
+    function genderHtml(profile) {
+      if (!profile.gender || profile.gender_visibility !== 'public') return '';
+      const label = profile.gender === 'custom' ? profile.gender_custom : GENDER_LABELS[profile.gender];
+      if (!label) return '';
+      return `
+      <section class="pf-block">
+        <h2>Personal information</h2>
+        <p class="pf-muted">Gender: ${esc(label)}</p>
+      </section>`;
+    }
+
+    function overviewHtml(data, isOwner) {
+      return aboutHtml(data.profile) +
+        skillsHtml(data.profile.skills) +
+        socialLinksHtml(data.socialLinks) +
+        experienceHtml(data.experience) +
+        educationHtml(data.education) +
+        businessHtml(data.business, isOwner) +
+        cvSectionHtml(data.cv) +
+        genderHtml(data.profile);
+    }
+
+    // ---------------------------------------------------------------- services
+    const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', weekly: 'Per week', monthly: 'Per month', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
+
+    function servicesHtml(services, isOwner) {
+      if (!services || services.length === 0) {
+        return `
+        <div class="pf-empty">
+          <h2>No services listed yet</h2>
+          <p>${isOwner ? 'Add the services you offer so clients know what to hire you for.' : 'This professional hasn’t added any services yet. You can message them to ask what they offer.'}</p>
+          ${isOwner ? '<a href="profile-settings.html?tab=services" class="btn btn-secondary btn-sm">Add services</a>' : ''}
+        </div>`;
+      }
+      return `
+      <ul class="pf-services">
+        ${services.map((s) => {
+          const money = formatMoney(s.price, s.price_currency);
+          const unitLabel = PRICING_LABELS[s.pricing_type] || s.pricing_type;
+          const duration = ScheduleFormat.serviceDuration(s);
+          return `
+          <li class="pf-service">
+            <div class="pf-service-main">
+              <h3 class="pf-service-name">${esc(s.name)}</h3>
+              ${s.description ? `<p class="pf-service-desc">${esc(s.description)}</p>` : ''}
+              ${duration ? `<p class="pf-service-duration">${Icons.clock}<span>${esc(duration.label)}: <strong>${esc(duration.text)}</strong></span></p>` : ''}
+            </div>
+            <div class="pf-service-price">
+              ${money
+                ? `<span class="pf-price-label">Starting from</span><strong>${esc(money)}</strong><span class="pf-service-unit">${esc(unitLabel)}</span>`
+                : `<strong class="pf-service-quote">${esc(unitLabel)}</strong>`}
+            </div>
+          </li>`;
+        }).join('')}
+      </ul>`;
+    }
+
+    // ---------------------------------------------------------------- portfolio
+    // One card per portfolio PROJECT; it opens the full Portfolio Project Details page.
+    function projectCardHtml(p) {
+      const media = p.media || [];
+      const primary = media.find((m) => m.is_primary) || media[0];
+      const thumbUrl = primary ? safeUrl(primary.thumbnailUrl || (primary.media_type === 'video' ? null : primary.url)) : null;
+      const isVideo = primary && primary.media_type === 'video';
+      const thumb = `
+        ${thumbUrl ? `<img src="${esc(thumbUrl)}" alt="" loading="lazy" />` : `<span class="pf-project-placeholder">${primary ? '' : 'No media'}</span>`}
+        ${isVideo ? '<span class="pf-project-play" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>' : ''}`;
+      return `
+      <li>
+        <a class="pf-project card-img-zoom" href="portfolio-detail.html?id=${encodeURIComponent(p.id)}">
+          <div class="pf-project-thumb card-img-zoom-frame">${thumb}</div>
+          <div class="pf-project-body">
+            <h3>${esc(p.title)}</h3>
+            ${p.category_name ? `<span class="badge badge-neutral">${esc(p.category_name)}</span>` : ''}
+            <span class="pf-project-count">${media.length} media item${media.length === 1 ? '' : 's'}</span>
+          </div>
+        </a>
+      </li>`;
+    }
+
+    function portfolioHtml(portfolios, isOwner) {
+      if (portfolios.length === 0) {
+        return `
+        <div class="pf-empty">
+          <h2>No portfolio projects yet</h2>
+          <p>${isOwner ? 'Showcase completed work to help clients understand what you do.' : 'This professional hasn’t shared any past work yet.'}</p>
+          ${isOwner ? '<a href="portfolio.html" class="btn btn-secondary btn-sm">Add a project</a>' : ''}
+        </div>`;
+      }
+      return `<ul class="pf-gallery" id="pf-gallery">${portfolios.map(projectCardHtml).join('')}</ul>`;
+    }
+
+    // ---------------------------------------------------------------- reviews
     function reviewHtml(r) {
       return `
-      <div class="wp-review">
-        <div class="wp-review-head">
+      <li class="pf-review">
+        <div class="pf-review-head">
           <strong>${esc(r.reviewer_display_name) || 'Client'}</strong>
-          <span class="text-gold text-sm">${ratingStars(r.rating)}</span>
+          ${starsHtml(r.rating)}
         </div>
-        <p class="text-secondary text-sm" style="max-width:none;">${esc(r.review_text) || ''}</p>
-        <div class="text-xs text-secondary" style="margin-top: var(--space-1);">${new Date(r.created_at).toLocaleDateString()}</div>
-      </div>`;
+        ${r.review_text ? `<p class="pf-review-text">${esc(r.review_text)}</p>` : ''}
+        <time class="pf-review-date" datetime="${esc(r.created_at)}">${new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
+      </li>`;
     }
 
-    function reviewsHtml(reviews) {
+    function reviewsHtml(reviews, profile) {
+      if (reviews.length === 0) {
+        return `
+        <div class="pf-empty">
+          <h2>No reviews yet</h2>
+          <p>Reviews will appear here when customers share their experience working with this professional.</p>
+        </div>`;
+      }
       return `
-      <div class="wp-section">
-        <div class="wp-section-header">${Icons.star}<h2>Reviews</h2></div>
-        <div id="wp-reviews-list">
-          ${reviews.length === 0
-            ? '<p class="text-secondary text-sm">No reviews yet.</p>'
-            : reviews.map(reviewHtml).join('')}
-        </div>
+      <div class="pf-review-summary">
+        <strong class="pf-review-avg">${Number(profile.rating_avg).toFixed(1)}</strong>
+        <div>${starsHtml(profile.rating_avg)}<span class="pf-muted"> ${reviews.length} review${reviews.length === 1 ? '' : 's'}</span></div>
+      </div>
+      <ul class="pf-reviews" id="wp-reviews-list">${reviews.map(reviewHtml).join('')}</ul>`;
+    }
+
+    // ---------------------------------------------------------------- tabs
+    const TAB_ORDER = ['overview', 'services', 'portfolio', 'reviews'];
+
+    function tabsHtml(counts) {
+      const labels = { overview: 'Overview', services: 'Services', portfolio: 'Portfolio', reviews: 'Reviews' };
+      return `
+      <div class="pf-tabs" role="tablist" aria-label="Profile sections">
+        ${TAB_ORDER.map((t, i) => `
+          <button type="button" role="tab" class="pf-tab" id="pf-tab-${t}" data-tab="${t}" aria-controls="pf-panel-${t}"
+            aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}">${labels[t]}${counts[t] ? `<span class="pf-tab-count">${counts[t]}</span>` : ''}</button>`).join('')}
       </div>`;
     }
 
+    function panelsHtml(panels) {
+      return TAB_ORDER.map((t, i) => `
+        <section role="tabpanel" class="pf-panel" id="pf-panel-${t}" aria-labelledby="pf-tab-${t}" tabindex="0"${i === 0 ? '' : ' hidden'}>${panels[t]}</section>`).join('');
+    }
+
+    function selectTab(name, { focus = false, updateHash = true, reveal = false } = {}) {
+      if (!TAB_ORDER.includes(name)) name = 'overview';
+      TAB_ORDER.forEach((t) => {
+        const tab = document.getElementById(`pf-tab-${t}`);
+        const panel = document.getElementById(`pf-panel-${t}`);
+        if (!tab || !panel) return;
+        const active = t === name;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+        panel.hidden = !active;
+        if (active && focus) tab.focus();
+        // Keeps the chosen tab inside a horizontally scrolling tab bar; never done on first load (it would scroll the page).
+        if (active && reveal) tab.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
+      if (name === 'overview') measureAbout();
+      if (updateHash) {
+        try { history.replaceState(null, '', name === 'overview' ? window.location.pathname + window.location.search : `#${name}`); } catch { /* the address bar just keeps its old value */ }
+      }
+    }
+
+    function wireTabs() {
+      const list = document.querySelector('.pf-tabs');
+      list.addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-tab]');
+        if (tab) selectTab(tab.dataset.tab, { reveal: true });
+      });
+      list.addEventListener('keydown', (e) => {
+        const current = TAB_ORDER.indexOf(document.activeElement?.dataset?.tab);
+        if (current < 0) return;
+        let next = null;
+        if (e.key === 'ArrowRight') next = (current + 1) % TAB_ORDER.length;
+        else if (e.key === 'ArrowLeft') next = (current - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+        else if (e.key === 'Home') next = 0;
+        else if (e.key === 'End') next = TAB_ORDER.length - 1;
+        if (next === null) return;
+        e.preventDefault();
+        selectTab(TAB_ORDER[next], { focus: true, reveal: true });
+      });
+      // "4.5 (3 reviews)" in the introduction jumps to the Reviews tab.
+      document.querySelectorAll('[data-goto-tab]').forEach((el) => {
+        el.addEventListener('click', () => {
+          selectTab(el.dataset.gotoTab);
+          document.querySelector('.pf-tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
+
+    // ---------------------------------------------------------------- modals (unchanged behaviour)
     async function openHireModal(profile) {
       let jobs;
       try {
@@ -451,7 +622,7 @@
             <div class="field" id="job-field">
               <label for="jobSelect">Choose an open job</label>
               <select id="jobSelect" name="jobSelect">
-                ${jobs.map((j) => `<option value="${j.id}">${esc(j.title)}</option>`).join('')}
+                ${jobs.map((j) => `<option value="${esc(j.id)}">${esc(j.title)}</option>`).join('')}
               </select>
             </div>
             <div class="modal-actions">
@@ -535,88 +706,150 @@
       });
     }
 
-    function wireShare(profile) {
-      const btn = document.getElementById('share-profile-btn');
-      if (!btn) return;
-      btn.addEventListener('click', async () => {
-        const url = window.location.href;
-        const data = { title: `${profile.full_name} on Job Rush`, text: `View ${profile.full_name}${profile.professional_title ? `, ${profile.professional_title},` : ''} on Job Rush`, url };
-        if (navigator.share) {
-          try { await navigator.share(data); } catch { /* the user closed the share sheet */ }
-          return;
-        }
-        try {
-          await navigator.clipboard.writeText(url);
-          Toast.success('Profile link copied.');
-        } catch {
-          Toast.error('Couldn’t copy the link. Copy it from the address bar instead.');
-        }
-      });
-    }
-
-    async function wireActions(profile, user) {
-      const contactBtns = [document.getElementById('contact-btn'), document.getElementById('contact-btn-sticky')].filter(Boolean);
-      const hireBtns = [document.getElementById('hire-btn'), document.getElementById('hire-btn-sticky')].filter(Boolean);
-      const reportBtn = document.getElementById('report-profile-btn');
-      if (contactBtns.length === 0) return;
-
-      if (!user) {
-        const returnTo = encodeURIComponent(window.location.pathname + window.location.search);
-        contactBtns.forEach((b) => b.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; }));
-        hireBtns.forEach((b) => b.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; }));
-        if (reportBtn) reportBtn.addEventListener('click', () => { window.location.href = `login.html?returnTo=${returnTo}`; });
+    // ---------------------------------------------------------------- share / more / actions
+    async function shareProfile(profile) {
+      const url = profileUrl(profile);
+      const data = { title: `${profile.full_name} on Job Rush`, text: `View ${profile.full_name}${profile.professional_title ? `, ${profile.professional_title},` : ''} on Job Rush`, url };
+      if (navigator.share) {
+        try { await navigator.share(data); } catch { /* the user closed the share sheet */ }
         return;
       }
+      await copyProfileLink(profile);
+    }
 
-      if (reportBtn) reportBtn.addEventListener('click', () => openReportModal(profile));
-
-      contactBtns.forEach((btn) => btn.addEventListener('click', async () => {
-        FormHelpers.setLoading(btn, true);
-        try {
-          const { conversation } = await API.post('/messaging/conversations', { otherUserId: profile.user_id });
-          window.location.href = `messages.html?conversation=${conversation.id}`;
-        } catch (err) {
-          Toast.error(err.message);
-        } finally {
-          FormHelpers.setLoading(btn, false);
-        }
-      }));
-
-      if (user.role === 'hirer' || user.role === 'both') {
-        hireBtns.forEach((btn) => btn.addEventListener('click', () => openHireModal(profile)));
-      } else {
-        hireBtns.forEach((btn) => { btn.style.display = 'none'; });
+    async function copyProfileLink(profile) {
+      try {
+        await navigator.clipboard.writeText(profileUrl(profile));
+        Toast.success('Profile link copied.');
+      } catch {
+        Toast.error('Couldn’t copy the link. Copy it from the address bar instead.');
       }
     }
 
-    function wireCoverUpload(profile) {
+    function wireNavRow(profile, user, isOwner) {
+      document.getElementById('share-profile-btn').addEventListener('click', () => shareProfile(profile));
+
+      // Only actions that already exist, and only the ones that make sense for who is looking.
+      const items = isOwner
+        ? [
+            { label: 'Edit profile', icon: Icons.pencil, onClick: () => { window.location.href = 'profile-settings.html?tab=profile'; } },
+            { label: 'Change cover photo', icon: Icons.camera, onClick: () => document.getElementById('edit-cover-btn')?.click() },
+            { label: 'Copy profile link', icon: Icons.link, onClick: () => copyProfileLink(profile) },
+          ]
+        : [
+            { label: 'Copy profile link', icon: Icons.link, onClick: () => copyProfileLink(profile) },
+            { label: 'Report profile', danger: true, onClick: () => { if (!user) window.location.href = loginUrl(); else openReportModal(profile); } },
+          ];
+      MoreMenu.attach(document.getElementById('pf-more-mount'), { label: 'More options', items });
+      document.getElementById('pf-nav-actions').hidden = false;
+    }
+
+    // One request at a time: a second tap while a conversation/call is being set up does nothing.
+    let actionBusy = false;
+
+    async function startConversation(profile) {
+      const { conversation } = await API.post('/messaging/conversations', { otherUserId: profile.user_id });
+      return conversation;
+    }
+
+    function wireActions(profile, user) {
+      const buttons = (action) => Array.from(document.querySelectorAll(`[data-pf-action="${action}"]`));
+      const all = Array.from(document.querySelectorAll('[data-pf-action]'));
+      if (all.length === 0) return; // the owner's own view has no visitor actions
+
+      const run = (action, task) => buttons(action).forEach((btn) => btn.addEventListener('click', async () => {
+        if (!user) { window.location.href = loginUrl(); return; }
+        if (actionBusy) return;
+        actionBusy = true;
+        all.forEach((b) => FormHelpers.setLoading(b, true));
+        try {
+          await task();
+        } catch (err) {
+          Toast.error(err.message);
+          all.forEach((b) => FormHelpers.setLoading(b, false));
+          actionBusy = false;
+        }
+        // On success the page navigates away, so the buttons stay disabled until it does.
+      }));
+
+      run('message', async () => {
+        const conversation = await startConversation(profile);
+        window.location.href = `messages.html?conversation=${encodeURIComponent(conversation.id)}`;
+      });
+
+      // A call is placed inside a conversation with this professional (the same flow as the call buttons in chat).
+      run('call', async () => {
+        const conversation = await startConversation(profile);
+        const { call } = await API.post(`/messaging/conversations/${conversation.id}/calls`, { callType: 'audio' });
+        window.location.href = `call-room.html?type=call&id=${encodeURIComponent(call.id)}`;
+      });
+
+      const canHire = !user || user.role === 'hirer' || user.role === 'both';
+      if (!canHire) {
+        buttons('hire').forEach((b) => { b.hidden = true; });
+      } else {
+        buttons('hire').forEach((btn) => btn.addEventListener('click', async () => {
+          if (!user) { window.location.href = loginUrl(); return; }
+          if (actionBusy) return;
+          actionBusy = true;
+          try { await openHireModal(profile); } finally { actionBusy = false; }
+        }));
+      }
+    }
+
+    function wireCoverUpload() {
       const btn = document.getElementById('edit-cover-btn');
       if (!btn) return;
-      const cover = document.querySelector('.wp-hero-cover');
+      const cover = document.getElementById('pf-cover');
       btn.addEventListener('click', async () => {
         const file = await Upload.pickFile({ accept: 'image/jpeg,image/png,image/webp,image/gif' });
         if (!file) return;
-        const originalLabel = btn.innerHTML;
         btn.disabled = true;
         try {
           const formData = new FormData();
           formData.append('file', file);
           const uploaded = await API.upload('/storage/profile-cover', formData);
           await API.patch('/profiles/worker/me', { coverPhotoUrl: uploaded.publicUrl });
-          cover.style.backgroundImage = `url('${uploaded.publicUrl}')`;
+          let img = cover.querySelector('.pf-cover-img');
+          if (!img) {
+            img = document.createElement('img');
+            img.className = 'pf-cover-img';
+            img.alt = '';
+            cover.prepend(img);
+            cover.classList.add('has-image');
+          }
+          img.src = uploaded.publicUrl;
           Toast.success('Cover photo updated.');
         } catch (err) {
           Toast.error(err.message);
         } finally {
-          btn.innerHTML = originalLabel;
           btn.disabled = false;
         }
       });
     }
 
+    // A photo that fails to load falls back to the plain navy cover / the default avatar instead of a broken-image icon.
+    // (`error` does not bubble, so this listens in the capture phase.)
+    function wireImageFallbacks(root) {
+      root.addEventListener('error', (e) => {
+        const img = e.target;
+        if (!(img instanceof HTMLImageElement) || img.dataset.failed) return;
+        img.dataset.failed = '1';
+        if (img.classList.contains('pf-avatar')) { img.src = ASSETS.defaultAvatar; return; }
+        if (img.classList.contains('pf-cover-img')) { img.closest('.pf-cover')?.classList.remove('has-image'); img.remove(); return; }
+        const frame = img.closest('.pf-project-thumb, .wp-business-card');
+        if (frame) img.remove();
+      }, true);
+    }
+
+    // ---------------------------------------------------------------- init
     (async function init() {
+      // Back goes to where the visitor came from. When the profile was opened directly (a shared link, a new tab,
+      // a page on another site) there is nothing sensible to go back to, so it goes to the professionals search.
       document.getElementById('page-back-btn').addEventListener('click', () => {
-        if (window.history.length > 1) window.history.back();
+        let cameFromThisSite = false;
+        try { cameFromThisSite = !!document.referrer && new URL(document.referrer).origin === window.location.origin; } catch { /* treated as direct */ }
+        if (cameFromThisSite && window.history.length > 1) window.history.back();
         else window.location.href = 'search.html';
       });
 
@@ -626,59 +859,79 @@
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
       const content = document.getElementById('profile-content');
+      wireImageFallbacks(content);
 
-      if (!workerId) {
-        content.innerHTML = '<p class="text-secondary">No profile specified.</p>';
+      // No id, or one that can't be a real profile id: say so straight away instead of sending nine requests that will all 404.
+      const looksLikeId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workerId || '');
+      if (!looksLikeId) {
+        content.removeAttribute('aria-busy');
+        content.innerHTML = `
+          <div class="empty-state">
+            <img src="${ASSETS.emptyState}" alt="" />
+            <h3>${workerId ? 'Profile not found' : 'No profile specified'}</h3>
+            <p>${workerId ? 'This profile link doesn’t look right. It may have been copied incompletely.' : 'Open a professional from the search results to see their profile.'}</p>
+            <a href="search.html" class="btn btn-primary btn-sm">Find professionals</a>
+          </div>`;
         return;
       }
 
       try {
         const [{ profile }, portfolioResult, reviewsResult, experienceResult, educationResult, cvResult, servicesResult, businessResult, socialLinksResult] = await Promise.all([
-          API.get(`/profiles/worker/${workerId}`),
-          API.get(`/portfolio/worker/${workerId}`).catch(() => ({ portfolios: [] })),
-          API.get(`/reviews/worker/${workerId}`).catch(() => ({ reviews: [] })),
-          API.get(`/profiles/worker/${workerId}/experience`).catch(() => ({ entries: [] })),
-          API.get(`/profiles/worker/${workerId}/education`).catch(() => ({ entries: [] })),
-          API.get(`/profiles/worker/${workerId}/cv`).catch(() => ({ cv: null })),
-          API.get(`/profiles/worker/${workerId}/services`).catch(() => ({ services: [] })),
-          API.get(`/profiles/worker/${workerId}/business`).catch(() => ({ profile: null })),
-          API.get(`/profiles/worker/${workerId}/social-links`).catch(() => ({ links: [] })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}`),
+          API.get(`/portfolio/worker/${encodeURIComponent(workerId)}`).catch(() => ({ portfolios: [] })),
+          API.get(`/reviews/worker/${encodeURIComponent(workerId)}`).catch(() => ({ reviews: [] })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/experience`).catch(() => ({ entries: [] })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/education`).catch(() => ({ entries: [] })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/cv`).catch(() => ({ cv: null })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/services`).catch(() => ({ services: [] })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/business`).catch(() => ({ profile: null })),
+          API.get(`/profiles/worker/${encodeURIComponent(workerId)}/social-links`).catch(() => ({ links: [] })),
         ]);
 
         const isOwner = user?.id === workerId;
+        const services = servicesResult.services || [];
+        const portfolios = portfolioResult.portfolios || [];
+        const reviews = reviewsResult.reviews || [];
+
+        document.title = `${profile.full_name} — ${profile.professional_title || 'Professional'} | JOB RUSH`;
 
         content.innerHTML =
           heroHtml(profile, isOwner) +
-          aboutHtml(profile) +
-          servicesHtml(servicesResult.services || []) +
-          skillsHtml(profile.skills) +
-          experienceHtml(experienceResult.entries || []) +
-          educationHtml(educationResult.entries || []) +
-          businessHtml(businessResult.profile, isOwner) +
-          portfolioHtml(portfolioResult.portfolios || []) +
-          cvSectionHtml(cvResult.cv) +
-          socialLinksHtml(socialLinksResult.links || []) +
-          genderHtml(profile);
+          factsHtml(profile) +
+          contactHtml(profile, isOwner) +
+          tabsHtml({ services: services.length, portfolio: portfolios.length, reviews: reviews.length }) +
+          panelsHtml({
+            overview: overviewHtml({
+              profile, socialLinks: socialLinksResult.links, experience: experienceResult.entries,
+              education: educationResult.entries, business: businessResult.profile, cv: cvResult.cv,
+            }, isOwner),
+            services: servicesHtml(services, isOwner),
+            portfolio: portfolioHtml(portfolios, isOwner),
+            reviews: reviewsHtml(reviews, profile),
+          });
+        content.removeAttribute('aria-busy');
+        if (!isOwner) document.body.classList.add('has-pf-sticky');
 
-        content.insertAdjacentHTML('beforeend', reviewsHtml(reviewsResult.reviews || []));
-
-        content.classList.add('fade-in');
-        const gallery = document.getElementById('wp-gallery');
+        const gallery = document.getElementById('pf-gallery');
         if (gallery) Animate.stagger(gallery, { stepMs: 30 });
-        const reviewsList = document.getElementById('wp-reviews-list');
-        if (reviewsList) Animate.stagger(reviewsList, { selector: '.wp-review', stepMs: 40 });
 
-        wireShare(profile);
+        wireNavRow(profile, user, isOwner);
+        wireTabs();
         wireActions(profile, user);
         wireAboutToggle();
+        let resizeTimer;
+        window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => measureAbout(true), 150); });
         wireCvViewer(cvResult.cv);
-        if (isOwner) wireCoverUpload(profile);
+        if (isOwner) wireCoverUpload();
+
+        selectTab(window.location.hash.replace('#', '') || 'overview', { updateHash: false });
       } catch (err) {
+        content.removeAttribute('aria-busy');
         content.innerHTML = `
           <div class="empty-state">
             <img src="${ASSETS.emptyState}" alt="" />
             <h3>Profile not found</h3>
-            <p>${err.message}</p>
+            <p>${esc(err.message)}</p>
             <a href="search.html" class="btn btn-primary btn-sm">Find other professionals</a>
           </div>`;
       }
