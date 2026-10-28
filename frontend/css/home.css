@@ -322,40 +322,69 @@
 }
 .category-chip:hover { border-color: var(--border-gold); color: var(--accent); transform: translateY(-1px); }
 
+/* How it works: five numbered step cards. Desktop uses a 6-track grid
+   with each card spanning 2 tracks, so the first row holds three cards
+   and the last two start on tracks 2 and 4 — centered under the row
+   above without fixed widths. The number badge sits on the card's top
+   border (absolute, translated up by half its height), so the row gap
+   and the card's top padding both leave room for that overhang. */
 .how-it-works {
+  --step-badge: 48px;
   list-style: none;
-  margin: var(--space-7) 0 0;
+  margin: calc(var(--space-7) + var(--step-badge) / 2) 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: var(--space-6) var(--space-5);
-  counter-reset: step;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: calc(var(--space-6) + var(--step-badge) / 2) var(--space-5);
 }
-/* Number, heading and description all share one centered alignment
-   column per step — the number circle centers itself via auto side-
-   margins on a fixed-width block, so the heading/description need the
-   same centered treatment, not left-alignment, or they visually drift
-   away from the number they belong to. The paragraph gets a readable
-   max-width (not full column width) so centered text doesn't turn
-   into an unreadable full-bleed block on wide columns. */
-.how-it-works li { text-align: center; }
+.how-it-works li {
+  grid-column: span 2;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: calc(var(--step-badge) / 2 + var(--space-4)) var(--space-5) var(--space-5);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  text-align: center;
+}
+.how-it-works li:nth-child(4) { grid-column: 2 / span 2; }
+.how-it-works li:nth-child(5) { grid-column: 4 / span 2; }
 .step-index {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  margin: 0 auto var(--space-4);
+  width: var(--step-badge);
+  height: var(--step-badge);
   border-radius: 50%;
-  background: rgba(201, 162, 39, 0.12);
-  border: 1px solid var(--border-gold);
+  /* Gold tint layered over an opaque surface so the card's top border
+     doesn't show through the badge. */
+  background: linear-gradient(rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.14)), var(--bg-surface);
+  border: 2px solid var(--accent);
   font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 700;
   color: var(--accent-text);
 }
-.how-it-works h3 { font-size: var(--text-base); margin: 0 0 var(--space-2); }
-.how-it-works p { font-size: var(--text-sm); margin: 0 auto; max-width: 32ch; }
+.how-it-works h3 { font-size: var(--text-base); font-weight: 700; margin: 0 0 var(--space-4); }
+/* Description box grows to the card's bottom so shaded areas line up
+   across a row even when copy lengths differ. */
+.how-it-works p {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
 
 .pro-band {
   display: flex;
@@ -369,10 +398,17 @@
 .pro-band p { margin: 0; }
 
 @media (max-width: 900px) {
-  .how-it-works { grid-template-columns: repeat(2, 1fr); }
+  /* Tablet: two per row on a 4-track grid; the lone fifth card is centered. */
+  .how-it-works { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .how-it-works li:nth-child(4) { grid-column: span 2; }
+  .how-it-works li:nth-child(5) { grid-column: 2 / span 2; }
   .pro-band { flex-direction: column; text-align: center; }
 }
 
 @media (max-width: 560px) {
-  .how-it-works { grid-template-columns: 1fr; }
+  .how-it-works { grid-template-columns: minmax(0, 1fr); }
+  .how-it-works li,
+  .how-it-works li:nth-child(4),
+  .how-it-works li:nth-child(5) { grid-column: 1; }
+  .how-it-works li { padding-left: var(--space-4); padding-right: var(--space-4); }
 }
