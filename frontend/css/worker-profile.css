@@ -423,6 +423,9 @@ html[data-theme="dark"] .pf-availability.is-available { color: #5BD39B; }
   }
   .pf-sticky .btn { flex: 1 1 0; min-width: 0; padding-left: var(--space-2); padding-right: var(--space-2); }
   .pf-sticky .pf-cta-primary { flex: 1.4 1 0; }
+  /* When the signed-in bottom nav is on the page, sit just above it. */
+  body.has-bottom-nav .pf-sticky { bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px)); padding-bottom: var(--space-3); }
+  body.has-bottom-nav.has-pf-sticky { padding-bottom: calc(80px + var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px)); }
   .pf-service { flex-direction: column; gap: var(--space-3); }
   .pf-service-price { align-items: flex-start; text-align: left; flex-direction: row; flex-wrap: wrap; gap: var(--space-2); align-items: baseline; }
   .pf-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }

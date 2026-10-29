@@ -5,56 +5,76 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Find Talent — JOB RUSH</title>
+  <meta name="description" content="Find verified professionals across Nigeria on JOB RUSH. Search by skill, service, location, rating and price." />
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
   <link rel="stylesheet" href="../css/components.css" />
   <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
-  <link rel="stylesheet" href="../css/worker-profile.css" />
 </head>
 
 <body>
   <a href="#main" class="skip-link">Skip to content</a>
   <div id="header-mount"></div>
 
-  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
-    <div class="jobs-toolbar">
+  <main id="main" class="container disc-page">
+    <header class="disc-head">
       <h1 class="page-title">Find talent</h1>
       <nav class="search-tabs" aria-label="What to search">
         <a href="search.html" id="tab-talent" class="is-active" aria-current="page">Professionals</a>
         <a href="jobs.html" id="tab-jobs">Jobs</a>
       </nav>
-      <form id="search-form" class="jobs-search" role="search">
-        <input type="search" name="keyword" placeholder="Name, profession, skill, service or place" aria-label="Keyword" autocomplete="off" />
-        <select name="availabilityStatus" aria-label="Availability">
-          <option value="">Any availability</option>
-          <option value="available">Available now</option>
-          <option value="busy">Busy</option>
-        </select>
-        <select name="minRating" aria-label="Minimum rating">
-          <option value="">Any rating</option>
-          <option value="4">4+ stars</option>
-          <option value="3">3+ stars</option>
-        </select>
-        <input type="number" name="maxPrice" placeholder="Max starting price (₦)" aria-label="Maximum price" min="0" style="width:180px;" />
-        <select name="categoryId" id="categoryId" aria-label="Category"><option value="">Any category</option></select>
-        <select name="skillId" id="skillId" aria-label="Skill"><option value="">Any skill</option></select>
-        <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
-        <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
-        <label class="filter-check">
-          <input type="checkbox" name="verifiedOnly" /> Verified only
-        </label>
-        <label class="filter-check">
-          <input type="checkbox" name="hasVideo" /> Has work video
-        </label>
-        <button type="submit" class="btn btn-primary" id="search-submit">Search</button>
-      </form>
-    </div>
+    </header>
 
-    <p class="text-secondary text-sm" id="search-summary" aria-live="polite" style="margin: var(--space-3) 0;"></p>
-    <div id="workers-list" class="jobs-list" aria-live="polite"></div>
-    <div style="text-align:center; margin-top: var(--space-5);"><button type="button" class="btn btn-secondary" id="load-more" hidden>Load more</button></div>
+    <form id="search-form" class="disc-search" role="search" novalidate>
+      <div class="disc-searchbar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" name="keyword" placeholder="Name, profession, skill, service or place" aria-label="Search professionals" autocomplete="off" enterkeyhint="search" maxlength="100" />
+        <button type="submit" class="btn btn-primary" id="search-submit">Search</button>
+      </div>
+      <div class="disc-controls">
+        <button type="button" class="disc-filter-toggle" data-filter-toggle aria-expanded="false" aria-controls="talent-filters">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          Filters <span class="disc-filter-count" data-filter-count hidden></span>
+        </button>
+      </div>
+      <div class="disc-filters" id="talent-filters" data-filter-panel>
+        <div class="disc-filter-grid">
+          <div class="field"><label for="f-category">Category</label><select name="categoryId" id="f-category"><option value="">Any category</option></select></div>
+          <div class="field"><label for="f-skill">Skill</label><select name="skillId" id="f-skill"><option value="">Any skill</option></select></div>
+          <div class="field"><label for="f-state">State</label><select name="stateId" id="f-state"><option value="">Any state</option></select></div>
+          <div class="field"><label for="f-lga">LGA</label><select name="lgaId" id="f-lga" disabled><option value="">Select a state first</option></select></div>
+          <div class="field"><label for="f-availability">Availability</label>
+            <select name="availabilityStatus" id="f-availability" data-search="false">
+              <option value="">Any availability</option>
+              <option value="available">Available now</option>
+              <option value="busy">Busy</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-rating">Rating</label>
+            <select name="minRating" id="f-rating" data-search="false">
+              <option value="">Any rating</option>
+              <option value="4">4 stars &amp; up</option>
+              <option value="3">3 stars &amp; up</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-maxprice">Max starting price (₦)</label><input type="number" name="maxPrice" id="f-maxprice" min="0" step="1000" inputmode="numeric" placeholder="Any" /></div>
+          <div class="field disc-filter-checks">
+            <label class="filter-check"><input type="checkbox" name="verifiedOnly" /> Verified only</label>
+            <label class="filter-check"><input type="checkbox" name="hasVideo" /> Has work video</label>
+          </div>
+        </div>
+        <div class="disc-filter-actions">
+          <button type="button" class="btn btn-ghost" data-filter-clear>Clear filters</button>
+          <button type="submit" class="btn btn-primary">Show professionals</button>
+        </div>
+      </div>
+    </form>
+
+    <p class="disc-summary" id="search-summary" aria-live="polite"></p>
+    <div id="workers-list" class="disc-list"></div>
+    <div class="disc-more"><button type="button" class="btn btn-secondary" id="load-more" hidden>Load more</button></div>
   </main>
 
   <div id="footer-mount"></div>
@@ -75,68 +95,20 @@
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/discovery.js"></script>
   <script>
-    function ratingStars(avg) {
-      const n = Math.round(Number(avg) || 0);
-      return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
-    }
-
-    function formatMoney(amount, currency) {
-      if (amount === null || amount === undefined) return null;
-      const symbol = currency === 'USD' ? '$' : '₦';
-      return `${symbol}${Number(amount).toLocaleString()}`;
-    }
-
-    function workerCardHtml(w) {
-      const location = [w.lga_name, w.state_name].filter(Boolean).join(', ');
-      const price = formatMoney(w.starting_price, w.price_currency);
-      const initials = esc(String(w.full_name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase());
-      // A real profile photo when there is one; otherwise the person's initials (never a stock photo
-      // standing in for a face, and never a broken image).
-      const avatar = w.profile_picture_url
-        ? `<img class="result-avatar" src="${esc(w.profile_picture_url)}" alt="" width="48" height="48" loading="lazy" onerror="this.outerHTML='<span class=&quot;result-avatar result-avatar-initials&quot;>${initials}</span>'" />`
-        : `<span class="result-avatar result-avatar-initials" aria-hidden="true">${initials}</span>`;
-      const badges = [
-        w.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : '',
-        w.is_pro ? '<span class="badge badge-pro">PRO</span>' : '',
-      ].join('');
-      const business = w.business_name
-        ? `<div class="result-business">
-             ${w.business_photo_url ? `<img src="${esc(w.business_photo_url)}" alt="" width="28" height="28" loading="lazy" onerror="this.remove()" />` : ''}
-             <span>${esc(w.business_name)}</span>
-           </div>`
-        : '';
-      const meta = [
-        w.rating_count > 0 ? `<span class="text-gold">${ratingStars(w.rating_avg)} <span class="text-secondary">(${w.rating_count})</span></span>` : '',
-        location ? `<span class="text-secondary">${esc(location)}</span>` : '',
-        w.availability_status ? `<span class="text-secondary" style="text-transform:capitalize;">${esc(w.availability_status)}</span>` : '',
-      ].filter(Boolean).join('<span class="result-sep" aria-hidden="true">·</span>');
-      return `
-      <a class="card card-interactive job-card result-card" href="worker-profile.html?id=${w.user_id}">
-        <div class="result-head">
-          ${avatar}
-          <div class="result-id">
-            <div class="result-name"><strong>${esc(w.full_name)}</strong>${badges}</div>
-            <div class="text-sm text-secondary">${esc(w.professional_title) || 'Professional'}</div>
-          </div>
-        </div>
-        ${business}
-        ${meta ? `<div class="result-meta text-sm">${meta}</div>` : ''}
-        ${price ? `<div class="result-price">${price} starting</div>` : ''}
-        ${w.bio ? `<p class="text-secondary text-sm result-bio">${esc(w.bio.slice(0, 110))}${w.bio.length > 110 ? '…' : ''}</p>` : ''}
-        ${w.has_video ? '<div><span class="badge badge-neutral">Has video</span></div>' : ''}
-      </a>
-    `;
-    }
-
     const PAGE_SIZE = 20;
     let currentQuery = '';
     let currentPage = 1;
     let loading = false;
+    let filterPanel;
+
+    const searchForm = document.getElementById('search-form');
 
     function setSummary(text) { document.getElementById('search-summary').textContent = text; }
 
-    /** page 1 replaces the list; later pages append. Shows loading, empty and error states. */
+    /** Page 1 replaces the list; later pages append. Shows loading, empty and error states. */
     async function loadWorkers(query, page = 1) {
       if (loading) return;
       loading = true;
@@ -146,95 +118,101 @@
       const submit = document.getElementById('search-submit');
       submit.disabled = true; moreBtn.disabled = true;
       if (page === 1) {
-        list.innerHTML = `<div class="skeleton" style="height:180px;"></div><div class="skeleton" style="height:180px;"></div>`;
+        list.setAttribute('aria-busy', 'true');
+        Discovery.skeletonCards(list, { count: 6, kind: 'pro' });
         moreBtn.hidden = true; setSummary('Searching…');
+      } else {
+        moreBtn.textContent = 'Loading…';
       }
       try {
         const qs = new URLSearchParams(query); qs.set('page', String(page)); qs.set('pageSize', String(PAGE_SIZE));
         const { profiles } = await API.get(`/profiles/worker/search?${qs.toString()}`);
         if (page === 1 && profiles.length === 0) {
-          list.innerHTML = `<div class="empty-state fade-in" style="grid-column: 1 / -1;"><img src="${ASSETS.emptyState}" alt="" /><h3>No professionals found</h3><p>Try fewer words, a different spelling, or clear a filter.</p></div>`;
-          setSummary('No results');
+          const filtered = [...new URLSearchParams(query).keys()].length > 0;
+          StateView.empty(list, {
+            icon: 'inbox',
+            title: filtered ? 'No professionals found' : 'No professionals listed yet',
+            message: filtered ? 'Try fewer words, a different spelling, or clear a filter.' : 'Check back soon as more professionals join.',
+            action: filtered ? { label: 'Clear search', onClick: clearAll } : undefined,
+          });
+          setSummary('');
         } else {
-          const html = profiles.map(workerCardHtml).join('');
+          const html = profiles.map(Discovery.proCard).join('');
           if (page === 1) { list.innerHTML = html; Animate.stagger(list); } else list.insertAdjacentHTML('beforeend', html);
-          const shown = list.querySelectorAll('.job-card').length;
-          setSummary(`${shown} professional${shown === 1 ? '' : 's'}${profiles.length === PAGE_SIZE ? ' shown' : ' found'}`);
+          const shown = list.querySelectorAll('.pro-card').length;
+          setSummary(`${shown} professional${shown === 1 ? '' : 's'}${profiles.length === PAGE_SIZE ? ' shown' : ''}`);
         }
         moreBtn.hidden = profiles.length < PAGE_SIZE;
       } catch (err) {
         if (page === 1) {
-          list.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><h3>Search is unavailable right now</h3><p>${esc(err.message)}</p><button type="button" class="btn btn-secondary btn-sm" id="search-retry">Try again</button></div>`;
-          document.getElementById('search-retry').addEventListener('click', () => loadWorkers(query, 1));
+          StateView.error(list, err, { title: 'Search couldn’t load', retry: () => loadWorkers(query, 1) });
           setSummary('');
         } else {
-          Toast.error(err.message);
+          Toast.error(StateView.messageFor(err));
         }
       } finally {
         loading = false; submit.disabled = false; moreBtn.disabled = false;
+        moreBtn.textContent = 'Load more';
+        list.removeAttribute('aria-busy');
       }
     }
 
+    function syncTabs() {
+      const k = searchForm.keyword.value.trim();
+      document.getElementById('tab-jobs').href = `jobs.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
+    }
+
+    function runSearch() {
+      const params = Discovery.formToParams(searchForm);
+      window.history.replaceState(null, '', params.toString() ? `?${params.toString()}` : window.location.pathname);
+      syncTabs();
+      filterPanel.refreshCount();
+      loadWorkers(params.toString());
+    }
+
+    function clearAll() {
+      searchForm.keyword.value = '';
+      filterPanel.clear(); // clears the filters, then searches again
+    }
+
     (async function init() {
-      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-talent' });
+      // Restore the search from the address (?keyword=… from the homepage, a shared link, Back/Forward).
+      const initial = new URLSearchParams(window.location.search);
+      Discovery.restoreForm(searchForm, initial, ['stateId', 'lgaId', 'categoryId', 'skillId']);
+      searchForm.keyword.addEventListener('input', syncTabs); syncTabs();
+      filterPanel = Discovery.initFilterPanel(searchForm, { onChange: runSearch });
+      Discovery.wireAvatarFallback(document.getElementById('workers-list'));
+
+      loadWorkers(initial.toString());
+
+      Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-talent' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
-      const searchForm = document.getElementById('search-form');
-
-      try {
-        const [{ categories }, { skills }] = await Promise.all([
-          API.get('/catalog/categories'),
-          API.get('/catalog/skills'),
-        ]);
-        searchForm.categoryId.innerHTML =
-          '<option value="">Any category</option>' + categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-        searchForm.skillId.innerHTML =
-          '<option value="">Any skill</option>' + skills.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-      } catch {
-        // Category/skill filters are a progressive enhancement — if
-        // the catalog can't load, search still works without them.
-      }
-
-      LocationSelect.init({
+      // Category/skill/location filters are a progressive enhancement: search works without them.
+      API.get('/catalog/categories').then(({ categories }) => {
+        searchForm.categoryId.innerHTML = '<option value="">Any category</option>' + categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+        if (initial.get('categoryId')) searchForm.categoryId.value = initial.get('categoryId');
+        filterPanel.refreshCount();
+      }).catch(() => {});
+      API.get('/catalog/skills').then(({ skills }) => {
+        searchForm.skillId.innerHTML = '<option value="">Any skill</option>' + skills.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+        if (initial.get('skillId')) searchForm.skillId.value = initial.get('skillId');
+        filterPanel.refreshCount();
+      }).catch(() => {});
+      Promise.resolve(LocationSelect.init({
         stateSelect: searchForm.stateId,
         lgaSelect: searchForm.lgaId,
         restrictToActive: false,
         statePlaceholder: 'Any state',
-      });
+        initial: { stateId: initial.get('stateId') || undefined, lgaId: initial.get('lgaId') || undefined },
+      })).then(() => filterPanel.refreshCount()).catch(() => {});
 
-      // Restore the search from the address (?keyword=… from the homepage, a shared link, Back/Forward).
-      const initial = new URLSearchParams(window.location.search);
-      for (const field of ['keyword', 'availabilityStatus', 'minRating', 'maxPrice', 'categoryId', 'skillId']) {
-        if (initial.get(field) && searchForm[field]) searchForm[field].value = initial.get(field);
-      }
-      if (initial.get('verifiedOnly') === 'true') searchForm.verifiedOnly.checked = true;
-      if (initial.get('hasVideo') === 'true') searchForm.hasVideo.checked = true;
-      const syncTabs = () => {
-        const k = searchForm.keyword.value.trim();
-        document.getElementById('tab-jobs').href = `jobs.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
-      };
-      searchForm.keyword.addEventListener('input', syncTabs); syncTabs();
-
-      loadWorkers(initial.toString());
       document.getElementById('load-more').addEventListener('click', () => loadWorkers(currentQuery, currentPage + 1));
-
       searchForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const params = new URLSearchParams();
-        const keyword = e.target.keyword.value.trim();
-        if (keyword) params.set('keyword', keyword);
-        if (e.target.availabilityStatus.value) params.set('availabilityStatus', e.target.availabilityStatus.value);
-        if (e.target.minRating.value) params.set('minRating', e.target.minRating.value);
-        if (e.target.maxPrice.value) params.set('maxPrice', e.target.maxPrice.value);
-        if (e.target.categoryId.value) params.set('categoryId', e.target.categoryId.value);
-        if (e.target.skillId.value) params.set('skillId', e.target.skillId.value);
-        if (e.target.stateId.value) params.set('stateId', e.target.stateId.value);
-        if (e.target.lgaId.value) params.set('lgaId', e.target.lgaId.value);
-        if (e.target.verifiedOnly.checked) params.set('verifiedOnly', 'true');
-        if (e.target.hasVideo.checked) params.set('hasVideo', 'true');
-        window.history.replaceState(null, '', params.toString() ? `?${params.toString()}` : window.location.pathname);
-        syncTabs();
-        loadWorkers(params.toString());
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // closes the phone keyboard
+        if (window.matchMedia('(max-width: 1023px)').matches) filterPanel.close();
+        runSearch();
       });
     })();
   </script>

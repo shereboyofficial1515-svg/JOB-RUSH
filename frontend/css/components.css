@@ -820,6 +820,8 @@
   color: var(--text-secondary);
   transition: background-color var(--duration-micro) var(--ease-standard), color var(--duration-micro) var(--ease-standard);
 }
+.sidebar-nav-icon { display: inline-flex; flex-shrink: 0; width: 20px; height: 20px; }
+.sidebar-nav-icon svg { width: 100%; height: 100%; }
 .sidebar-nav a:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
 .sidebar-nav a.is-active {
   background: rgba(201, 162, 39, 0.18);
@@ -1440,6 +1442,11 @@
   /* Last content must clear the bar (plus the home-indicator inset). */
   body.has-bottom-nav .dashboard-main {
     padding-bottom: calc(var(--space-5) + var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  }
+  /* Public pages shown to a signed-in user (job/talent search, profiles):
+     the footer is the last thing on the page and must clear the bar. */
+  body.has-bottom-nav--site {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
   }
   /* Step aside while typing (on-screen keyboard) and inside an open
      chat, where the composer owns the bottom edge. */

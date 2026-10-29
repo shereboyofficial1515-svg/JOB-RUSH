@@ -21,23 +21,27 @@ const SidebarNav = (function () {
   // "show for a worker, a hirer, AND a dual-role account" (shared
   // items); a single role means "only for that role" (a dual-role
   // account sees it too, via the merge below).
+  // icon: a key into Icons (js/utils/icons.js), the app's one icon family.
   const ITEMS = [
-    { key: 'overview', label: 'Overview', icon: '▣', href: 'dashboard.html', roles: ['worker', 'hirer', 'both'] },
-    { key: 'applications', label: 'My applications', icon: '✉', href: 'applications.html', roles: ['worker'] },
-    { key: 'portfolio', label: 'My portfolio', icon: '❖', href: 'portfolio.html', roles: ['worker'] },
-    { key: 'my-jobs', label: 'My jobs', icon: '▦', href: 'my-jobs.html', roles: ['hirer'] },
-    { key: 'applicants', label: 'Applicants', icon: '◈', href: 'applicants.html', roles: ['hirer'] },
-    { key: 'interviews', label: 'Interviews', icon: '◉', href: 'interviews.html', roles: ['worker', 'hirer', 'both'] },
-    { key: 'messages', label: 'Messages', icon: '▤', href: 'messages.html', roles: ['worker', 'hirer', 'both'] },
-    { key: 'wallet', label: 'Wallet', icon: '₦', href: 'wallet.html', roles: ['worker'] },
-    { key: 'contracts', label: 'Contracts & Payments', icon: '◫', href: 'contracts.html', roles: ['hirer'] },
-    { key: 'referral', label: 'Referrals', icon: '⊕', href: 'referral.html', roles: ['worker', 'hirer', 'both'] },
-    { key: 'pro', label: 'JOB RUSH PRO', icon: '★', href: 'pro.html', roles: ['worker'] },
-    { key: 'profile', label: 'Profile', icon: '◆', href: 'profile-settings.html?tab=profile', roles: ['worker', 'hirer', 'both'] },
-    { key: 'settings', label: 'Settings', icon: '⚙', href: 'profile-settings.html?tab=hub', roles: ['worker', 'hirer', 'both'] },
-    { key: 'support', label: 'Support', icon: '❓', href: 'support.html', roles: ['worker', 'hirer', 'both'] },
-    { key: 'visit-site', label: 'Visit JOB RUSH site', icon: '↗', href: '../index.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'overview', label: 'Home', icon: 'home', href: 'dashboard.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'find-work', label: 'Find work', icon: 'search', href: 'jobs.html', roles: ['worker'] },
+    { key: 'find-talent', label: 'Find talent', icon: 'users', href: 'search.html', roles: ['hirer'] },
+    { key: 'applications', label: 'My applications', icon: 'inbox', href: 'applications.html', roles: ['worker'] },
+    { key: 'portfolio', label: 'My portfolio', icon: 'portfolio', href: 'portfolio.html', roles: ['worker'] },
+    { key: 'my-jobs', label: 'My jobs', icon: 'briefcase', href: 'my-jobs.html', roles: ['hirer'] },
+    { key: 'applicants', label: 'Applicants', icon: 'document', href: 'applicants.html', roles: ['hirer'] },
+    { key: 'interviews', label: 'Interviews', icon: 'calendar', href: 'interviews.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'messages', label: 'Messages', icon: 'message', href: 'messages.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'wallet', label: 'Wallet', icon: 'wallet', href: 'wallet.html', roles: ['worker'] },
+    { key: 'contracts', label: 'Contracts & Payments', icon: 'receipt', href: 'contracts.html', roles: ['hirer'] },
+    { key: 'referral', label: 'Referrals', icon: 'gift', href: 'referral.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'pro', label: 'JOB RUSH PRO', icon: 'star', href: 'pro.html', roles: ['worker'] },
+    { key: 'profile', label: 'Profile', icon: 'user', href: 'profile-settings.html?tab=profile', roles: ['worker', 'hirer', 'both'] },
+    { key: 'settings', label: 'Settings', icon: 'settings', href: 'profile-settings.html?tab=hub', roles: ['worker', 'hirer', 'both'] },
+    { key: 'support', label: 'Support', icon: 'lifebuoy', href: 'support.html', roles: ['worker', 'hirer', 'both'] },
+    { key: 'visit-site', label: 'Visit JOB RUSH site', icon: 'arrowUpRight', href: '../index.html', roles: ['worker', 'hirer', 'both'] },
   ];
+
 
   function itemsForRole(role) {
     // A 'both' account gets the UNION of worker-only and hirer-only
@@ -52,21 +56,42 @@ const SidebarNav = (function () {
   }
 
   /**
-   * Mobile bottom navigation: quick access to the five destinations
-   * used most, shown only below 900px (components.css). It reads href
-   * and active state from the same ITEMS above rather than redefining
-   * routes, so it can't drift from the drawer — the drawer remains the
-   * full menu and still lists all of these too. Notifications has no
-   * drawer entry (desktop reaches it through the bell), so it's the one
-   * item defined here.
+   * Mobile bottom navigation: the five destinations each role uses
+   * most, shown only below 900px (components.css). Hrefs and active
+   * state come from ITEMS above, so the bar can't drift from the drawer,
+   * which stays the full menu. Notifications aren't here: every app
+   * header carries the bell (with its own unread count).
+   *   worker: find work and track applications
+   *   hirer:  find talent and manage posted jobs
+   *   both:   one of each side; the rest is one tap away in the drawer
    */
-  const BOTTOM_ITEMS = [
-    { key: 'overview', label: 'Home', icon: 'home' },
-    { key: 'profile', label: 'Profile', icon: 'user' },
-    { key: 'messages', label: 'Messages', icon: 'message', badge: 'messages' },
-    { key: 'notifications', label: 'Alerts', fullLabel: 'Notifications', icon: 'bell', href: 'notifications.html', badge: 'notifications' },
-    { key: 'settings', label: 'Settings', icon: 'settings' },
-  ];
+  const ACCOUNT = { key: 'settings', also: ['profile'], label: 'Account', fullLabel: 'Account and settings', icon: 'user' };
+  const BOTTOM_ITEMS = {
+    worker: [
+      { key: 'overview', label: 'Home', icon: 'home' },
+      { key: 'find-work', label: 'Find work', icon: 'search' },
+      { key: 'applications', label: 'Applied', fullLabel: 'My applications', icon: 'inbox' },
+      { key: 'messages', label: 'Messages', icon: 'message', badge: 'messages' },
+      ACCOUNT,
+    ],
+    hirer: [
+      { key: 'overview', label: 'Home', icon: 'home' },
+      { key: 'find-talent', label: 'Find talent', icon: 'users' },
+      { key: 'my-jobs', label: 'My jobs', icon: 'briefcase' },
+      { key: 'messages', label: 'Messages', icon: 'message', badge: 'messages' },
+      ACCOUNT,
+    ],
+    both: [
+      { key: 'overview', label: 'Home', icon: 'home' },
+      { key: 'find-work', label: 'Find work', icon: 'search' },
+      { key: 'my-jobs', label: 'My jobs', icon: 'briefcase' },
+      { key: 'messages', label: 'Messages', icon: 'message', badge: 'messages' },
+      ACCOUNT,
+    ],
+  };
+  function bottomItemsForRole(role) {
+    return BOTTOM_ITEMS[role] || BOTTOM_ITEMS.worker;
+  }
 
   const unreadCounts = { messages: 0, notifications: 0 };
 
@@ -86,6 +111,9 @@ const SidebarNav = (function () {
   function setUnread(name, count) {
     unreadCounts[name] = Math.max(0, Number(count) || 0);
     paintBadge(name);
+    // Other views on the page (the home screen's Messages tile) show the
+    // same count without polling for it themselves.
+    document.dispatchEvent(new CustomEvent('jr:nav-unread', { detail: { name, count: unreadCounts[name] } }));
   }
 
   async function refreshMessageUnread() {
@@ -101,7 +129,7 @@ const SidebarNav = (function () {
 
   let bottomNavPollTimer = null;
 
-  function renderBottomNav(items, activeKey) {
+  function renderBottomNav(items, activeKey, role) {
     let nav = document.querySelector('.bottom-nav');
     if (!nav) {
       nav = document.createElement('nav');
@@ -109,6 +137,8 @@ const SidebarNav = (function () {
       nav.setAttribute('aria-label', 'Quick navigation');
       document.body.appendChild(nav);
       document.body.classList.add('has-bottom-nav');
+      // Public pages (job search, profiles) have no .dashboard-main to pad.
+      if (!document.querySelector('.dashboard-main')) document.body.classList.add('has-bottom-nav--site');
 
       // A fixed bar rides up above the on-screen keyboard and would sit
       // on top of whatever field is being typed into, so it steps aside
@@ -126,12 +156,12 @@ const SidebarNav = (function () {
       document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMessageUnread(); });
     }
 
-    nav.innerHTML = BOTTOM_ITEMS.map((b) => {
+    nav.innerHTML = bottomItemsForRole(role).map((b) => {
       const source = items.find((i) => i.key === b.key);
       const href = b.href || (source && source.href);
       if (!href) return '';
       const icon = (typeof Icons !== 'undefined' && Icons[b.icon]) || '';
-      const isActive = b.key === activeKey;
+      const isActive = b.key === activeKey || (b.also || []).includes(activeKey);
       const name = b.fullLabel || b.label;
       return `<a href="${href}" class="bottom-nav-item${isActive ? ' is-active' : ''}" data-label="${name}" aria-label="${name}"${isActive ? ' aria-current="page"' : ''}>
         <span class="bottom-nav-icon">${icon}${b.badge ? `<span class="bottom-nav-badge" data-badge="${b.badge}" hidden>0</span>` : ''}</span>
@@ -214,11 +244,25 @@ const SidebarNav = (function () {
     const resolvedActive = activeKey || items.find((i) => i.href === currentFile)?.key;
 
     mount.innerHTML = items
-      .map((i) => `<a href="${i.href}" class="${i.key === resolvedActive ? 'is-active' : ''}"><span aria-hidden="true">${i.icon}</span> ${i.label}</a>`)
+      .map((i) => {
+        const icon = (typeof Icons !== 'undefined' && Icons[i.icon]) || '';
+        const active = i.key === resolvedActive;
+        return `<a href="${i.href}" class="${active ? 'is-active' : ''}"${active ? ' aria-current="page"' : ''}><span class="sidebar-nav-icon">${icon}</span> ${i.label}</a>`;
+      })
       .join('');
 
     setupMobileDrawer();
-    renderBottomNav(items, resolvedActive);
+    renderBottomNav(items, resolvedActive, user.role);
+  }
+
+  /**
+   * Signed-in users on the public discovery pages (job search, talent
+   * search, job and profile pages) keep the app's bottom navigation, so
+   * finding work or talent doesn't drop them out of the app. Called by
+   * Chrome.mountHeader; pages there have no sidebar.
+   */
+  function renderBottomNavOnly(user, activeKey) {
+    renderBottomNav(itemsForRole(user.role), activeKey, user.role);
   }
 
   /**
@@ -312,5 +356,5 @@ const SidebarNav = (function () {
     window.matchMedia('(min-width: 901px)').addEventListener('change', (e) => { if (e.matches) closeDrawer(); });
   }
 
-  return { render, itemsForRole, setUnread, refreshMessageUnread };
+  return { render, renderBottomNavOnly, itemsForRole, setUnread, refreshMessageUnread };
 })();
