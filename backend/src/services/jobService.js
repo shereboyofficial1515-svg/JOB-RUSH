@@ -102,9 +102,14 @@ async function getOwnedJob(jobId, hirerUserId) {
 
 async function getJobById(jobId) {
   const { rows } = await query(
-    `SELECT j.*, hp.display_name AS hirer_display_name
+    `SELECT j.*, hp.display_name AS hirer_display_name,
+            st.name AS state_name, l.name AS lga_name, a.name AS area_name, c.name AS category_name
        FROM jobs j
        JOIN hirer_profiles hp ON hp.user_id = j.hirer_user_id
+       LEFT JOIN states st ON st.id = j.state_id
+       LEFT JOIN lgas l ON l.id = j.lga_id
+       LEFT JOIN areas a ON a.id = j.area_id
+       LEFT JOIN categories c ON c.id = j.category_id
       WHERE j.id = $1`,
     [jobId]
   );
@@ -273,9 +278,12 @@ async function searchJobs({
   // fetch) is a separate, unaffected query.
   const sql = `
     SELECT j.id, j.title, LEFT(j.description, 200) AS description, j.employment_type,
-           j.budget_min, j.budget_max, j.created_at, hp.display_name AS hirer_display_name
+           j.budget_type, j.budget_min, j.budget_max, j.created_at, hp.display_name AS hirer_display_name,
+           st.name AS state_name, l.name AS lga_name
       FROM jobs j
       JOIN hirer_profiles hp ON hp.user_id = j.hirer_user_id
+      LEFT JOIN states st ON st.id = j.state_id
+      LEFT JOIN lgas l ON l.id = j.lga_id
      WHERE ${conditions.join(' AND ')}
      ORDER BY ${orderBy}
      LIMIT $${params.length - 1} OFFSET $${params.length}

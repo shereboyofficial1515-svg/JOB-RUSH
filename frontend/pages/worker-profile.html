@@ -75,6 +75,7 @@
   <script src="../js/utils/scheduleFormat.js"></script>
   <script src="../js/utils/fileFormat.js"></script>
   <script src="../js/utils/cvViewer.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
   <script>
     // ---------------------------------------------------------------- formatting helpers
     // Only an http(s) URL is ever used as an image source or link target; anything else is ignored.
@@ -598,7 +599,7 @@
       try {
         ({ jobs } = await API.get('/jobs/mine?status=open'));
       } catch (err) {
-        Toast.error(err.message);
+        Toast.error(StateView.messageFor(err));
         return;
       }
 
@@ -641,7 +642,7 @@
               Toast.success('Invitation sent.');
               Modal.close();
             } catch (err) {
-              Toast.error(err.message);
+              Toast.error(StateView.messageFor(err));
             } finally {
               FormHelpers.setLoading(submitBtn, false);
             }
@@ -697,7 +698,7 @@
               Modal.close();
               Toast.success('Report submitted. Our team will review it.');
             } catch (err) {
-              Toast.error(err.message);
+              Toast.error(StateView.messageFor(err));
             } finally {
               FormHelpers.setLoading(submitBtn, false);
             }
@@ -765,7 +766,7 @@
         try {
           await task();
         } catch (err) {
-          Toast.error(err.message);
+          Toast.error(StateView.messageFor(err));
           all.forEach((b) => FormHelpers.setLoading(b, false));
           actionBusy = false;
         }
@@ -821,7 +822,7 @@
           img.src = uploaded.publicUrl;
           Toast.success('Cover photo updated.');
         } catch (err) {
-          Toast.error(err.message);
+          Toast.error(StateView.messageFor(err));
         } finally {
           btn.disabled = false;
         }
@@ -927,13 +928,17 @@
         selectTab(window.location.hash.replace('#', '') || 'overview', { updateHash: false });
       } catch (err) {
         content.removeAttribute('aria-busy');
-        content.innerHTML = `
-          <div class="empty-state">
-            <img src="${ASSETS.emptyState}" alt="" />
-            <h3>Profile not found</h3>
-            <p>${esc(err.message)}</p>
-            <a href="search.html" class="btn btn-primary btn-sm">Find other professionals</a>
-          </div>`;
+        if (err && err.status === 404) {
+          StateView.empty(content, {
+            icon: 'inbox',
+            title: 'Profile not found',
+            message: 'This profile may be private, deactivated, or the link may be incomplete.',
+            action: { label: 'Find other professionals', href: 'search.html' },
+          });
+        } else {
+          // Everything above is idempotent page setup, so a fresh load is the simplest reliable retry.
+          StateView.error(content, err, { title: 'This profile couldn’t load', retry: () => window.location.reload() });
+        }
       }
     })();
   </script>

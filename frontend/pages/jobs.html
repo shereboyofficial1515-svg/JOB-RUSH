@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Find work — JOB RUSH</title>
+  <meta name="description" content="Browse open jobs across Nigeria on JOB RUSH. Search by skill, category, location, employment type and budget." />
   <link rel="icon" type="image/png" href="../assets/icons/favicon-32.png" />
   <link rel="stylesheet" href="../css/tokens.css" />
   <link rel="stylesheet" href="../css/base.css" />
@@ -17,37 +18,69 @@
   <a href="#main" class="skip-link">Skip to content</a>
   <div id="header-mount"></div>
 
-  <main id="main" class="container" style="padding-top: var(--space-6); padding-bottom: var(--space-9);">
-    <div class="jobs-toolbar">
+  <main id="main" class="container disc-page">
+    <header class="disc-head">
       <h1 class="page-title">Find work</h1>
       <nav class="search-tabs" aria-label="What to search">
         <a href="search.html" id="tab-talent">Professionals</a>
         <a href="jobs.html" id="tab-jobs" class="is-active" aria-current="page">Jobs</a>
       </nav>
-      <form id="jobs-search-form" class="jobs-search" role="search">
-        <input type="search" name="keyword" placeholder="Job title, skill, category or keyword" aria-label="Keyword" autocomplete="off" />
-        <select name="categoryId" id="categoryId" aria-label="Category"><option value="">Any category</option></select>
-        <select name="employmentType" aria-label="Employment type">
-          <option value="">Any type</option>
-          <option value="full_time">Full-time</option>
-          <option value="part_time">Part-time</option>
-          <option value="contract">Contract</option>
-          <option value="one_time">One-time</option>
-        </select>
-        <select name="stateId" id="stateId" aria-label="State"><option value="">Any state</option></select>
-        <select name="lgaId" id="lgaId" aria-label="LGA" disabled><option value="">Select a state first</option></select>
-        <select name="sort" aria-label="Sort by">
-          <option value="newest">Newest</option>
-          <option value="budget_high">Highest budget</option>
-          <option value="deadline">Deadline soonest</option>
-        </select>
-        <button type="submit" class="btn btn-primary">Search</button>
-      </form>
-    </div>
+    </header>
 
-    <div id="jobs-list" class="jobs-list" aria-live="polite">
-      <!-- populated by JS -->
-    </div>
+    <form id="jobs-search-form" class="disc-search" role="search" novalidate>
+      <div class="disc-searchbar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input type="search" name="keyword" placeholder="Job title, skill or keyword" aria-label="Search jobs" autocomplete="off" enterkeyhint="search" maxlength="100" />
+        <button type="submit" class="btn btn-primary" id="jobs-submit">Search</button>
+      </div>
+      <div class="disc-controls">
+        <button type="button" class="disc-filter-toggle" data-filter-toggle aria-expanded="false" aria-controls="jobs-filters">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+          Filters <span class="disc-filter-count" data-filter-count hidden></span>
+        </button>
+        <label class="disc-sort"><span>Sort by</span>
+          <select name="sort" aria-label="Sort jobs" data-search="false">
+            <option value="newest">Newest</option>
+            <option value="budget_high">Highest budget</option>
+            <option value="deadline">Deadline soonest</option>
+          </select>
+        </label>
+      </div>
+      <div class="disc-filters" id="jobs-filters" data-filter-panel>
+        <div class="disc-filter-grid">
+          <div class="field"><label for="f-category">Category</label><select name="categoryId" id="f-category"><option value="">Any category</option></select></div>
+          <div class="field"><label for="f-skill">Skill</label><select name="skillId" id="f-skill"><option value="">Any skill</option></select></div>
+          <div class="field"><label for="f-type">Employment type</label>
+            <select name="employmentType" id="f-type" data-search="false">
+              <option value="">Any type</option>
+              <option value="full_time">Full-time</option>
+              <option value="part_time">Part-time</option>
+              <option value="contract">Contract</option>
+              <option value="one_time">One-time</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-level">Experience level</label>
+            <select name="experienceLevel" id="f-level" data-search="false">
+              <option value="">Any level</option>
+              <option value="entry">Entry level</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="expert">Expert</option>
+            </select>
+          </div>
+          <div class="field"><label for="f-state">State</label><select name="stateId" id="f-state"><option value="">Any state</option></select></div>
+          <div class="field"><label for="f-lga">LGA</label><select name="lgaId" id="f-lga" disabled><option value="">Select a state first</option></select></div>
+          <div class="field"><label for="f-minbudget">Minimum budget (₦)</label><input type="number" name="minBudget" id="f-minbudget" min="0" step="1000" inputmode="numeric" placeholder="Any" /></div>
+        </div>
+        <div class="disc-filter-actions">
+          <button type="button" class="btn btn-ghost" data-filter-clear>Clear filters</button>
+          <button type="submit" class="btn btn-primary">Show jobs</button>
+        </div>
+      </div>
+    </form>
+
+    <p class="disc-summary" id="jobs-summary" aria-live="polite"></p>
+    <div id="jobs-list" class="disc-list"></div>
+    <div class="disc-more"><button type="button" class="btn btn-secondary" id="load-more" hidden>Load more jobs</button></div>
   </main>
 
   <div id="footer-mount"></div>
@@ -67,108 +100,127 @@
   <script src="../js/modules/chrome.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/locationSelect.js"></script>
+  <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/discovery.js"></script>
   <script>
-    function timeAgo(dateStr) {
-      const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-      if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))}m ago`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-      return `${Math.floor(diff / 86400)}d ago`;
-    }
+    const PAGE_SIZE = 20;
+    let currentQuery = '';
+    let currentPage = 1;
+    let loading = false;
+    let filterPanel;
 
-    function formatBudget(job) {
-      if (!job.budget_min && !job.budget_max) return 'Budget not specified';
-      const fmt = (n) => `₦${Number(n).toLocaleString()}`;
-      if (job.budget_min && job.budget_max) return `${fmt(job.budget_min)} – ${fmt(job.budget_max)}`;
-      return fmt(job.budget_min || job.budget_max);
-    }
+    const form = document.getElementById('jobs-search-form');
 
-    function jobCardHtml(job) {
-      return `
-      <a href="job-detail.html?id=${job.id}" class="card card-interactive job-card">
-        <div class="job-card-top">
-          <h3 style="margin-bottom: var(--space-1);">${esc(job.title)}</h3>
-          <span class="text-xs text-secondary">${timeAgo(job.created_at)}</span>
-        </div>
-        <p class="text-secondary text-sm job-card-desc">${esc((job.description || '').slice(0, 140))}${job.description.length > 140 ? '…' : ''}</p>
-        <div class="job-card-meta">
-          <span class="badge badge-neutral">${esc(job.employment_type.replace('_', ' '))}</span>
-          <span class="text-sm text-gold">${formatBudget(job)}</span>
-          <span class="text-sm text-secondary">${esc(job.hirer_display_name) || 'JOB RUSH Hirer'}</span>
-        </div>
-      </a>
-    `;
-    }
+    function setSummary(text) { document.getElementById('jobs-summary').textContent = text; }
 
-    function renderSkeletons(container, count) {
-      container.innerHTML = Array.from({ length: count })
-        .map(() => `<div class="card job-card"><div class="skeleton" style="height:20px; width:60%; margin-bottom:12px;"></div><div class="skeleton" style="height:14px; width:90%; margin-bottom:8px;"></div><div class="skeleton" style="height:14px; width:40%;"></div></div>`)
-        .join('');
-    }
-
-    async function loadJobs(query) {
+    /** Page 1 replaces the list; later pages append. Shows loading, empty and error states. */
+    async function loadJobs(query, page = 1) {
+      if (loading) return;
+      loading = true;
+      currentQuery = query; currentPage = page;
       const list = document.getElementById('jobs-list');
-      renderSkeletons(list, 4);
-      try {
-        const result = await API.get(`/jobs?${query}`);
-        if (result.jobs.length === 0) {
-          list.innerHTML = `
-          <div class="empty-state fade-in">
-            <img src="${ASSETS.emptyState}" alt="" />
-            <h3>No jobs match your search</h3>
-            <p>Try a different keyword or clear your filters.</p>
-          </div>`;
-          return;
-        }
-        list.innerHTML = result.jobs.map(jobCardHtml).join('');
-        Animate.stagger(list);
-      } catch (err) {
-        list.innerHTML = `<div class="empty-state"><h3>Jobs are unavailable right now</h3><p>${esc(err.message)}</p><button type="button" class="btn btn-secondary btn-sm" id="jobs-retry">Try again</button></div>`;
-        document.getElementById('jobs-retry').addEventListener('click', () => loadJobs(query));
+      const moreBtn = document.getElementById('load-more');
+      const submit = document.getElementById('jobs-submit');
+      submit.disabled = true; moreBtn.disabled = true;
+      if (page === 1) {
+        list.setAttribute('aria-busy', 'true');
+        Discovery.skeletonCards(list, { count: 6, kind: 'job' });
+        moreBtn.hidden = true; setSummary('Searching…');
+      } else {
+        moreBtn.textContent = 'Loading…';
       }
+      try {
+        const qs = new URLSearchParams(query); qs.set('page', String(page)); qs.set('pageSize', String(PAGE_SIZE));
+        const { jobs } = await API.get(`/jobs?${qs.toString()}`);
+        if (page === 1 && jobs.length === 0) {
+          const q = new URLSearchParams(query);
+          q.delete('sort');
+          const filtered = [...q.keys()].length > 0;
+          StateView.empty(list, {
+            icon: 'list',
+            title: filtered ? 'No jobs match your search' : 'No open jobs right now',
+            message: filtered ? 'Try another keyword, or clear some filters to see more jobs.' : 'New jobs are posted every day. Check back soon.',
+            action: filtered ? { label: 'Clear search', onClick: clearAll } : undefined,
+          });
+          setSummary('');
+        } else {
+          const html = jobs.map(Discovery.jobCard).join('');
+          if (page === 1) { list.innerHTML = html; Animate.stagger(list); } else list.insertAdjacentHTML('beforeend', html);
+          const shown = list.querySelectorAll('.job-card').length;
+          setSummary(`${shown} job${shown === 1 ? '' : 's'}${jobs.length === PAGE_SIZE ? ' shown' : ''}`);
+        }
+        moreBtn.hidden = jobs.length < PAGE_SIZE;
+      } catch (err) {
+        if (page === 1) {
+          StateView.error(list, err, { title: 'Jobs couldn’t load', retry: () => loadJobs(query, 1) });
+          setSummary('');
+        } else {
+          Toast.error(StateView.messageFor(err));
+        }
+      } finally {
+        loading = false; submit.disabled = false; moreBtn.disabled = false;
+        moreBtn.textContent = 'Load more jobs';
+        list.removeAttribute('aria-busy');
+      }
+    }
+
+    function syncTabs() {
+      const k = form.keyword.value.trim();
+      document.getElementById('tab-talent').href = `search.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
+    }
+
+    function runSearch() {
+      const params = Discovery.formToParams(form);
+      if (params.get('sort') === 'newest') params.delete('sort');
+      window.history.replaceState(null, '', params.toString() ? `?${params.toString()}` : window.location.pathname);
+      syncTabs();
+      filterPanel.refreshCount();
+      loadJobs(params.toString());
+    }
+
+    function clearAll() {
+      form.keyword.value = '';
+      filterPanel.clear(); // clears the filters, then searches again
     }
 
     (async function init() {
-      const user = await Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-work' });
+      const urlParams = new URLSearchParams(window.location.search);
+      Discovery.restoreForm(form, urlParams, ['stateId', 'lgaId', 'categoryId', 'skillId']);
+      form.keyword.addEventListener('input', syncTabs); syncTabs();
+      filterPanel = Discovery.initFilterPanel(form, { onChange: runSearch });
+
+      // Results don't wait for the header or the filter lists.
+      loadJobs(urlParams.toString());
+
+      Chrome.mountHeader(document.getElementById('header-mount'), { activeLink: 'find-work' });
       Chrome.renderFooter(document.getElementById('footer-mount'));
 
-      const form = document.getElementById('jobs-search-form');
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('keyword')) form.keyword.value = urlParams.get('keyword');
-
-      try {
-        const { categories } = await API.get('/catalog/categories');
-        form.categoryId.innerHTML =
-          '<option value="">Any category</option>' + categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+      // Category/skill/location filters are a progressive enhancement: search works without them.
+      API.get('/catalog/categories').then(({ categories }) => {
+        form.categoryId.innerHTML = '<option value="">Any category</option>' + categories.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
         if (urlParams.get('categoryId')) form.categoryId.value = urlParams.get('categoryId');
-      } catch {
-        // Category filter is a progressive enhancement — if the catalog
-        // can't load, job search still works without it.
-      }
-
-      LocationSelect.init({
+        filterPanel.refreshCount();
+      }).catch(() => {});
+      API.get('/catalog/skills').then(({ skills }) => {
+        form.skillId.innerHTML = '<option value="">Any skill</option>' + skills.map((sk) => `<option value="${esc(sk.id)}">${esc(sk.name)}</option>`).join('');
+        if (urlParams.get('skillId')) form.skillId.value = urlParams.get('skillId');
+        filterPanel.refreshCount();
+      }).catch(() => {});
+      Promise.resolve(LocationSelect.init({
         stateSelect: form.stateId,
         lgaSelect: form.lgaId,
         restrictToActive: false,
         statePlaceholder: 'Any state',
         initial: { stateId: urlParams.get('stateId') || undefined, lgaId: urlParams.get('lgaId') || undefined },
-      });
+      })).then(() => filterPanel.refreshCount()).catch(() => {});
 
-      const syncTabs = () => {
-        const k = form.keyword.value.trim();
-        document.getElementById('tab-talent').href = `search.html${k ? `?keyword=${encodeURIComponent(k)}` : ''}`;
-      };
-      form.keyword.addEventListener('input', syncTabs); syncTabs();
-
-      loadJobs(urlParams.toString());
-
+      document.getElementById('load-more').addEventListener('click', () => loadJobs(currentQuery, currentPage + 1));
+      form.sort.addEventListener('change', runSearch);
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const params = new URLSearchParams(new FormData(form));
-        for (const [key, value] of [...params.entries()]) {
-          if (!value) params.delete(key);
-        }
-        window.history.replaceState(null, '', `?${params.toString()}`);
-        loadJobs(params.toString());
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); // closes the phone keyboard
+        if (window.matchMedia('(max-width: 1023px)').matches) filterPanel.close();
+        runSearch();
       });
     })();
   </script>
