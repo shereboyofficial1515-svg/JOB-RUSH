@@ -31,14 +31,14 @@
         <div id="notif-bell-mount"></div>
       </div>
 
-      <div class="wallet-tabs">
+      <div class="wallet-tabs" role="group" aria-label="Filter applications">
         <button class="wallet-tab is-active" data-filter="all">All</button>
         <button class="wallet-tab" data-filter="invited">Invitations</button>
         <button class="wallet-tab" data-filter="active">Active</button>
         <button class="wallet-tab" data-filter="closed">Closed</button>
       </div>
 
-      <div id="applications-list" aria-live="polite">
+      <div id="applications-list" class="work-list" aria-live="polite">
         <div class="skeleton" style="height:80px; margin-bottom:12px;"></div>
         <div class="skeleton" style="height:80px;"></div>
       </div>
@@ -60,6 +60,7 @@
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/statusLabels.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
@@ -67,44 +68,73 @@
   <script>
     const ACTIVE_STATUSES = ['applied', 'invited', 'accepted', 'shortlisted'];
     const CLOSED_STATUSES = ['hired', 'rejected', 'withdrawn', 'declined'];
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 
-    function statusBadgeClass(status) {
-      if (status === 'hired') return 'badge-verified';
-      return 'badge-neutral';
-    }
+    // One plain sentence about where things stand, by status. Wording only.
+    const STATUS_NOTE = {
+      invited: 'You’ve been invited to this job. Accept to let the hirer know you’re interested.',
+      applied: 'The hirer hasn’t responded yet.',
+      accepted: 'You accepted the invitation. The hirer will be in touch about next steps.',
+      shortlisted: 'You’re on the shortlist. Watch Interviews and Messages for the hirer’s next step.',
+      hired: 'You were hired for this job.',
+    };
 
     function rowHtml(app) {
       const canWithdraw = ['applied', 'shortlisted', 'accepted'].includes(app.status);
       const canRespond = app.status === 'invited';
+      const hirer = esc(app.hirer_display_name) || 'JOB RUSH Hirer';
+      const note = STATUS_NOTE[app.status];
       return `
-      <div class="card" style="margin-bottom: var(--space-3); display:flex; justify-content:space-between; align-items:center; gap: var(--space-4);" data-app-id="${app.id}">
-        <div>
-          <h4 style="margin-bottom: var(--space-1);">${esc(app.job_title)}</h4>
-          <div class="text-secondary text-sm">${esc(app.hirer_display_name) || 'JOB RUSH Hirer'} \u00B7 ${app.source === 'hirer_invited' ? 'Invitation' : 'Application'}</div>
+      <article class="card work-card" data-app-id="${esc(app.id)}">
+        <div class="card-head">
+          <div class="work-card-head-text">
+            <h3 class="work-card-title"><a href="job-detail.html?id=${encodeURIComponent(app.job_id)}">${esc(app.job_title)}</a></h3>
+            <div class="work-card-meta">
+              <span>${hirer}</span>
+              <span>${app.source === 'hirer_invited' ? 'Invited' : 'Applied'} ${fmtDate(app.created_at)}</span>
+            </div>
+          </div>
+          <div class="work-card-pills">${StatusLabels.pill('application', app.status)}</div>
         </div>
-        <div style="display:flex; align-items:center; gap: var(--space-3);">
-          <span class="badge ${statusBadgeClass(app.status)}">${app.status}</span>
+        ${note ? `<p class="work-card-note">${esc(note)}</p>` : ''}
+        ${canRespond || canWithdraw ? `<div class="btn-row">
           ${canRespond ? `
-            <button class="btn btn-sm btn-primary" data-action="accept">Accept</button>
+            <button class="btn btn-sm btn-primary" data-action="accept">Accept invitation</button>
             <button class="btn btn-sm btn-ghost" data-action="decline">Decline</button>
           ` : ''}
-          ${canWithdraw ? `<button class="btn btn-sm btn-danger" data-action="withdraw">Withdraw</button>` : ''}
-        </div>
-      </div>
+          ${canWithdraw ? `<button class="btn btn-sm btn-ghost btn-danger-text" data-action="withdraw">Withdraw application</button>` : ''}
+        </div>` : ''}
+      </article>
     `;
     }
 
     let allApplications = [];
 
+    const FILTERS = {
+      all: { match: () => true, empty: { title: 'No applications yet', message: 'Jobs you apply for and invitations from hirers will appear here.' } },
+      invited: { match: (a) => a.status === 'invited', empty: { title: 'No invitations right now', message: 'When a hirer invites you to a job, you can accept or decline it here.' } },
+      active: { match: (a) => ACTIVE_STATUSES.includes(a.status) && a.status !== 'invited', empty: { title: 'No active applications', message: 'Applications waiting on a hirer’s decision appear here.' } },
+      closed: { match: (a) => CLOSED_STATUSES.includes(a.status), empty: { title: 'Nothing closed yet', message: 'Applications that end (hired, not selected, withdrawn or declined) move here.' } },
+    };
+
+    function renderTabCounts() {
+      document.querySelectorAll('.wallet-tab').forEach((tab) => {
+        const f = FILTERS[tab.dataset.filter];
+        const n = allApplications.filter(f.match).length;
+        let chip = tab.querySelector('.wallet-tab-count');
+        if (!chip) { chip = document.createElement('span'); chip.className = 'wallet-tab-count'; tab.appendChild(chip); }
+        chip.textContent = n;
+        chip.hidden = n === 0;
+      });
+    }
+
     function render(filter) {
       const list = document.getElementById('applications-list');
-      let filtered = allApplications;
-      if (filter === 'invited') filtered = allApplications.filter((a) => a.status === 'invited');
-      else if (filter === 'active') filtered = allApplications.filter((a) => ACTIVE_STATUSES.includes(a.status) && a.status !== 'invited');
-      else if (filter === 'closed') filtered = allApplications.filter((a) => CLOSED_STATUSES.includes(a.status));
+      const f = FILTERS[filter] || FILTERS.all;
+      const filtered = allApplications.filter(f.match);
 
       if (filtered.length === 0) {
-        list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>Nothing here yet</h3><p>Browse open jobs to start applying.</p><a href="../pages/jobs.html" class="btn btn-primary btn-sm">Browse jobs</a></div>`;
+        StateView.empty(list, { icon: 'list', title: f.empty.title, message: f.empty.message, action: { label: 'Browse jobs', href: 'jobs.html' } });
         return;
       }
       list.innerHTML = filtered.map(rowHtml).join('');
@@ -161,6 +191,7 @@
       try {
         const { applications } = await API.get('/applications/me');
         allApplications = applications;
+        renderTabCounts();
         const activeFilter = document.querySelector('.wallet-tab.is-active')?.dataset.filter || 'all';
         render(activeFilter);
       } catch (err) {

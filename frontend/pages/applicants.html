@@ -35,7 +35,7 @@
         <a href="my-jobs.html" class="btn btn-ghost btn-sm">Back to my jobs</a>
       </div>
 
-      <div id="applicants-list" aria-live="polite">
+      <div id="applicants-list" class="work-list" aria-live="polite">
         <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
         <div class="skeleton" style="height:100px;"></div>
       </div>
@@ -51,12 +51,14 @@
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
   <script src="../js/utils/animate.js"></script>
+  <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/statusLabels.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
@@ -64,36 +66,171 @@
   <script>
     function ratingStars(avg) {
       const n = Math.round(Number(avg) || 0);
-      return '\u2605'.repeat(n) + '\u2606'.repeat(5 - n);
+      return '★'.repeat(n) + '☆'.repeat(5 - n);
     }
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const naira = (n) => `₦${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    let currentJob = null;
+    let applicationsById = new Map();
+    let contractByApplication = new Map(); // application_id -> contract, from GET /contracts
+    let contractsKnown = false;            // false when that lookup failed; the server still blocks duplicates
 
     function applicantRowHtml(app) {
       const actionable = ['applied', 'accepted', 'shortlisted'].includes(app.status);
+      const canMessage = actionable || app.status === 'hired';
+      const rating = Number(app.rating_avg) || 0;
       return `
-      <div class="card" style="margin-bottom: var(--space-3);" data-app-id="${app.id}">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
-          <div>
-            <h4 style="margin-bottom: var(--space-1);">${esc(app.full_name)}</h4>
-            <div class="text-secondary text-sm">${esc(app.professional_title) || 'Professional'}</div>
-            <div style="margin-top: var(--space-2); display:flex; gap: var(--space-2); align-items:center;">
-              <span class="text-gold text-sm">${ratingStars(app.rating_avg)}</span>
-              ${app.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
-              ${app.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+      <article class="card work-card" data-app-id="${esc(app.id)}" data-worker-id="${esc(app.worker_user_id)}">
+        <div class="card-head">
+          <div class="work-card-head-text">
+            <h3 class="work-card-title"><a href="worker-profile.html?id=${encodeURIComponent(app.worker_user_id)}">${esc(app.full_name)}</a></h3>
+            <div class="work-card-meta">
+              <span>${esc(app.professional_title) || 'Professional'}</span>
+              <span>${app.source === 'hirer_invited' ? 'Invited' : 'Applied'} ${fmtDate(app.created_at)}</span>
             </div>
           </div>
-          <span class="badge badge-neutral">${app.status}</span>
+          <div class="work-card-pills">${StatusLabels.pill('application', app.status)}</div>
         </div>
-        ${app.cover_note ? `<p class="text-sm text-secondary" style="margin-top: var(--space-3); max-width:none;">"${esc(app.cover_note)}"</p>` : ''}
-        ${actionable ? `
-          <div style="display:flex; gap: var(--space-2); margin-top: var(--space-4);">
-            ${app.status !== 'shortlisted' ? `<button class="btn btn-sm btn-secondary" data-action="shortlist">Shortlist</button>` : ''}
-            <button class="btn btn-sm btn-primary" data-action="schedule-interview">Schedule interview</button>
-            ${app.status === 'shortlisted' ? `<button class="btn btn-sm btn-primary" data-action="hire">Hire</button>` : ''}
-            <button class="btn btn-sm btn-danger" data-action="reject">Reject</button>
+        <div style="display:flex; flex-wrap:wrap; gap: var(--space-2); align-items:center;">
+          <span class="text-gold text-sm" aria-label="${rating ? `Rated ${rating.toFixed(1)} out of 5` : 'No rating yet'}">${ratingStars(app.rating_avg)}</span>
+          ${rating ? `<span class="text-sm text-secondary">${rating.toFixed(1)}</span>` : ''}
+          ${app.verification_status === 'approved' ? '<span class="badge badge-verified">Verified</span>' : ''}
+          ${app.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
+          ${app.proposed_rate ? `<span class="text-sm text-secondary">Proposed rate: <strong style="color:var(--text-primary)">${naira(app.proposed_rate)}</strong></span>` : ''}
+        </div>
+        ${app.cover_note ? `<p class="work-card-quote">${esc(app.cover_note)}</p>` : ''}
+        ${app.status === 'hired' ? hiredNoteHtml(app) : ''}
+        ${actionable || canMessage ? `
+          <div class="btn-row">
+            ${app.status === 'hired' && !contractByApplication.has(app.id) ? `<button class="btn btn-sm btn-primary" data-action="setup-contract">Set up contract</button>` : ''}
+            ${app.status === 'hired' && contractByApplication.has(app.id) ? `<a class="btn btn-sm btn-primary" href="contracts.html">View contract</a>` : ''}
+            ${actionable && app.status === 'shortlisted' ? `<button class="btn btn-sm btn-primary" data-action="hire">Hire</button>` : ''}
+            ${actionable ? `<button class="btn btn-sm ${app.status === 'shortlisted' ? 'btn-secondary' : 'btn-primary'}" data-action="schedule-interview">Schedule interview</button>` : ''}
+            ${actionable && app.status !== 'shortlisted' ? `<button class="btn btn-sm btn-secondary" data-action="shortlist">Shortlist</button>` : ''}
+            ${canMessage ? `<button class="btn btn-sm btn-ghost" data-action="message">Message</button>` : ''}
+            ${actionable ? `<button class="btn btn-sm btn-ghost btn-danger-text" data-action="reject">Reject</button>` : ''}
           </div>
         ` : ''}
-      </div>
+      </article>
     `;
+    }
+
+    function hiredNoteHtml(app) {
+      const contract = contractByApplication.get(app.id);
+      if (contract) {
+        return `<p class="work-card-note">Contract for ${naira(contract.agreed_amount)} created ${StatusLabels.pill('contract', contract.status)}<br>Fund escrow for it on Contracts &amp; Payments.</p>`;
+      }
+      return `<p class="work-card-note">${contractsKnown
+        ? 'Hired. Next, set up the contract with the agreed amount. You then fund escrow for it on Contracts &amp; Payments.'
+        : 'Hired. We couldn’t check whether a contract already exists. If you set one up and it’s already there, we’ll tell you.'}</p>`;
+    }
+
+    // Soft: if this fails the page still works, and the server still refuses a second contract per application.
+    async function loadContracts() {
+      try {
+        const { contracts } = await API.get('/contracts');
+        contractByApplication = new Map(contracts.map((c) => [c.application_id, c]));
+        contractsKnown = true;
+      } catch {
+        contractByApplication = new Map();
+        contractsKnown = false;
+      }
+    }
+
+    // ---------- Contract setup: amount -> review -> POST /contracts ----------
+    const MAX_AMOUNT = 9999999999.99; // contracts.agreed_amount is NUMERIC(12,2)
+
+    function openContractSetup(app, prefill) {
+      const suggested = prefill != null ? prefill : (app.proposed_rate ? Number(app.proposed_rate) : '');
+      Modal.open({
+        title: 'Set up the contract',
+        dismissOnBackdrop: false,
+        bodyHtml: `
+        <form id="contract-form" novalidate>
+          <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">Agree the total price with ${esc(app.full_name)} before you continue. This is the amount you’ll pay into escrow.</p>
+          <div class="field" id="agreedAmount-field">
+            <label for="agreedAmount">Agreed amount (₦)</label>
+            <input type="number" id="agreedAmount" name="agreedAmount" min="1" step="0.01" inputmode="decimal" value="${esc(suggested)}" required />
+            ${app.proposed_rate ? `<div class="field-hint">Their proposed rate was ${naira(app.proposed_rate)}.</div>` : ''}
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="modal-actions modal-actions--stacked">
+            <button type="submit" class="btn btn-primary">Review contract</button>
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+          </div>
+        </form>`,
+        onMount: () => {
+          const form = document.getElementById('contract-form');
+          form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+            const raw = form.agreedAmount.value.trim();
+            const amount = Number(raw);
+            const field = document.getElementById('agreedAmount-field');
+            if (!raw || !Number.isFinite(amount) || amount <= 0) return FormHelpers.showError(field, 'Enter the agreed amount.');
+            if (!/^\d+(\.\d{1,2})?$/.test(raw)) return FormHelpers.showError(field, 'Use naira and kobo only, e.g. 25000 or 25000.50.');
+            if (amount > MAX_AMOUNT) return FormHelpers.showError(field, 'That amount is too large.');
+            openContractReview(app, amount);
+          });
+        },
+      });
+    }
+
+    function openContractReview(app, amount) {
+      Modal.open({
+        title: 'Confirm the contract',
+        dismissOnBackdrop: false,
+        bodyHtml: `
+          <dl class="detail-list">
+            <div class="detail-list-row"><dt class="detail-list-label">Job</dt><dd class="detail-list-value">${esc(currentJob ? currentJob.title : '')}</dd></div>
+            <div class="detail-list-row"><dt class="detail-list-label">Worker</dt><dd class="detail-list-value">${esc(app.full_name)}</dd></div>
+            <div class="detail-list-row"><dt class="detail-list-label">Agreed amount</dt><dd class="detail-list-value"><strong>${naira(amount)}</strong></dd></div>
+          </dl>
+          <p class="text-secondary text-sm" style="margin-top: var(--space-3);">Creating the contract doesn’t charge you. You fund escrow separately on Contracts &amp; Payments, where the platform fee is shown before you pay. ${esc(app.full_name)} is told the contract is ready.</p>
+          <div class="field-error" id="contract-error" role="alert" hidden style="margin-top: var(--space-3);"></div>
+          <div class="modal-actions modal-actions--stacked">
+            <button type="button" class="btn btn-primary" id="contract-confirm">Create contract</button>
+            <button type="button" class="btn btn-ghost" id="contract-edit">Edit amount</button>
+          </div>`,
+        onMount: () => {
+          const confirmBtn = document.getElementById('contract-confirm');
+          const errorEl = document.getElementById('contract-error');
+          const showError = (text) => { errorEl.textContent = text; errorEl.hidden = false; };
+          let submitting = false;
+          document.getElementById('contract-edit').addEventListener('click', () => openContractSetup(app, amount));
+          confirmBtn.addEventListener('click', async () => {
+            if (submitting) return; // one request per confirmation, however fast the taps
+            errorEl.hidden = true;
+            if (typeof Connectivity !== 'undefined' && !Connectivity.isOnline()) {
+              showError('You’re offline. Nothing was created. Reconnect and try again.');
+              return;
+            }
+            submitting = true;
+            FormHelpers.setLoading(confirmBtn, true);
+            try {
+              await API.post('/contracts', { applicationId: app.id, agreedAmount: amount });
+              Modal.close();
+              Toast.success('Contract created. Fund escrow to get started.');
+              window.location.href = 'contracts.html';
+            } catch (err) {
+              if (err.code === 'CONTRACT_EXISTS') {
+                Modal.close();
+                Toast.error('A contract already exists for this hire.');
+                loadApplicants(currentJob.id);
+                return;
+              }
+              // A network failure must not read as "nothing happened".
+              showError(err.status === 0
+                ? 'We couldn’t reach the server, so we don’t know if the contract was created. Check Contracts & Payments before trying again.'
+                : StateView.messageFor(err));
+            } finally {
+              submitting = false;
+              FormHelpers.setLoading(confirmBtn, false);
+            }
+          });
+        },
+      });
     }
 
     async function loadApplicants(jobId) {
@@ -102,11 +239,14 @@
         const [{ applications }, { job }] = await Promise.all([
           API.get(`/jobs/${jobId}/applications`),
           API.get(`/jobs/${jobId}`),
+          loadContracts(),
         ]);
+        currentJob = job;
+        applicationsById = new Map(applications.map((a) => [a.id, a]));
         document.getElementById('job-title-label').textContent = job.title;
 
         if (applications.length === 0) {
-          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No applicants yet</h3><p>Applications will show up here as workers apply.</p></div>`;
+          StateView.empty(list, { icon: 'inbox', title: 'No applicants yet', message: 'Applications show up here as workers apply. You can also invite workers from search.', action: { label: 'Find workers', href: 'search.html' } });
           return;
         }
         list.innerHTML = applications.map(applicantRowHtml).join('');
@@ -161,7 +301,7 @@
           Modal.open({
             title: 'Hire this applicant?',
             bodyHtml: `
-            <p class="text-secondary">This marks the job as filled. You'll create a contract and fund escrow from the Contracts page next.</p>
+            <p class="text-secondary">This marks the job as filled. Next you’ll set up the contract with the agreed amount, then fund escrow for it.</p>
             <div class="modal-actions">
               <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
               <button type="button" class="btn btn-primary" id="confirm-hire">Confirm hire</button>
@@ -170,13 +310,37 @@
               document.getElementById('confirm-hire').addEventListener('click', async () => {
                 try {
                   await API.post(`/applications/${id}/hire`);
-                  Toast.success('Applicant hired! Set up the contract from Contracts & Payments.');
+                  Toast.success('Applicant hired. Now set up the contract.');
                   Modal.close();
-                  loadApplicants(jobId);
+                  await loadApplicants(jobId);
+                  const hired = applicationsById.get(id);
+                  if (hired && hired.status === 'hired' && !contractByApplication.has(id)) openContractSetup(hired);
                 } catch (err) { Toast.error(err.message); }
               });
             },
           });
+        });
+      });
+
+      document.querySelectorAll('[data-action="setup-contract"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const app = applicationsById.get(btn.closest('[data-app-id]').dataset.appId);
+          if (app) openContractSetup(app);
+        });
+      });
+
+      // Same flow as portfolio-detail: open (or reuse) the conversation, then go to it.
+      document.querySelectorAll('[data-action="message"]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const workerId = btn.closest('[data-worker-id]').dataset.workerId;
+          FormHelpers.setLoading(btn, true);
+          try {
+            const { conversation } = await API.post('/messaging/conversations', { otherUserId: workerId });
+            window.location.href = `messages.html?conversation=${conversation.id}`;
+          } catch (err) {
+            Toast.error(StateView.messageFor(err));
+            FormHelpers.setLoading(btn, false);
+          }
         });
       });
 
@@ -201,7 +365,7 @@
 
       const jobId = new URLSearchParams(window.location.search).get('jobId');
       if (!jobId) {
-        document.getElementById('applicants-list').innerHTML = '<p class="text-secondary">No job selected. Go to My Jobs and choose "View applicants".</p>';
+        StateView.empty(document.getElementById('applicants-list'), { icon: 'list', title: 'No job selected', message: 'Open My Jobs and choose “View applicants” on a job.', action: { label: 'Go to My Jobs', href: 'my-jobs.html' } });
         return;
       }
       PullToRefresh.init({ onRefresh: () => loadApplicants(jobId) });

@@ -34,12 +34,12 @@
         </div>
       </div>
 
-      <div class="wallet-tabs">
+      <div class="wallet-tabs" role="group" aria-label="Interviews">
         <button class="wallet-tab is-active" data-tab="upcoming">Upcoming</button>
         <button class="wallet-tab" data-tab="past">Past</button>
       </div>
 
-      <div id="interviews-list" aria-live="polite">
+      <div id="interviews-list" class="work-list" aria-live="polite">
         <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
         <div class="skeleton" style="height:100px;"></div>
       </div>
@@ -62,16 +62,29 @@
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/statusLabels.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
   <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     let currentUser = null;
+    let interviewsById = new Map();
 
-    function statusBadge(status) {
-      const map = { scheduled: 'badge-verified', completed: 'badge-verified', cancelled: 'badge-neutral', declined: 'badge-neutral', no_show: 'badge-neutral' };
-      return map[status] || 'badge-neutral';
+    const TYPE_LABEL = { video: 'Video interview', audio: 'Audio interview', text: 'Text interview', in_person: 'In-person interview' };
+    const TYPE_ICON = { video: 'calendar', audio: 'phone', text: 'message', in_person: 'location' };
+    const fmtWhen = (d) => new Date(d).toLocaleString('en-NG', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+    // <input type="datetime-local"> wants local time without a zone.
+    const toLocalInput = (d) => { const x = new Date(d); x.setMinutes(x.getMinutes() - x.getTimezoneOffset()); return x.toISOString().slice(0, 16); };
+
+    // Plain-language state, from whichever side of the interview the viewer is on.
+    function interviewNote(iv, isHirer) {
+      switch (iv.status) {
+        case 'pending': return isHirer ? 'Waiting for the worker to accept or decline.' : 'You’ve been invited to an interview. Accept or decline below.';
+        case 'reschedule_requested': return isHirer ? 'A new time was requested. Confirm a time to put it back on the schedule.' : 'A new time was requested. The hirer confirms the final time.';
+        case 'in_progress': return 'This interview has started.';
+        default: return '';
+      }
     }
 
     function interviewRowHtml(iv) {
@@ -87,25 +100,35 @@
       const canJoin = ['scheduled', 'in_progress'].includes(iv.status) && ['video', 'audio'].includes(iv.interview_type);
       const canCancel = ['pending', 'accepted', 'scheduled', 'reschedule_requested'].includes(iv.status);
       const canComplete = isHirer && ['scheduled', 'in_progress'].includes(iv.status);
+      // Mirrors the server's rules (interviewService.requestReschedule / confirmReschedule); the server still decides.
+      const canRequestNewTime = ['scheduled', 'accepted', 'pending'].includes(iv.status);
+      const canConfirmNewTime = isHirer && iv.status === 'reschedule_requested';
+      const note = interviewNote(iv, isHirer);
+      const icon = Icons[TYPE_ICON[iv.interview_type]] || Icons.calendar;
 
       return `
-      <div class="card" style="margin-bottom: var(--space-3);" data-interview-id="${iv.id}">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
-          <div>
-            <h4 style="margin-bottom: var(--space-1); text-transform:capitalize;">${iv.interview_type} interview</h4>
-            <div class="text-secondary text-sm">${new Date(iv.scheduled_start_at).toLocaleString()} \u00B7 ${iv.duration_minutes} min</div>
+      <article class="card work-card" data-interview-id="${esc(iv.id)}">
+        <div class="card-head">
+          <div class="work-card-head-text">
+            <h3 class="work-card-title">${esc(TYPE_LABEL[iv.interview_type] || 'Interview')}</h3>
+            <div class="work-card-meta"><span>${isHirer ? 'You’re interviewing' : 'You’re the candidate'}</span><span>${Number(iv.duration_minutes)} min</span></div>
           </div>
-          <span class="badge ${statusBadge(iv.status)}">${iv.status.replace('_', ' ')}</span>
+          <div class="work-card-pills">${StatusLabels.pill('interview', iv.status)}</div>
         </div>
-        ${iv.location_address ? `<p class="text-sm text-secondary" style="margin-top: var(--space-3); max-width:none;">${esc(iv.location_address)}</p>` : ''}
-        <div style="display:flex; gap: var(--space-2); margin-top: var(--space-4); flex-wrap:wrap;">
+        <div class="interview-when">${icon}<time datetime="${esc(iv.scheduled_start_at)}">${fmtWhen(iv.scheduled_start_at)}</time></div>
+        ${iv.location_address ? `<p class="work-card-note">${esc(iv.location_address)}</p>` : ''}
+        ${note ? `<p class="work-card-note">${esc(note)}</p>` : ''}
+        ${canRespond || canJoin || canComplete || canConfirmNewTime || canRequestNewTime || canCancel ? `
+        <div class="btn-row">
           ${canRespond ? `<button class="btn btn-sm btn-primary" data-action="accept">Accept</button><button class="btn btn-sm btn-ghost" data-action="decline">Decline</button>` : ''}
-          ${canJoin ? `<button class="btn btn-sm btn-primary" data-action="join">Join call</button>` : ''}
+          ${canJoin ? `<button class="btn btn-sm btn-primary" data-action="join">Join ${iv.interview_type === 'video' ? 'video' : 'audio'} call</button>` : ''}
+          ${canConfirmNewTime ? `<button class="btn btn-sm btn-primary" data-action="confirm-time">Confirm new time</button>` : ''}
           ${canComplete ? `<button class="btn btn-sm btn-secondary" data-action="complete">Mark completed</button>` : ''}
-          ${canCancel ? `<button class="btn btn-sm btn-danger" data-action="cancel">Cancel</button>` : ''}
-        </div>
-        <div class="call-info" hidden style="margin-top: var(--space-3); padding: var(--space-3); background: var(--bg-elevated); border-radius: var(--radius-md); font-size: var(--text-xs);"></div>
-      </div>
+          ${canRequestNewTime ? `<button class="btn btn-sm btn-ghost" data-action="request-time">Request new time</button>` : ''}
+          ${canCancel ? `<button class="btn btn-sm btn-ghost btn-danger-text" data-action="cancel">Cancel interview</button>` : ''}
+        </div>` : ''}
+        <div class="call-info interview-call-note" hidden></div>
+      </article>
     `;
     }
 
@@ -113,8 +136,12 @@
       const list = document.getElementById('interviews-list');
       try {
         const { interviews } = await API.get(`/interviews/${tab}`);
+        interviewsById = new Map(interviews.map((iv) => [iv.id, iv]));
         if (interviews.length === 0) {
-          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No ${tab} interviews</h3></div>`;
+          const hirerSide = currentUser.role === 'hirer' || currentUser.role === 'both';
+          StateView.empty(list, tab === 'upcoming'
+            ? { icon: 'list', title: 'No upcoming interviews', message: hirerSide ? 'Schedule an interview from a job’s applicants list, or with the button above.' : 'When a hirer invites you to an interview, it appears here for you to accept.' }
+            : { icon: 'list', title: 'No past interviews', message: 'Completed, cancelled and declined interviews are kept here.' });
           return;
         }
         list.innerHTML = interviews.map(interviewRowHtml).join('');
@@ -122,8 +149,65 @@
         wireActions(tab);
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        StateView.error(list, err, { title: 'Unable to load interviews', retry: () => loadInterviews(tab) });
+        StateView.error(list, err, { title: 'Unable to load interviews', retry: () => { StateView.skeleton(list, { rows: 2 }); loadInterviews(tab); } });
       }
+    }
+
+    // Request (either side) or confirm (hirer) a new time. Same form, different endpoint.
+    async function openTimeModal(id, tab, mode) {
+      const iv = interviewsById.get(id);
+      let initial = iv ? iv.scheduled_start_at : null;
+      if (mode === 'confirm') {
+        // Prefill with the time that was proposed, read from the interview's own event log.
+        try {
+          const { events } = await API.get(`/interviews/${id}/events`);
+          const req = (events || []).filter((e) => e.event_type === 'reschedule_requested').pop();
+          if (req && req.metadata && req.metadata.proposedStartAt) initial = req.metadata.proposedStartAt;
+        } catch { /* fall back to the current time */ }
+      }
+      const confirm = mode === 'confirm';
+      Modal.open({
+        title: confirm ? 'Confirm the new time' : 'Request a new time',
+        dismissOnBackdrop: false,
+        bodyHtml: `
+        <form id="time-form" novalidate>
+          <p class="text-secondary text-sm" style="margin-bottom: var(--space-4);">${confirm
+            ? 'This puts the interview back on the schedule at the time below and lets the worker know.'
+            : 'Suggest a time that works for you. The interview stays on hold until the hirer confirms.'}</p>
+          ${iv ? `<p class="text-sm" style="margin-bottom: var(--space-3);">Currently: <strong>${fmtWhen(iv.scheduled_start_at)}</strong></p>` : ''}
+          <div class="field" id="time-field">
+            <label for="newTime">${confirm ? 'New date &amp; time' : 'Proposed date &amp; time'}</label>
+            <input type="datetime-local" id="newTime" name="newTime" value="${initial ? toLocalInput(initial) : ''}" required />
+            <div class="field-error" hidden></div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="time-submit">${confirm ? 'Confirm time' : 'Send request'}</button>
+          </div>
+        </form>`,
+        onMount: () => {
+          const form = document.getElementById('time-form');
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            FormHelpers.clearErrors(form);
+            if (!form.newTime.value) return FormHelpers.showError(document.getElementById('time-field'), 'Choose a date and time.');
+            const iso = new Date(form.newTime.value).toISOString();
+            const submitBtn = document.getElementById('time-submit');
+            FormHelpers.setLoading(submitBtn, true);
+            try {
+              if (confirm) await API.post(`/interviews/${id}/reschedule/confirm`, { newStartAt: iso });
+              else await API.post(`/interviews/${id}/reschedule/request`, { proposedStartAt: iso });
+              Toast.success(confirm ? 'New time confirmed.' : 'New time requested.');
+              Modal.close();
+              loadInterviews(tab);
+            } catch (err) {
+              Toast.error(err.message);
+            } finally {
+              FormHelpers.setLoading(submitBtn, false);
+            }
+          });
+        },
+      });
     }
 
     function wireActions(tab) {
@@ -171,6 +255,13 @@
             Toast.success('Interview marked completed.');
             loadInterviews(tab);
           } catch (err) { Toast.error(err.message); }
+        });
+      });
+
+      document.querySelectorAll('[data-action="request-time"], [data-action="confirm-time"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('[data-interview-id]').dataset.interviewId;
+          openTimeModal(id, tab, btn.dataset.action === 'confirm-time' ? 'confirm' : 'request');
         });
       });
 

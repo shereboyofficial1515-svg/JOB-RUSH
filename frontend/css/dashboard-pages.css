@@ -41,6 +41,8 @@
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-secondary);
+  background: transparent;
+  border: 0;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   white-space: nowrap;
@@ -338,3 +340,58 @@ html[data-chat-theme="system"][data-chat-wallpaper="pattern"] .thread-messages {
 
 /* Keep wallet content a readable width on wide desktop screens. */
 .wallet-hero, .wallet-actions, .wallet-section { max-width: 880px; }
+
+/* ==========================================================================
+   Working-relationship screens: contracts, applications, applicants,
+   interviews. One card shape: .work-card (title + status pills in a
+   .card-head, a meta line, an optional note, then a .btn-row of actions).
+   Status labels come from js/utils/statusLabels.js as .status-pill.
+   ========================================================================== */
+.contracts-list, .work-list { max-width: 880px; }
+.status-pill { line-height: 1.6; }
+
+.page-notice {
+  max-width: 880px; margin-bottom: var(--space-4); padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle); border-left: 3px solid var(--accent); border-radius: var(--radius-card);
+  background: var(--bg-surface); font-size: var(--type-body); color: var(--text-primary);
+}
+.page-notice[hidden] { display: none; }
+
+.work-card, .contract-card { margin-bottom: var(--space-3); min-width: 0; }
+.work-card .card-head, .contract-card .card-head { align-items: flex-start; margin-bottom: var(--space-2); }
+.work-card-title, .contract-card .card-title { margin: 0 0 2px; font-size: var(--type-card-title); overflow-wrap: anywhere; }
+.work-card-title a { color: inherit; text-decoration: none; }
+.work-card-title a:hover { text-decoration: underline; }
+.contract-head-text, .work-card-head-text { min-width: 0; flex: 1 1 200px; }
+.contract-pills, .work-card-pills { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+.work-card-meta { display: flex; flex-wrap: wrap; gap: 2px var(--space-2); font-size: var(--type-caption); color: var(--text-secondary); }
+.work-card-meta > span:not(:last-child)::after { content: '·'; margin-left: var(--space-2); }
+.work-card-note, .contract-note { margin: var(--space-3) 0 0; max-width: none; font-size: var(--type-body); color: var(--text-secondary); overflow-wrap: anywhere; }
+.work-card-quote { margin: var(--space-3) 0 0; padding-left: var(--space-3); border-left: 3px solid var(--border-subtle); max-width: none; font-size: var(--type-body); color: var(--text-secondary); overflow-wrap: anywhere; }
+.work-card .btn-row, .contract-card .btn-row { margin-top: var(--space-4); }
+.contract-ref { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: var(--type-caption); }
+
+.escrow-section { margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+.contract-funding-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.contract-funding-label { font-size: var(--type-label, var(--type-caption)); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+.contract-breakdown { margin-top: var(--space-2); }
+.contract-breakdown .detail-list-row { padding: var(--space-2) 0; }
+.contract-history { margin-top: var(--space-4); }
+.contract-history summary {
+  display: inline-flex; align-items: center; min-height: var(--touch-target); cursor: pointer;
+  font-size: var(--type-body); font-weight: var(--weight-semibold); color: var(--accent-text);
+}
+.contract-timeline { list-style: none; margin: var(--space-2) 0 0; padding: 0 0 0 var(--space-4); border-left: 2px solid var(--border-subtle); }
+.contract-timeline li { position: relative; display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) 0; }
+.contract-timeline li::before { content: ''; position: absolute; left: calc(-1 * var(--space-4) - 6px); top: 14px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.contract-timeline-text { font-size: var(--type-body); overflow-wrap: anywhere; }
+.contract-timeline time { font-size: var(--type-caption); color: var(--text-secondary); }
+
+/* Interviews */
+.interview-when { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: var(--type-body); font-weight: var(--weight-medium); }
+.interview-when svg { width: 18px; height: 18px; flex: none; color: var(--text-secondary); }
+.interview-call-note { margin-top: var(--space-3); padding: var(--space-3); background: var(--bg-elevated); border-radius: var(--radius-control); font-size: var(--type-caption); color: var(--text-secondary); }
+
+/* Tab count chips (applications filter, interviews) */
+.wallet-tab-count { margin-left: var(--space-1); padding: 0 6px; border-radius: var(--radius-pill); background: var(--bg-elevated); font-size: var(--type-caption); font-weight: var(--weight-semibold); }
+.btn-ghost.btn-danger-text { color: var(--status-danger); }

@@ -206,9 +206,11 @@ const Chat = (function () {
       .filter((c) => !term || (c.other_full_name || '').toLowerCase().includes(term) || (c.last_message_preview || '').toLowerCase().includes(term))
       .sort((a, b) => new Date(b.last_message_at || 0) - new Date(a.last_message_at || 0));
     if (items.length === 0) {
-      list.innerHTML = S.convs.size === 0
-        ? `<div class="chat-list-empty"><p>No conversations yet. Message a hirer or worker from their profile or a job application to start one.</p></div>`
-        : `<div class="chat-list-empty"><p>No conversations match "${esc(S.filter)}".</p></div>`;
+      if (S.convs.size === 0) {
+        StateView.empty(list, { icon: 'inbox', title: 'No conversations yet', message: 'Message a hirer or worker from their profile or a job application to start one.' });
+      } else {
+        list.innerHTML = `<div class="chat-list-empty"><p>No conversations match "${esc(S.filter)}".</p></div>`;
+      }
       return;
     }
     list.innerHTML = items.map(conversationRowHtml).join('');
@@ -335,7 +337,7 @@ const Chat = (function () {
       markReadIfVisible();
     } catch (err) {
       if (S.activeId !== id) return;
-      els.messages.innerHTML = `<div class="chat-empty-hint">${esc(err.message)}<br><button type="button" class="btn btn-secondary btn-sm" id="chat-retry-open" style="margin-top:var(--space-3)">Try again</button></div>`;
+      els.messages.innerHTML = `<div class="chat-empty-hint">${esc(StateView.messageFor(err))}<br><button type="button" class="btn btn-secondary btn-sm" id="chat-retry-open" style="margin-top:var(--space-3)">Try again</button></div>`;
       $('#chat-retry-open').addEventListener('click', () => { const keep = S.activeId; teardownActive(); S.activeId = null; openConversation(keep); });
     }
   }
@@ -445,7 +447,7 @@ const Chat = (function () {
       ? `<div class="message-text">This message was deleted</div>`
       : `${quote}${mediaHtml(m)}${m.content ? `<div class="message-text">${linkify(m.content)}</div>` : ''}`;
     const meta = failed
-      ? `<span style="color:var(--status-danger)">Not sent</span> · <button type="button" class="retry-send-btn" data-retry="${m.id}">Retry</button> · <button type="button" class="retry-send-btn" data-discard="${m.id}">Delete</button>`
+      ? `<span class="failed-label">Not sent</span><button type="button" class="retry-send-btn" data-retry="${m.id}">Retry</button><button type="button" class="retry-send-btn" data-discard="${m.id}">Delete</button>`
       : `${m.is_pinned ? `<span class="pin-flag" title="Pinned">${I.pin}</span>` : ''}${m.is_edited && !deleted ? '<span>edited</span>' : ''}<span>${fmtTime(m.created_at)}</span>${ticksHtml(m)}`;
     const cls = ['message-bubble', isOwn ? 'own' : 'other', isNew ? 'msg-enter' : '', m._status === 'sending' ? 'is-sending' : '', failed ? 'is-failed' : '', deleted ? 'is-tombstone' : ''].filter(Boolean).join(' ');
     const menuBtn = !deleted && !m._status ? `<button type="button" class="bubble-menu-btn" data-bubble-menu="${m.id}" aria-label="Message actions" aria-haspopup="menu">${I.chevronDown}</button>` : '';
@@ -1609,8 +1611,9 @@ const Chat = (function () {
     S.user = user;
     els.panel = document.getElementById('thread-panel');
     els.listPane = document.getElementById('conversation-list');
-    els.listPane.innerHTML = `<div class="chat-list-head"><input type="search" id="chat-filter" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" /></div><div class="chat-list-items" id="conversation-items" aria-label="Conversations"><div class="skeleton" style="height:60px;margin:12px;"></div><div class="skeleton" style="height:60px;margin:12px;"></div></div>`;
+    els.listPane.innerHTML = `<div class="chat-list-head"><input type="search" id="chat-filter" placeholder="Search conversations" aria-label="Search conversations" autocomplete="off" /></div><div class="chat-list-items" id="conversation-items" aria-label="Conversations"></div>`;
     els.list = document.getElementById('conversation-items');
+    StateView.skeleton(els.list, { rows: 4 });
     els.filterInput = document.getElementById('chat-filter');
     els.panel.innerHTML = placeholderHtml();
     wireList(); wireRealtime(); startFallbackPolling();

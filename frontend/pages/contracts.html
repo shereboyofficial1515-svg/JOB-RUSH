@@ -31,7 +31,11 @@
         <div id="notif-bell-mount"></div>
       </div>
 
-      <div id="contracts-list" aria-live="polite">
+      <div class="page-notice" id="funding-return-notice" role="status" hidden>
+        <strong>Payment submitted.</strong> Escrow shows as funded once Paystack confirms the payment, which can take a moment. Pull down to refresh.
+      </div>
+
+      <div id="contracts-list" class="contracts-list" aria-live="polite">
         <div class="skeleton" style="height:100px; margin-bottom:12px;"></div>
         <div class="skeleton" style="height:100px;"></div>
       </div>
@@ -54,83 +58,146 @@
   <script src="../js/modules/incomingCallWatcher.js"></script>
   <script src="../js/modules/pushNotifications.js"></script>
   <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/statusLabels.js"></script>
   <script src="../js/modules/auth.js"></script>
   <script src="../js/modules/sidebarNav.js"></script>
   <script src="../js/utils/icons.js"></script>
   <script src="../js/modules/pullToRefresh.js"></script>
   <script>
     let currentUser = null;
-    function formatNaira(n) { return `\u20A6${Number(n).toLocaleString()}`; }
+    let disputesByContract = new Map();
 
-    function contractRowHtml(c) {
+    // Amounts always carry their currency, straight from the row (NGN by default in the schema).
+    function money(n, currency) {
+      try {
+        return new Intl.NumberFormat('en-NG', { style: 'currency', currency: currency || 'NGN', minimumFractionDigits: 2 }).format(Number(n));
+      } catch {
+        return `${currency || 'NGN'} ${Number(n).toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+      }
+    }
+    const fmtDate = (d) => new Date(d).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const fmtDateTime = (d) => `${fmtDate(d)}, ${new Date(d).toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
+    const shortRef = (id) => `JR-${String(id).replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    const detailRow = (label, valueHtml) => `<div class="detail-list-row"><dt class="detail-list-label">${esc(label)}</dt><dd class="detail-list-value">${valueHtml}</dd></div>`;
+
+    function contractRowHtml(c, escrowTransactions, escrowFailed) {
+      // Which side of THIS contract the viewer is on: a 'both'-role account
+      // can be the hirer on one contract and the worker on another.
+      const isHirer = currentUser.id === c.hirer_user_id;
+      const dispute = disputesByContract.get(c.id);
       return `
-      <div class="card" style="margin-bottom: var(--space-3);" data-contract-id="${c.id}">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4);">
-          <div>
-            <h4 style="margin-bottom: var(--space-1);">Contract for ${formatNaira(c.agreed_amount)}</h4>
-            <div class="text-secondary text-sm">Created ${new Date(c.created_at).toLocaleDateString()}</div>
+      <article class="card contract-card" data-contract-id="${esc(c.id)}">
+        <div class="card-head">
+          <div class="contract-head-text">
+            <h3 class="card-title">${money(c.agreed_amount, c.currency)}</h3>
+            <div class="text-secondary text-sm">${isHirer ? 'You hired' : 'You were hired'} · Created ${fmtDate(c.created_at)} · <span class="contract-ref">${shortRef(c.id)}</span></div>
           </div>
-          <span class="badge badge-neutral">${c.status}</span>
+          <div class="contract-pills">${StatusLabels.pill('contract', c.status)}${dispute ? StatusLabels.pill('dispute', dispute.status) : ''}</div>
         </div>
-        <div class="escrow-section" style="margin-top: var(--space-4);">
-          <div class="skeleton" style="height:20px; width:200px;"></div>
-        </div>
-      </div>
-    `;
+        <div class="escrow-section">${escrowFailed ? escrowErrorHtml() : escrowSectionHtml(escrowTransactions, c, isHirer)}</div>
+      </article>`;
     }
 
-    function escrowSectionHtml(escrowTransactions, contractId) {
+    function escrowErrorHtml() {
+      return `<p class="contract-note" role="status">We couldn’t load the payment status for this contract. Nothing has changed. Pull down or reload to try again.</p>`;
+    }
+
+    // Every movement we have a timestamp for, oldest first. Only real columns are used.
+    function paymentHistoryHtml(escrowTransactions) {
+      const events = [];
+      escrowTransactions.forEach((e) => {
+        events.push({ at: e.created_at, text: `Payment of ${money(e.amount, e.currency)} started` });
+        if (e.funded_at) events.push({ at: e.funded_at, text: `Funded: ${money(e.amount, e.currency)} held in escrow` });
+        if (e.released_at) events.push({ at: e.released_at, text: `Released: ${money(e.worker_payout_amount, e.currency)} paid to the worker` });
+        if (e.refunded_at) events.push({ at: e.refunded_at, text: `Refunded: ${money(e.amount, e.currency)} returned to the hirer` });
+      });
+      events.sort((a, b) => new Date(a.at) - new Date(b.at));
+      return `
+        <details class="contract-history">
+          <summary>Payment history (${events.length})</summary>
+          <ol class="contract-timeline">
+            ${events.map((ev) => `<li><span class="contract-timeline-text">${esc(ev.text)}</span><time datetime="${esc(ev.at)}">${fmtDateTime(ev.at)}</time></li>`).join('')}
+          </ol>
+        </details>`;
+    }
+
+    function escrowSectionHtml(escrowTransactions, c, isHirer) {
+      const contractId = c.id;
       if (!escrowTransactions || escrowTransactions.length === 0) {
-        return `<button class="btn btn-sm btn-primary" data-action="fund" data-contract-id="${contractId}">Fund escrow</button>`;
+        return `
+        <div class="contract-funding-head"><span class="contract-funding-label">Escrow</span><span class="status-pill status-pill--off">Not funded</span></div>
+        <p class="contract-note">${isHirer
+          ? `Fund escrow to secure ${money(c.agreed_amount, c.currency)} for this job. You pay through Paystack and the money is held until you release it.`
+          : 'The hirer hasn’t funded escrow for this contract yet.'}</p>
+        ${isHirer ? `<div class="btn-row"><button class="btn btn-sm btn-primary" data-action="fund" data-contract-id="${esc(contractId)}">Fund escrow</button></div>` : ''}`;
       }
       const escrow = escrowTransactions[0];
-      if (escrow.status === 'pending_funding') {
-        return `<span class="badge badge-neutral">Awaiting payment confirmation</span>`;
+      const breakdown = `
+        <dl class="detail-list contract-breakdown">
+          ${detailRow('Escrow amount', `<strong>${money(escrow.amount, escrow.currency)}</strong>`)}
+          ${detailRow(`Platform fee (${Number(escrow.platform_fee_percent)}%)`, money(escrow.platform_fee_amount, escrow.currency))}
+          ${detailRow('Worker receives', money(escrow.worker_payout_amount, escrow.currency))}
+        </dl>`;
+      let actions = '';
+      if (isHirer && escrow.status === 'funded') {
+        actions = `
+        <div class="btn-row">
+          <button class="btn btn-sm btn-primary" data-action="release" data-escrow-id="${esc(escrow.id)}">Release to worker</button>
+          <button class="btn btn-sm btn-ghost" data-action="dispute" data-contract-id="${esc(contractId)}" data-escrow-id="${esc(escrow.id)}">Open a dispute</button>
+        </div>`;
+      } else if (isHirer && escrow.status === 'released') {
+        actions = `<div class="btn-row"><button class="btn btn-sm btn-secondary" data-action="review" data-contract-id="${esc(contractId)}">Leave a review</button></div>`;
       }
-      if (escrow.status === 'released') {
-        return `
-        <span class="badge badge-verified">Released \u2014 payment complete</span>
-        <button class="btn btn-sm btn-secondary" data-action="review" data-contract-id="${contractId}" style="margin-left: var(--space-2);">Leave a review</button>
-      `;
+      return `
+        <div class="contract-funding-head"><span class="contract-funding-label">Escrow</span>${StatusLabels.pill('escrow', escrow.status)}</div>
+        <p class="contract-note">${esc(StatusLabels.note('escrow', escrow.status))}</p>
+        ${breakdown}
+        ${actions}
+        ${paymentHistoryHtml(escrowTransactions)}`;
+    }
+
+    async function loadDisputes() {
+      // Soft: dispute pills are extra context; the contracts still render without them.
+      try {
+        const { disputes } = await API.get('/disputes');
+        disputesByContract = new Map();
+        (disputes || []).forEach((d) => { if (!disputesByContract.has(d.contract_id)) disputesByContract.set(d.contract_id, d); }); // API returns newest first
+      } catch {
+        disputesByContract = new Map();
       }
-      if (escrow.status === 'refunded') return `<span class="badge badge-neutral">Refunded</span>`;
-      if (escrow.status === 'disputed') return `<span class="badge badge-neutral">Escrow frozen \u2014 dispute in progress</span>`;
-      if (escrow.status === 'funded') {
-        return `
-        <div class="text-sm text-secondary" style="margin-bottom: var(--space-2);">
-          ${formatNaira(escrow.amount)} secured in escrow. Worker receives ${formatNaira(escrow.worker_payout_amount)} after your platform fee.
-        </div>
-        <button class="btn btn-sm btn-primary" data-action="release" data-escrow-id="${escrow.id}">Release to worker</button>
-        <button class="btn btn-sm btn-ghost" data-action="dispute" data-contract-id="${contractId}" data-escrow-id="${escrow.id}">Open a dispute</button>
-      `;
-      }
-      return '';
+    }
+
+    function showFundingReturnNotice() {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('funded')) return;
+      // Coming back from Paystack is not proof of payment; only the escrow row is.
+      document.getElementById('funding-return-notice').hidden = false;
+      ['funded', 'reference', 'trxref'].forEach((k) => params.delete(k));
+      const qs = params.toString();
+      history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
     }
 
     async function loadContracts() {
       const list = document.getElementById('contracts-list');
       try {
-        const { contracts } = await API.get('/contracts');
+        const [{ contracts }] = await Promise.all([API.get('/contracts'), loadDisputes()]);
         if (contracts.length === 0) {
-          list.innerHTML = `<div class="empty-state"><img src="${ASSETS.emptyState}" alt="" /><h3>No contracts yet</h3><p>Contracts appear here once you hire an applicant.</p></div>`;
+          StateView.empty(list, {
+            icon: 'list',
+            title: 'No contracts yet',
+            message: 'After you hire someone, set up the contract from their card on the job’s Applicants page. It and its escrow payments then appear here.',
+          });
           return;
         }
-        list.innerHTML = contracts.map(contractRowHtml).join('');
+        const escrows = await Promise.all(contracts.map((c) => API.get(`/escrow/contract/${c.id}`)
+          .then((r) => ({ rows: r.escrowTransactions }))
+          .catch(() => ({ failed: true }))));
+        list.innerHTML = contracts.map((c, i) => contractRowHtml(c, escrows[i].rows, escrows[i].failed)).join('');
         Animate.stagger(list, { stepMs: 30 });
-
-        for (const c of contracts) {
-          try {
-            const { escrowTransactions } = await API.get(`/escrow/contract/${c.id}`);
-            const section = document.querySelector(`[data-contract-id="${c.id}"] .escrow-section`);
-            if (section) section.innerHTML = escrowSectionHtml(escrowTransactions, c.id);
-          } catch {
-            // leave the skeleton if this specific lookup fails; the rest of the list still works
-          }
-        }
         wireActions();
       } catch (err) {
         if (PullToRefresh.isRefreshing()) throw err;
-        StateView.error(list, err, { title: 'Unable to load your contracts', retry: loadContracts });
+        StateView.error(list, err, { title: 'Unable to load your contracts', retry: () => { StateView.skeleton(list, { rows: 2 }); loadContracts(); } });
       }
     }
 
@@ -316,6 +383,7 @@
 
       PullToRefresh.init({ onRefresh: () => loadContracts() });
 
+      showFundingReturnNotice();
       loadContracts();
     })();
   </script>

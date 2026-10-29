@@ -83,6 +83,7 @@
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
   <script src="../js/utils/stateViews.js"></script>
+  <script src="../js/utils/statusLabels.js"></script>
   <script src="../js/modules/notificationBell.js"></script>
   <script src="../js/modules/ringtoneManager.js"></script>
   <script src="../js/modules/incomingCallWatcher.js"></script>
@@ -126,17 +127,8 @@
     const shortRef = (id) => (id ? `JR-${String(id).replace(/-/g, '').slice(0, 8).toUpperCase()}` : '—');
     const stripIds = (text) => String(text || '').replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '').replace(/\s{2,}/g, ' ').trim();
 
-    const WITHDRAWAL_STATUS = {
-      pending: { label: 'Under review', tone: 'warn', note: 'We’re reviewing this request. The amount is held until it’s approved or returned.' },
-      processing: { label: 'Being paid out', tone: 'warn', note: 'Approved. The transfer to your bank account is in progress.' },
-      paid: { label: 'Paid', tone: 'on', note: 'The money has been sent to your bank account.' },
-      rejected: { label: 'Not approved', tone: 'off', note: 'This request wasn’t approved. The amount was returned to your wallet.' },
-      failed: { label: 'Transfer failed', tone: 'off', note: 'The bank transfer didn’t go through. The amount was returned to your wallet.' },
-    };
-    const statusPill = (s) => {
-      const info = WITHDRAWAL_STATUS[s] || { label: s, tone: 'off' };
-      return `<span class="status-pill status-pill--${info.tone}">${esc(info.label)}</span>`;
-    };
+    // Labels for withdrawal_status (migration 021) live in js/utils/statusLabels.js.
+    const statusPill = (s) => StatusLabels.pill('withdrawal', s);
 
     /**
      * Turns a raw ledger row into words a person understands. The ledger
@@ -156,6 +148,8 @@
             kind: 'Withdrawal',
             detail: 'This amount is held while your withdrawal request is reviewed.',
           };
+        case 'referral_reward':
+          return { title: 'Referral reward', sub: 'Paid for a qualified referral', pill: '<span class="status-pill status-pill--on">Completed</span>', kind: 'Referral reward', detail: 'Reward paid into your wallet by the JOB RUSH referral programme.' };
         case 'withdrawal_reversed':
           return { title: 'Withdrawal returned', sub: 'Funds returned to your wallet', pill: '<span class="status-pill status-pill--on">Returned</span>', kind: 'Withdrawal returned', detail: 'Returned to your wallet because the withdrawal wasn’t completed.' };
         default: {
@@ -348,7 +342,7 @@
 
     function openWithdrawalSheet(w) {
       if (!w) return;
-      const info = WITHDRAWAL_STATUS[w.status] || { note: '' };
+      const info = { note: StatusLabels.note('withdrawal', w.status) };
       Modal.open({
         title: 'Withdrawal request',
         bodyHtml: `

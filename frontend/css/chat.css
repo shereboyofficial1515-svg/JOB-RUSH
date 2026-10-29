@@ -340,3 +340,12 @@
 .call-card-text span { font-size: var(--text-xs); color: var(--text-secondary); }
 .call-card-back { flex-shrink: 0; min-height: var(--touch-target); padding: 0 var(--space-3); border: 1px solid var(--accent); border-radius: var(--radius-pill); background: transparent; color: var(--accent-text); font-weight: 600; }
 .call-card-back:hover { background: rgba(201, 162, 39, 0.12); }
+.chat-list-items .skeleton-row { padding-inline: var(--space-4); }
+.chat-list-items .skeleton-row > .skeleton:first-child { border-radius: 50%; width: 48px !important; height: 48px !important; }
+/* Failed send: readable on the navy bubble, and real tap targets for Retry / Delete. */
+.message-bubble.is-failed .message-meta { flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
+.failed-label { font-weight: 700; color: var(--status-danger); }
+.message-bubble.own .failed-label { color: var(--text-on-navy); }
+.message-bubble.is-failed .message-meta { opacity: 1; }
+.message-bubble.is-failed .retry-send-btn { padding: 0 var(--space-2); border: 1px solid currentColor; border-radius: var(--radius-pill); text-decoration: none; font-weight: 600; min-height: 28px; }
+@media (pointer: coarse) { .message-bubble.is-failed .retry-send-btn { min-height: var(--touch-target); min-width: var(--touch-target); } }
