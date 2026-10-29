@@ -193,7 +193,32 @@ const Chrome = (function () {
     if (guess === undefined || (guess === null) !== (user === null) || (guess && user && guess.id !== user.id)) {
       renderHeader(mount, { ...opts, user });
     }
+    if (user) mountAppNav(user, opts.activeLink);
     return user;
+  }
+
+  /**
+   * A signed-in user on a public page (job search, talent search, job or
+   * profile page) gets the same mobile bottom navigation as the rest of the
+   * app, so looking for work or talent doesn't drop them out of it. The nav
+   * module is loaded on demand: these pages don't otherwise need it. Only
+   * under pages/, where the nav's relative hrefs resolve; the homepage stays
+   * the marketing page. activeLink names match the nav keys
+   * ('find-work', 'find-talent').
+   */
+  function mountAppNav(user, activeLink) {
+    if (!isNestedPage()) return;
+    document.addEventListener('jr:session-lost', () => {
+      const nav = document.querySelector('.bottom-nav');
+      if (nav) nav.remove();
+      document.body.classList.remove('has-bottom-nav', 'has-bottom-nav--site');
+    }, { once: true });
+    const draw = () => SidebarNav.renderBottomNavOnly(user, activeLink);
+    if (typeof SidebarNav !== 'undefined') { draw(); return; }
+    const script = document.createElement('script');
+    script.src = '../js/modules/sidebarNav.js';
+    script.onload = draw;
+    document.head.appendChild(script);
   }
 
   function renderFooter(mount) {
