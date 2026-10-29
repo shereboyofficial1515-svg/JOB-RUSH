@@ -1,0 +1,134 @@
+/* ============================================================
+   App home screen (pages/dashboard.html, js/modules/appHome.js)
+   Notices, quick actions, compact stats, then the role's lists
+   (job posts / applications / interviews) built from the shared
+   .list-group / .list-row / .status-pill components.
+   ============================================================ */
+
+/* ---------- Notices (verification, profile completeness) ---------- */
+.home-notices { display: grid; gap: var(--space-3); margin-bottom: var(--space-5); }
+.home-notices:empty { display: none; }
+.home-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.home-notice--warn { border-color: var(--border-gold); background: var(--status-warning-bg); }
+.home-notice:hover { border-color: var(--border-gold); }
+.home-notice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-notice-icon { flex: none; display: inline-flex; width: 22px; height: 22px; color: var(--accent-text); }
+.home-notice-icon svg { width: 100%; height: 100%; }
+.home-notice-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--type-caption); color: var(--text-secondary); }
+.home-notice-text strong { font-size: var(--type-body); color: var(--text-primary); }
+.home-notice-cta { flex: none; font-size: var(--type-caption); font-weight: var(--weight-semibold); color: var(--accent-text); }
+.home-progress { display: block; height: 6px; margin-top: var(--space-2); max-width: 260px; border-radius: var(--radius-pill); background: var(--bg-elevated); overflow: hidden; }
+.home-progress > span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+
+/* ---------- Quick actions ---------- */
+.home-actions {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.home-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card);
+  color: var(--text-primary);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: border-color var(--duration-micro) var(--ease-standard), background-color var(--duration-micro) var(--ease-standard);
+}
+.home-action:hover { border-color: var(--border-gold); }
+.home-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-action--primary { background: var(--color-primary-navy); border-color: var(--color-primary-navy); color: var(--text-on-navy); }
+.home-action--primary:hover { background: var(--color-deep-navy); border-color: var(--color-deep-navy); }
+html[data-theme="dark"] .home-action--primary { background: var(--accent); border-color: var(--accent); color: var(--text-on-gold); }
+.home-action-icon { position: relative; flex: none; display: inline-flex; width: 22px; height: 22px; color: var(--accent-text); }
+.home-action--primary .home-action-icon { color: inherit; }
+.home-action-icon svg { width: 100%; height: 100%; }
+.home-action-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-action-badge {
+  position: absolute;
+  top: -6px;
+  right: -10px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--status-danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.home-action-badge[hidden] { display: none; }
+
+/* ---------- Stats: compact, each one a link to its page ---------- */
+.home-stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-6); }
+.home-stats .stat-card { display: block; padding: var(--space-4); color: var(--text-primary); text-decoration: none; transition: border-color var(--duration-micro) var(--ease-standard); }
+.home-stats a.stat-card:hover { border-color: var(--border-gold); }
+.home-stats a.stat-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-stats .stat-label { display: block; }
+.home-stats .stat-value { display: block; font-size: var(--text-xl); margin: var(--space-1) 0 0; }
+
+/* ---------- Lists ---------- */
+.home-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); }
+.home-panel { min-width: 0; }
+.home-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.home-panel-title { margin: 0; font-size: var(--type-section-title); }
+.home-panel-link { flex: none; font-size: var(--type-caption); font-weight: var(--weight-semibold); color: var(--accent-text); }
+.home-panel .list-row { min-height: 60px; }
+.home-panel .list-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+.home-panel .list-row-icon { color: var(--accent-text); }
+.home-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-card);
+}
+.home-empty p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.home-empty--error { border-style: solid; }
+
+/* Wide screens: lists side by side. The interviews list is shorter, so a
+   third list (dual-role accounts) wraps under the first. */
+@media (min-width: 1100px) {
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+}
+
+/* Phones: quick actions become icon-over-label tiles in one row, stats
+   two per row. */
+@media (max-width: 560px) {
+  .home-actions { gap: var(--space-2); }
+  .home-action { flex-direction: column; justify-content: center; gap: var(--space-2); min-height: 76px; padding: var(--space-3) var(--space-1); text-align: center; font-size: var(--type-caption); }
+  /* Wrap rather than truncate: "Find talent" must stay readable at 320px. */
+  .home-action-label { max-width: 100%; white-space: normal; line-height: 1.2; }
+  .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-stats .stat-card { padding: var(--space-3) var(--space-4); }
+  .home-stats .stat-value { font-size: var(--text-lg); }
+  .home-panel .list-row { gap: var(--space-3); padding-inline: var(--space-3); }
+  .home-panel .list-row-chevron { display: none; }
+}
+@media (max-width: 360px) {
+  .home-action { padding-inline: 2px; font-size: 12px; }
+}

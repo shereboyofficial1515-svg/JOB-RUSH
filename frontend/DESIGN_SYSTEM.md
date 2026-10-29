@@ -25,7 +25,7 @@ Weights: `--weight-regular|medium|semibold|bold`. Phones step display and page t
 **Elevation:** `--shadow-card` (barely there), `--shadow-elevated` (dialogs/popovers), `--shadow-sheet` (bottom sheets).
 **Touch target:** `--touch-target: 44px` — every tappable control on a touch screen is at least this (`@media (pointer: coarse)` in `components.css`).
 
-**Icons:** one family — `js/utils/icons.js` (`Icons.*`, 24×24 stroke, `currentColor`). No emoji as UI icons. The sidebar's legacy glyphs are text symbols from before this library and are the only exception.
+**Icons:** one family — `js/utils/icons.js` (`Icons.*`, 24×24 stroke, `currentColor`), including the sidebar. No emoji or text glyphs as UI icons.
 
 ## Components
 
@@ -36,7 +36,8 @@ Weights: `--weight-regular|medium|semibold|bold`. Phones step display and page t
 | **State views** | `js/utils/stateViews.js` | `StateView.skeleton / empty / error`. Errors never show raw technical text; "Try again" where a retry exists. |
 | **Detail list** (`.detail-list`) | `components.css` | Label/value rows (transaction sheet, receipts). |
 | **Photo card** | `js/utils/photoCard.js` | Real photo + title + description + actions. Photos come from `PHOTOS` in `config/assets.js`. |
-| **Bottom navigation** | `js/modules/sidebarNav.js` | Home, Profile, Messages, Alerts, Settings; ≤900px only. Drawer keeps the full menu. |
+| **Bottom navigation** | `js/modules/sidebarNav.js` | Per role (≤900px only): worker Home · Find work · Applied · Messages · Account; hirer Home · Find talent · My jobs · Messages · Account; dual-role Home · Find work · My jobs · Messages · Account. Notifications live on the header bell. Also shown to signed-in users on the public discovery pages (jobs, talent search, job/profile pages) via `Chrome.mountHeader`. Drawer keeps the full menu. |
+| **App home** | `js/modules/appHome.js`, `css/app-home.css` | Notices (verification, profile completeness), quick actions, linked stats, role lists. A failed request shows "—" / "Couldn't load… Try again", never a zero or an empty state. |
 | **App header** | `.dashboard-topbar` (≤900px) | Title on the same row as the hamburger; contextual actions on the right. |
 | **Connectivity banner** | `js/utils/connectivity.js` | "You're offline" strip; money screens refuse to act offline. |
 

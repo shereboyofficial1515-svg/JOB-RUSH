@@ -250,6 +250,16 @@
       PullToRefresh.init({ onRefresh: () => loadJobs() });
 
       loadJobs();
+
+      // "Post a job" on the home screen links here with ?new=1. The flag is
+      // dropped from the URL so a refresh or Back doesn't reopen the form.
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('new') === '1') {
+        params.delete('new');
+        const rest = params.toString();
+        history.replaceState(history.state, '', window.location.pathname + (rest ? `?${rest}` : ''));
+        openPostJobModal();
+      }
     })();
   </script>
 </body>
