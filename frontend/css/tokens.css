@@ -220,6 +220,19 @@ html[data-high-contrast="true"] {
   --bg-surface: #FFFFFF;
   --bg-elevated: #FFFFFF;
 }
+/* Dark theme + high contrast. The dark block below redefines every
+   variable above with equal specificity, so without this the high-contrast
+   switch did nothing in dark mode. */
+html[data-theme="dark"][data-high-contrast="true"] {
+  --bg-page: #000000;
+  --bg-surface: #06111F;
+  --bg-elevated: #06111F;
+  --text-primary: #FFFFFF;
+  --text-secondary: #E2E8F0;
+  --accent-text: #F0D27A;
+  --border-subtle: rgba(255, 255, 255, 0.55);
+  --border-gold: rgba(240, 210, 122, 0.95);
+}
 html[data-high-contrast="true"] :focus-visible {
   outline-width: 3px;
 }
@@ -269,5 +282,9 @@ html[data-reduced-motion="true"] *::after {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  /* Staggered lists and scroll reveals set inline delays; without this
+     items still sat invisible for their delay before appearing. */
+  animation-delay: 0s !important;
+  transition-delay: 0s !important;
   scroll-behavior: auto !important;
 }
