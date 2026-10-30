@@ -147,6 +147,49 @@ const AppHome = (function () {
     </a>`).join('');
   }
 
+  /**
+   * "Needs your attention": things the user has to act on, worked out only
+   * from data this screen already loads. Applications awaiting review and
+   * milestones awaiting funding/approval are NOT here: /jobs/mine and
+   * /contracts don't return those counts, and fetching every job's
+   * applications or every contract's milestones on each home load would be
+   * one request per item.
+   */
+  function attentionItems(user, { jobs, interviews, contracts }) {
+    const items = [];
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+    const today = new Date().toDateString();
+    if (interviews) {
+      const invites = interviews.filter((i) => i.status === 'pending' && i.worker_user_id === user.id);
+      if (invites.length) items.push({ iconName: 'calendar', title: `${plural(invites.length, 'interview invitation', 'interview invitations')} awaiting your reply`, href: 'interviews.html' });
+      const reschedules = interviews.filter((i) => i.status === 'reschedule_requested' && i.hirer_user_id === user.id);
+      if (reschedules.length) items.push({ iconName: 'clock', title: `${plural(reschedules.length, 'candidate has', 'candidates have')} asked to reschedule`, href: 'interviews.html' });
+      const todays = interviews.filter((i) => ['accepted', 'scheduled'].includes(i.status) && new Date(i.scheduled_start_at).toDateString() === today);
+      todays.forEach((i) => items.push({
+        iconName: 'calendar',
+        title: `${INTERVIEW_TYPE[i.interview_type] || ''} interview today at ${new Date(i.scheduled_start_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`.trim(),
+        href: 'interviews.html',
+      }));
+    }
+    if (jobs) {
+      const drafts = jobs.filter((j) => j.status === 'draft');
+      if (drafts.length) items.push({ iconName: 'document', title: `${plural(drafts.length, 'draft job', 'draft jobs')} not published yet`, desc: 'Professionals can only apply once a job is open.', href: 'my-jobs.html' });
+    }
+    if (contracts) {
+      const disputed = contracts.filter((c) => c.status === 'disputed');
+      if (disputed.length) items.push({ iconName: 'shield', title: `${plural(disputed.length, 'contract is', 'contracts are')} in dispute`, href: 'contracts.html' });
+    }
+    return items;
+  }
+
+  function attentionHtml(items) {
+    if (!items.length) return '';
+    return `<section class="home-attention" aria-labelledby="home-attention-title">
+      <h2 class="home-panel-title" id="home-attention-title">Needs your attention</h2>
+      <div class="list-group">${items.map((it) => row({ href: it.href, iconName: it.iconName, title: esc(it.title), desc: it.desc ? esc(it.desc) : '', trailing: '' })).join('')}</div>
+    </section>`;
+  }
+
   function quickActions(isWorker, isHirer) {
     const tiles = [];
     if (isHirer) tiles.push({ label: 'Post a job', href: 'my-jobs.html?new=1', iconName: 'plus', primary: true });
@@ -254,6 +297,8 @@ const AppHome = (function () {
         if (p?.is_pro) badges.innerHTML += '<span class="badge badge-pro badge-enter">PRO</span>';
         document.getElementById('home-notices').innerHTML = workerNotices(p);
       }
+
+      document.getElementById('home-attention').innerHTML = attentionHtml(attentionItems(user, { jobs: myJobs, interviews: myInterviews, contracts: myContracts }));
 
       const html = [];
       if (isHirer) html.push(jobsPanel(myJobs));

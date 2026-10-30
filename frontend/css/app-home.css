@@ -80,6 +80,12 @@ html[data-theme="dark"] .home-action--primary { background: var(--accent); borde
 }
 .home-action-badge[hidden] { display: none; }
 
+/* ---------- Needs your attention ---------- */
+.home-attention { margin-bottom: var(--space-5); }
+.home-attention .home-panel-title { margin-bottom: var(--space-3); }
+.home-attention .list-group { border-color: var(--border-gold); }
+.home-attention .list-row-icon { color: var(--accent-text); }
+
 /* ---------- Stats: compact, each one a link to its page ---------- */
 .home-stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); margin-bottom: var(--space-6); }
 .home-stats .stat-card { display: block; padding: var(--space-4); color: var(--text-primary); text-decoration: none; transition: border-color var(--duration-micro) var(--ease-standard); }

@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="../css/animations.css" />
   <link rel="stylesheet" href="../css/jobs.css" />
   <link rel="stylesheet" href="../css/worker-profile.css" />
+  <link rel="stylesheet" href="../css/pro-profile.css" />
 </head>
 
 <body>
@@ -125,101 +126,132 @@
       return `login.html?returnTo=${returnTo}`;
     }
 
-    // ---------------------------------------------------------------- hero / introduction
-    function heroHtml(profile, isOwner) {
+    // ---------------------------------------------------------------- identity header
+    // Cover, photo, name, what they do, who they work as (their business, or
+    // independently) and the three things a client checks first: where, whether
+    // they're taking work, and how they're rated. Everything comes from the
+    // profile; nothing is shown when a value isn't there.
+    function heroHtml(profile, business, isOwner) {
       const verified = profile.verification_status === 'approved';
       const cover = safeUrl(profile.cover_photo_url);
       const avatar = safeUrl(profile.profile_picture_url) || ASSETS.defaultAvatar;
       const availability = AVAILABILITY[profile.availability_status];
+      const location = locationLine(profile);
       const rating = profile.rating_count > 0
-        ? `<button type="button" class="pf-rating" data-goto-tab="reviews" aria-label="See all ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}">${starsHtml(profile.rating_avg)}<strong>${Number(profile.rating_avg).toFixed(1)}</strong><span>(${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'})</span></button>`
+        ? `<button type="button" class="pf-rating" data-goto-tab="reviews" aria-label="${Number(profile.rating_avg).toFixed(1)} out of 5 from ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}. See reviews">${starsHtml(profile.rating_avg)}<strong>${Number(profile.rating_avg).toFixed(1)}</strong><span>(${profile.rating_count})</span></button>`
         : `<span class="pf-rating pf-rating--none">${Icons.star}<span>No reviews yet</span></span>`;
+      const worksAs = business
+        ? `<button type="button" class="pp-worksas" data-scroll-to="pf-business">${Icons.business}<span>${esc(business.business_name)}</span></button>`
+        : `<span class="pp-worksas pp-worksas--solo">${Icons.user}<span>Independent professional</span></span>`;
       return `
-      <header class="pf-hero">
-        <div class="pf-cover${cover ? ' has-image' : ''}" id="pf-cover">
-          ${cover ? `<img class="pf-cover-img" src="${esc(cover)}" alt="" decoding="async" />` : ''}
+      <header class="pp-hero">
+        <div class="pf-cover pp-cover${cover ? ' has-image' : ''}" id="pf-cover">
+          ${cover ? `<img class="pf-cover-img" src="${esc(cover)}" alt="" decoding="async" />` : '<span class="pp-cover-mark" aria-hidden="true"></span>'}
           ${isOwner ? `<button type="button" class="pf-cover-edit" id="edit-cover-btn">${Icons.camera}<span>Edit cover</span></button>` : ''}
         </div>
-        <div class="pf-intro">
-          <div class="pf-avatar-slot">
+        <div class="pp-identity">
+          <div class="pp-avatar-slot">
             ${AvatarBadge.wrap(
-              `<img src="${esc(avatar)}" alt="Photo of ${esc(profile.full_name)}" class="pf-avatar" width="112" height="112" decoding="async" />`,
+              `<img src="${esc(avatar)}" alt="Photo of ${esc(profile.full_name)}" class="pf-avatar pp-avatar" width="128" height="128" decoding="async" />`,
               { verified, isPro: !!profile.is_pro, size: 'lg' }
             )}
           </div>
-          <div class="pf-identity">
-            <div class="pf-name-row">
-              <h1 class="pf-name">${esc(profile.full_name)}</h1>
-              ${verified ? '<span class="badge badge-verified">Verified</span>' : ''}
+          <div class="pp-identity-text">
+            <div class="pp-name-row">
+              <h1 class="pp-name">${esc(profile.full_name)}</h1>
+              ${verified ? `<span class="pp-verified">${Icons.verified}<span>Verified</span></span>` : ''}
               ${profile.is_pro ? '<span class="badge badge-pro">PRO</span>' : ''}
             </div>
-            <p class="pf-title">${esc(profile.professional_title) || 'Professional'}</p>
-            <div class="pf-meta">
+            <p class="pp-title">${esc(profile.professional_title) || 'Professional'}</p>
+            ${worksAs}
+            <div class="pp-meta">
+              ${location ? `<span class="pp-meta-item">${Icons.location}<span>${esc(location)}</span></span>` : ''}
+              ${availability ? `<span class="pp-availability ${availability.cls}"><span class="pf-dot" aria-hidden="true"></span>${availability.label}</span>` : ''}
               ${rating}
-              ${availability ? `<span class="pf-availability ${availability.cls}"><span class="pf-dot" aria-hidden="true"></span>${availability.label}</span>` : ''}
             </div>
           </div>
         </div>
       </header>`;
     }
 
-    // ---------------------------------------------------------------- key facts
-    function factsHtml(profile) {
-      const schedule = ScheduleFormat.scheduleLine(profile);
-      const languages = Array.isArray(profile.languages) ? profile.languages.filter(Boolean) : [];
-      const facts = [
-        [Icons.location, 'Location', locationLine(profile)],
-        [Icons.briefcase, 'Experience', profile.experience_years ? `${profile.experience_years} year${profile.experience_years === 1 ? '' : 's'}` : null],
-        [Icons.clock, 'Working hours', schedule],
-        [Icons.checkShield, 'Jobs completed', profile.completed_jobs_count ? String(profile.completed_jobs_count) : null],
-        [Icons.globe, 'Languages', languages.length ? languages.join(', ') : null],
-      ].filter((f) => f[2]);
-      if (facts.length === 0) return '';
+    // ---------------------------------------------------------------- credibility strip
+    // Only figures the profile really has; a missing one is left out, and the strip
+    // disappears entirely rather than showing zeros.
+    function statsHtml(profile) {
+      const stats = [];
+      if (profile.rating_count > 0) stats.push([`${Number(profile.rating_avg).toFixed(1)}<span class="pp-stat-star" aria-hidden="true">★</span>`, `Rating from ${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}`]);
+      if (profile.completed_jobs_count > 0) stats.push([String(profile.completed_jobs_count), `Job${profile.completed_jobs_count === 1 ? '' : 's'} completed on JOB RUSH`]);
+      if (profile.experience_years > 0) stats.push([`${profile.experience_years}<small>yr${profile.experience_years === 1 ? '' : 's'}</small>`, 'Professional experience']);
+      if (stats.length === 0) return '';
       return `
-      <dl class="pf-facts" aria-label="Key information">
-        ${facts.map(([icon, label, value]) => `
-          <div class="pf-fact">
-            <dt>${icon}<span>${label}</span></dt>
-            <dd>${esc(value)}</dd>
-          </div>`).join('')}
+      <dl class="pp-stats" aria-label="At a glance">
+        ${stats.map(([value, label]) => `<div class="pp-stat"><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
       </dl>`;
     }
 
-    // ---------------------------------------------------------------- pricing + contact
-    function contactHtml(profile, isOwner) {
+    // ---------------------------------------------------------------- hire card + trust
+    function hireCardHtml(profile, isOwner) {
+      const first = esc(profile.full_name.split(' ')[0]);
       const price = formatMoney(profile.starting_price, profile.price_currency);
-      const priceBlock = price
-        ? `<span class="pf-price-label">Starting from</span><strong class="pf-price-amount">${esc(price)}</strong>`
-        : `<span class="pf-price-label">Pricing</span><strong class="pf-price-amount pf-price-amount--none">Not listed yet</strong><span class="pf-price-hint">Message ${esc(profile.full_name.split(' ')[0])} to ask for a quote.</span>`;
+      const availability = AVAILABILITY[profile.availability_status];
+      const schedule = ScheduleFormat.scheduleLine(profile);
+      const languages = Array.isArray(profile.languages) ? profile.languages.filter(Boolean) : [];
+      const details = [
+        availability && [Icons.check, 'Availability', `<span class="pp-availability ${availability.cls}"><span class="pf-dot" aria-hidden="true"></span>${availability.label}</span>`],
+        schedule && [Icons.clock, 'Working hours', esc(schedule)],
+        locationLine(profile) && [Icons.location, 'Based in', esc(locationLine(profile))],
+        languages.length && [Icons.globe, 'Languages', esc(languages.join(', '))],
+      ].filter(Boolean);
       const actions = isOwner
-        ? `<a href="profile-settings.html?tab=profile" class="btn pf-cta-primary">${Icons.pencil}<span>Edit profile</span></a>`
-        : `
-          <button type="button" class="btn pf-cta-primary" data-pf-action="message">${Icons.message}<span>Message</span></button>
-          <button type="button" class="btn btn-secondary" data-pf-action="call">${Icons.phone}<span>Call</span></button>
-          <button type="button" class="btn btn-secondary" data-pf-action="hire">Hire</button>`;
+        ? `<a href="profile-settings.html?tab=profile" class="btn pf-cta-primary">${Icons.pencil}<span>Edit profile</span></a>
+           <a href="profile-settings.html?tab=services" class="btn btn-secondary">Manage services</a>`
+        : `<button type="button" class="btn pf-cta-primary" data-pf-action="message">${Icons.message}<span>Message ${first}</span></button>
+           <div class="pp-cta-row">
+             <button type="button" class="btn btn-secondary" data-pf-action="call">${Icons.phone}<span>Call</span></button>
+             <button type="button" class="btn btn-secondary" data-pf-action="hire">${Icons.briefcase}<span>Hire</span></button>
+           </div>`;
       return `
-      <section class="pf-contact" aria-label="Pricing and contact">
-        <div class="pf-price">${priceBlock}</div>
-        <div class="pf-cta${isOwner ? '' : ' pf-cta--visitor'}" id="profile-actions">${actions}</div>
-      </section>
-      ${isOwner ? '' : `
+      <section class="pp-card pp-hire" aria-label="Pricing and contact">
+        <div class="pf-price">
+          ${price
+            ? `<span class="pf-price-label">Starting from</span><strong class="pf-price-amount">${esc(price)}</strong>`
+            : isOwner
+              ? `<span class="pf-price-label">Pricing</span><strong class="pf-price-amount pf-price-amount--none">No starting price set</strong><span class="pf-price-hint">Clients see “Quote on request”. <a href="profile-settings.html?tab=profile">Add a starting price</a></span>`
+              : `<span class="pf-price-label">Pricing</span><strong class="pf-price-amount pf-price-amount--none">Quote on request</strong><span class="pf-price-hint">Message ${first} with what you need for a price.</span>`}
+        </div>
+        ${details.length ? `<dl class="pp-details">${details.map(([icon, label, value]) => `<div class="pp-detail"><dt>${icon}<span>${label}</span></dt><dd>${value}</dd></div>`).join('')}</dl>` : ''}
+        <div class="pf-cta pp-cta${isOwner ? '' : ' pf-cta--visitor'}" id="profile-actions">${actions}</div>
+      </section>`;
+    }
+
+    function trustCardHtml(profile) {
+      const verified = profile.verification_status === 'approved';
+      return `
+      <section class="pp-card pp-trust" aria-label="Hiring safely">
+        ${verified ? `<div class="pp-trust-item">${Icons.checkShield}<div><strong>Identity verified</strong><span>JOB RUSH has checked this professional’s identity documents.</span></div></div>` : ''}
+        <div class="pp-trust-item">${Icons.lock}<div><strong>Payments held in escrow</strong><span>Hire through a JOB RUSH contract and your money is only released when you approve the work.</span></div></div>
+      </section>`;
+    }
+
+    function stickyActionsHtml(profile) {
+      return `
       <div class="pf-sticky" id="sticky-profile-actions">
         <button type="button" class="btn pf-cta-primary" data-pf-action="message">${Icons.message}<span>Message</span></button>
         <button type="button" class="btn btn-secondary" data-pf-action="call">${Icons.phone}<span>Call</span></button>
         <button type="button" class="btn btn-secondary" data-pf-action="hire">Hire</button>
-      </div>`}`;
+      </div>`;
     }
 
     // ---------------------------------------------------------------- overview blocks
     function aboutHtml(profile) {
-      const bio = esc(profile.bio);
+      const paragraphs = String(profile.bio || '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
       return `
-      <section class="pf-block">
-        <h2>About</h2>
-        ${bio
-          ? `<p class="pf-about is-clamped" id="pf-about-text">${bio}</p>
+      <section class="pf-block pp-section">
+        <h2>About ${esc(profile.full_name.split(' ')[0])}</h2>
+        ${paragraphs.length
+          ? `<div class="pf-about pp-about is-clamped" id="pf-about-text">${paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}</div>
              <button type="button" class="pf-link-btn" id="pf-about-toggle" aria-expanded="false" aria-controls="pf-about-text" hidden>Read more</button>`
-          : '<p class="pf-muted">This professional hasn’t added a bio yet.</p>'}
+          : '<p class="pf-muted">This professional hasn’t written an introduction yet.</p>'}
       </section>`;
     }
 
@@ -252,7 +284,7 @@
     function skillsHtml(skills) {
       if (!skills || skills.length === 0) return '';
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Skills &amp; expertise</h2>
         <ul class="pf-chips">${skills.map((s) => `<li>${esc(s.name)}</li>`).join('')}</ul>
       </section>`;
@@ -272,7 +304,7 @@
         .filter((l) => l.meta && l.url);
       if (items.length === 0) return '';
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Social media</h2>
         <div class="pf-social">
           ${items.map(({ meta, url }) => `
@@ -292,7 +324,7 @@
     function experienceHtml(entries) {
       if (!entries || entries.length === 0) return '';
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Work experience</h2>
         <div class="wp-timeline">
           ${entries.map((e) => `
@@ -316,7 +348,7 @@
     function educationHtml(entries) {
       if (!entries || entries.length === 0) return '';
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Education</h2>
         ${entries.map((e) => `
           <div class="wp-education-card">
@@ -331,38 +363,48 @@
       </section>`;
     }
 
-    function businessHtml(business, isOwner) {
+    // A professional's business, when they run one, presented as the service
+    // operation it is. Independent professionals simply have no section here (the
+    // header already says "Independent professional"); the owner gets a prompt.
+    function businessHtml(business, profile, isOwner) {
       if (!business) {
-        // Only the owner ever sees a setup prompt; a visitor never sees this section when there is nothing to show.
         if (!isOwner) return '';
         return `
-        <section class="pf-block">
+        <section class="pf-block pp-section" id="pf-business">
           <h2>Business</h2>
-          <div class="wp-empty-state">
-            <h3>Business profile</h3>
-            <p>Showcase your business, storefront and services.</p>
+          <div class="pf-empty pp-empty">
+            <span class="pp-empty-icon">${Icons.business}</span>
+            <h3>Trading under a business name?</h3>
+            <p>Add your business profile so clients see your company, address and opening hours. Independent professionals can skip this.</p>
             <a href="profile-settings.html?tab=business" class="btn btn-secondary btn-sm">Set up business profile</a>
           </div>
         </section>`;
       }
-      const location = [business.area_name, business.lga_name, business.state_name, 'Nigeria'].filter(Boolean).join(', ');
+      const location = [business.area_name, business.lga_name, business.state_name].filter(Boolean).join(', ');
       const hoursRuns = ScheduleFormat.groupBusinessHours(business.opening_hours_structured);
       const storefront = safeUrl(business.storefront_photo_url);
+      const rows = [
+        (location || business.address) && [Icons.location, 'Address', [business.address, location].filter(Boolean).map(esc).join(', ')],
+        business.contact_phone && [Icons.phone, 'Phone', esc(business.contact_phone)],
+        business.contact_email && [Icons.mail, 'Email', esc(business.contact_email)],
+        !hoursRuns.length && business.opening_hours && [Icons.clock, 'Opening hours', esc(business.opening_hours)],
+      ].filter(Boolean);
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section" id="pf-business">
         <h2>Business</h2>
-        <div class="wp-business-card">
-          ${storefront ? `<img src="${esc(storefront)}" alt="${esc(business.business_name)} storefront" loading="lazy" class="wp-business-cover" />` : ''}
-          <div class="wp-business-body">
-            <div class="wp-business-name">${esc(business.business_name)}</div>
-            ${business.description ? `<p class="wp-business-desc">${esc(business.description)}</p>` : ''}
-            <div class="wp-business-info">
-              ${location ? `<span class="wp-info-item">${Icons.location} ${esc(location)}${business.address ? ` — ${esc(business.address)}` : ''}</span>` : ''}
-              ${business.contact_phone ? `<span class="wp-info-item">${Icons.phone} ${esc(business.contact_phone)}</span>` : ''}
-              ${business.contact_email ? `<span class="wp-info-item">${Icons.mail} ${esc(business.contact_email)}</span>` : ''}
-              ${!hoursRuns.length && business.opening_hours ? `<span class="wp-info-item">${Icons.clock} ${esc(business.opening_hours)}</span>` : ''}
+        <div class="pp-business">
+          ${storefront ? `<img src="${esc(storefront)}" alt="${esc(business.business_name)} storefront" loading="lazy" class="pp-business-photo" />` : ''}
+          <div class="pp-business-body">
+            <div class="pp-business-head">
+              <span class="pp-business-mark" aria-hidden="true">${Icons.business}</span>
+              <div>
+                <h3 class="pp-business-name">${esc(business.business_name)}</h3>
+                <span class="pp-business-owner">Run by ${esc(profile.full_name)}</span>
+              </div>
             </div>
-            ${hoursRuns.length ? `<div class="wp-hours"><div class="wp-hours-title">${Icons.clock} Opening hours</div><dl class="wp-hours-list">${hoursRuns.map((r) => `<div><dt>${esc(r.days)}</dt><dd>${esc(r.text)}</dd></div>`).join('')}</dl></div>` : ''}
+            ${business.description ? `<p class="pp-business-desc">${esc(business.description)}</p>` : ''}
+            ${rows.length ? `<dl class="pp-details pp-details--grid">${rows.map(([icon, label, value]) => `<div class="pp-detail"><dt>${icon}<span>${label}</span></dt><dd>${value}</dd></div>`).join('')}</dl>` : ''}
+            ${hoursRuns.length ? `<div class="pp-hours"><div class="pp-hours-title">${Icons.clock}<span>Opening hours</span></div><dl class="pp-hours-list">${hoursRuns.map((r) => `<div><dt>${esc(r.days)}</dt><dd>${esc(r.text)}</dd></div>`).join('')}</dl></div>` : ''}
           </div>
         </div>
       </section>`;
@@ -376,7 +418,7 @@
         ? [FileFormat.mimeLabel(cv.mimeType), FileFormat.formatFileSize(cv.fileSize), cv.updatedAt ? `Updated ${monthYear(cv.updatedAt)}` : null].filter(Boolean)
         : [];
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Resume / CV</h2>
         <div class="wp-cv-card">
           <div class="wp-cv-info-row">
@@ -412,52 +454,76 @@
       const label = profile.gender === 'custom' ? profile.gender_custom : GENDER_LABELS[profile.gender];
       if (!label) return '';
       return `
-      <section class="pf-block">
+      <section class="pf-block pp-section">
         <h2>Personal information</h2>
         <p class="pf-muted">Gender: ${esc(label)}</p>
       </section>`;
     }
 
+    // Overview reads top to bottom like a professional introduction: who they are,
+    // what they sell, proof of past work, the business behind them, then background.
+    // Services and work are previews that open their full tabs.
+    function previewHtml({ title, tab, total, shown, body }) {
+      return `
+      <section class="pf-block pp-section">
+        <div class="pp-section-head">
+          <h2>${title}</h2>
+          ${total > shown ? `<button type="button" class="pf-link-btn pp-see-all" data-goto-tab="${tab}">See all ${total}</button>` : ''}
+        </div>
+        ${body}
+      </section>`;
+    }
+
     function overviewHtml(data, isOwner) {
-      return aboutHtml(data.profile) +
-        skillsHtml(data.profile.skills) +
-        socialLinksHtml(data.socialLinks) +
+      const { profile, services, portfolios } = data;
+      return aboutHtml(profile) +
+        (services.length ? previewHtml({ title: 'Services', tab: 'services', total: services.length, shown: 2, body: servicesHtml(services.slice(0, 2), isOwner) }) : '') +
+        (portfolios.length ? previewHtml({ title: 'Recent work', tab: 'portfolio', total: portfolios.length, shown: 3, body: portfolioHtml(portfolios.slice(0, 3), isOwner, { gallery: false }) }) : '') +
+        businessHtml(data.business, profile, isOwner) +
+        skillsHtml(profile.skills) +
         experienceHtml(data.experience) +
         educationHtml(data.education) +
-        businessHtml(data.business, isOwner) +
+        socialLinksHtml(data.socialLinks) +
         cvSectionHtml(data.cv) +
-        genderHtml(data.profile);
+        genderHtml(profile);
     }
 
     // ---------------------------------------------------------------- services
     const PRICING_LABELS = { hourly: 'Per hour', daily: 'Per day', weekly: 'Per week', monthly: 'Per month', project: 'Per project', fixed: 'Fixed price', negotiable: 'Negotiable', contact_for_quote: 'Contact for quote' };
 
+    // Each service is an offer: what it is, what's included, how long it takes,
+    // what it costs and a next step. (Services have no photo or category in the
+    // data, so none is shown.)
     function servicesHtml(services, isOwner) {
       if (!services || services.length === 0) {
         return `
-        <div class="pf-empty">
-          <h2>No services listed yet</h2>
-          <p>${isOwner ? 'Add the services you offer so clients know what to hire you for.' : 'This professional hasn’t added any services yet. You can message them to ask what they offer.'}</p>
-          ${isOwner ? '<a href="profile-settings.html?tab=services" class="btn btn-secondary btn-sm">Add services</a>' : ''}
+        <div class="pf-empty pp-empty">
+          <span class="pp-empty-icon">${Icons.briefcase}</span>
+          <h2>${isOwner ? 'Add your first service' : 'No services listed yet'}</h2>
+          <p>${isOwner ? 'List what you offer, with a price or “quote on request”, so clients know exactly what to hire you for.' : 'This professional hasn’t listed services yet. Message them to ask what they offer.'}</p>
+          ${isOwner ? '<a href="profile-settings.html?tab=services" class="btn btn-primary btn-sm">Add a service</a>' : ''}
         </div>`;
       }
       return `
-      <ul class="pf-services">
+      <ul class="pp-services">
         ${services.map((s) => {
           const money = formatMoney(s.price, s.price_currency);
           const unitLabel = PRICING_LABELS[s.pricing_type] || s.pricing_type;
           const duration = ScheduleFormat.serviceDuration(s);
           return `
-          <li class="pf-service">
-            <div class="pf-service-main">
-              <h3 class="pf-service-name">${esc(s.name)}</h3>
-              ${s.description ? `<p class="pf-service-desc">${esc(s.description)}</p>` : ''}
-              ${duration ? `<p class="pf-service-duration">${Icons.clock}<span>${esc(duration.label)}: <strong>${esc(duration.text)}</strong></span></p>` : ''}
-            </div>
-            <div class="pf-service-price">
-              ${money
-                ? `<span class="pf-price-label">Starting from</span><strong>${esc(money)}</strong><span class="pf-service-unit">${esc(unitLabel)}</span>`
-                : `<strong class="pf-service-quote">${esc(unitLabel)}</strong>`}
+          <li class="pp-service">
+            <h3 class="pp-service-name">${esc(s.name)}</h3>
+            ${s.description ? `<p class="pp-service-desc">${esc(s.description)}</p>` : ''}
+            ${duration ? `<p class="pp-service-meta">${Icons.clock}<span>${esc(duration.label)}: <strong>${esc(duration.text)}</strong></span></p>` : ''}
+            <div class="pp-service-foot">
+              <div class="pp-service-price">
+                ${money
+                  ? `<span>From</span><strong>${esc(money)}</strong><span>${esc(unitLabel.toLowerCase())}</span>`
+                  : `<strong class="pp-service-quote">${esc(unitLabel)}</strong>`}
+              </div>
+              ${isOwner
+                ? '<a href="profile-settings.html?tab=services" class="btn btn-ghost btn-sm">Edit</a>'
+                : `<button type="button" class="btn btn-secondary btn-sm" data-pf-action="message" aria-label="Ask about ${esc(s.name)}">Ask about this</button>`}
             </div>
           </li>`;
         }).join('')}
@@ -471,61 +537,76 @@
       const primary = media.find((m) => m.is_primary) || media[0];
       const thumbUrl = primary ? safeUrl(primary.thumbnailUrl || (primary.media_type === 'video' ? null : primary.url)) : null;
       const isVideo = primary && primary.media_type === 'video';
-      const thumb = `
-        ${thumbUrl ? `<img src="${esc(thumbUrl)}" alt="" loading="lazy" />` : `<span class="pf-project-placeholder">${primary ? '' : 'No media'}</span>`}
-        ${isVideo ? '<span class="pf-project-play" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>' : ''}`;
       return `
       <li>
-        <a class="pf-project card-img-zoom" href="portfolio-detail.html?id=${encodeURIComponent(p.id)}">
-          <div class="pf-project-thumb card-img-zoom-frame">${thumb}</div>
+        <a class="pf-project pp-project card-img-zoom" href="portfolio-detail.html?id=${encodeURIComponent(p.id)}">
+          <div class="pf-project-thumb card-img-zoom-frame">
+            ${thumbUrl ? `<img src="${esc(thumbUrl)}" alt="" loading="lazy" />` : `<span class="pf-project-placeholder">${Icons.portfolio}<span>${primary ? 'Preview unavailable' : 'No photos yet'}</span></span>`}
+            ${isVideo ? '<span class="pf-project-play" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>' : ''}
+            ${media.length > 1 ? `<span class="pp-project-count">${Icons.portfolio}<span>${media.length}</span><span class="visually-hidden"> items</span></span>` : ''}
+          </div>
           <div class="pf-project-body">
             <h3>${esc(p.title)}</h3>
-            ${p.category_name ? `<span class="badge badge-neutral">${esc(p.category_name)}</span>` : ''}
-            <span class="pf-project-count">${media.length} media item${media.length === 1 ? '' : 's'}</span>
+            ${p.category_name ? `<span class="pp-project-cat">${esc(p.category_name)}</span>` : ''}
           </div>
         </a>
       </li>`;
     }
 
-    function portfolioHtml(portfolios, isOwner) {
+    function portfolioHtml(portfolios, isOwner, { gallery = true } = {}) {
       if (portfolios.length === 0) {
         return `
-        <div class="pf-empty">
-          <h2>No portfolio projects yet</h2>
-          <p>${isOwner ? 'Showcase completed work to help clients understand what you do.' : 'This professional hasn’t shared any past work yet.'}</p>
-          ${isOwner ? '<a href="portfolio.html" class="btn btn-secondary btn-sm">Add a project</a>' : ''}
+        <div class="pf-empty pp-empty">
+          <span class="pp-empty-icon">${Icons.portfolio}</span>
+          <h2>${isOwner ? 'Show your best work' : 'No past work shared yet'}</h2>
+          <p>${isOwner ? 'Projects with photos are the strongest proof of your quality. Add one or two you’re proud of.' : 'This professional hasn’t added portfolio projects yet.'}</p>
+          ${isOwner ? '<a href="portfolio.html" class="btn btn-primary btn-sm">Add a project</a>' : ''}
         </div>`;
       }
-      return `<ul class="pf-gallery" id="pf-gallery">${portfolios.map(projectCardHtml).join('')}</ul>`;
+      return `<ul class="pf-gallery pp-gallery${gallery ? '' : ' pp-gallery--preview'}"${gallery ? ' id="pf-gallery"' : ''}>${portfolios.map(projectCardHtml).join('')}</ul>`;
     }
 
     // ---------------------------------------------------------------- reviews
     function reviewHtml(r) {
+      const name = r.reviewer_display_name || 'JOB RUSH client';
       return `
-      <li class="pf-review">
-        <div class="pf-review-head">
-          <strong>${esc(r.reviewer_display_name) || 'Client'}</strong>
+      <li class="pp-review">
+        <span class="pp-review-avatar" aria-hidden="true">${esc(name.trim().charAt(0).toUpperCase() || 'C')}</span>
+        <div class="pp-review-body">
+          <div class="pp-review-head">
+            <strong>${esc(name)}</strong>
+            <time datetime="${esc(r.created_at)}">${new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
+          </div>
           ${starsHtml(r.rating)}
+          ${r.review_text ? `<p class="pp-review-text">${esc(r.review_text)}</p>` : `<p class="pp-review-text pp-review-text--none">Rated ${r.rating} out of 5, no written comment.</p>`}
         </div>
-        ${r.review_text ? `<p class="pf-review-text">${esc(r.review_text)}</p>` : ''}
-        <time class="pf-review-date" datetime="${esc(r.created_at)}">${new Date(r.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</time>
       </li>`;
     }
 
+    // The average and count are the profile's own figures; the bars count the
+    // published reviews listed below (hidden reviews aren't returned).
     function reviewsHtml(reviews, profile) {
       if (reviews.length === 0) {
         return `
-        <div class="pf-empty">
+        <div class="pf-empty pp-empty">
+          <span class="pp-empty-icon">${Icons.star}</span>
           <h2>No reviews yet</h2>
-          <p>Reviews will appear here when customers share their experience working with this professional.</p>
+          <p>Reviews come from clients after a completed JOB RUSH contract, so every one is from a real job.</p>
         </div>`;
       }
+      const counts = [5, 4, 3, 2, 1].map((n) => [n, reviews.filter((r) => Number(r.rating) === n).length]);
       return `
-      <div class="pf-review-summary">
-        <strong class="pf-review-avg">${Number(profile.rating_avg).toFixed(1)}</strong>
-        <div>${starsHtml(profile.rating_avg)}<span class="pf-muted"> ${reviews.length} review${reviews.length === 1 ? '' : 's'}</span></div>
+      <div class="pp-review-summary">
+        <div class="pp-review-score">
+          <strong>${Number(profile.rating_avg).toFixed(1)}</strong>
+          ${starsHtml(profile.rating_avg)}
+          <span>${profile.rating_count} review${profile.rating_count === 1 ? '' : 's'}</span>
+        </div>
+        <ul class="pp-review-bars" aria-label="Published reviews by rating">
+          ${counts.map(([n, c]) => `<li><span>${n}★</span><span class="pp-bar"><span style="width:${reviews.length ? Math.round((c / reviews.length) * 100) : 0}%"></span></span><span>${c}</span></li>`).join('')}
+        </ul>
       </div>
-      <ul class="pf-reviews" id="wp-reviews-list">${reviews.map(reviewHtml).join('')}</ul>`;
+      <ul class="pp-reviews" id="wp-reviews-list">${reviews.map(reviewHtml).join('')}</ul>`;
     }
 
     // ---------------------------------------------------------------- tabs
@@ -584,11 +665,19 @@
         e.preventDefault();
         selectTab(TAB_ORDER[next], { focus: true, reveal: true });
       });
-      // "4.5 (3 reviews)" in the introduction jumps to the Reviews tab.
+      // The rating in the header and the "See all" links in Overview open their tab.
       document.querySelectorAll('[data-goto-tab]').forEach((el) => {
         el.addEventListener('click', () => {
           selectTab(el.dataset.gotoTab);
           document.querySelector('.pf-tabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+      // The business name in the header jumps to the Business section of Overview.
+      document.querySelectorAll('[data-scroll-to]').forEach((el) => {
+        el.addEventListener('click', () => {
+          selectTab('overview');
+          const target = document.getElementById(el.dataset.scrollTo);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         });
       });
     }
@@ -896,20 +985,29 @@
 
         document.title = `${profile.full_name} — ${profile.professional_title || 'Professional'} | JOB RUSH`;
 
+        const business = businessResult.profile || null;
+        // Desktop: identity across the top, then the tabs beside a sticky hire
+        // card. Phones: one column in reading order (hire card before the tabs;
+        // its buttons are replaced by the fixed contact bar).
         content.innerHTML =
-          heroHtml(profile, isOwner) +
-          factsHtml(profile) +
-          contactHtml(profile, isOwner) +
-          tabsHtml({ services: services.length, portfolio: portfolios.length, reviews: reviews.length }) +
-          panelsHtml({
-            overview: overviewHtml({
-              profile, socialLinks: socialLinksResult.links, experience: experienceResult.entries,
-              education: educationResult.entries, business: businessResult.profile, cv: cvResult.cv,
-            }, isOwner),
-            services: servicesHtml(services, isOwner),
-            portfolio: portfolioHtml(portfolios, isOwner),
-            reviews: reviewsHtml(reviews, profile),
-          });
+          heroHtml(profile, business, isOwner) +
+          `<div class="pp-layout">
+            <div class="pp-lead">${statsHtml(profile)}</div>
+            <aside class="pp-side">${hireCardHtml(profile, isOwner)}${isOwner ? '' : trustCardHtml(profile)}</aside>
+            <div class="pp-main">
+              ${tabsHtml({ services: services.length, portfolio: portfolios.length, reviews: reviews.length })}
+              ${panelsHtml({
+                overview: overviewHtml({
+                  profile, services, portfolios, socialLinks: socialLinksResult.links, experience: experienceResult.entries,
+                  education: educationResult.entries, business, cv: cvResult.cv,
+                }, isOwner),
+                services: servicesHtml(services, isOwner),
+                portfolio: portfolioHtml(portfolios, isOwner),
+                reviews: reviewsHtml(reviews, profile),
+              })}
+            </div>
+          </div>` +
+          (isOwner ? '' : stickyActionsHtml(profile));
         content.removeAttribute('aria-busy');
         if (!isOwner) document.body.classList.add('has-pf-sticky');
 
