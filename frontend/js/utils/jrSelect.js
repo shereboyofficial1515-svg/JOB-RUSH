@@ -34,6 +34,10 @@ const JRSelect = (function () {
   const SHEET_MQ = '(max-width: 640px)';
   const instances = new WeakMap();
   let openInst = null;
+  // Set while a sheet is removing its own history entry (see close() and the
+  // popstate listener at the bottom).
+  let ownPopPending = false;
+  let ownPopTimer = null;
   let uid = 0;
 
   const norm = (s) => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -440,7 +444,16 @@ const JRSelect = (function () {
       trigger.setAttribute('aria-expanded', 'false');
       if (sheetMode) {
         ScrollLock.release('select-sheet');
-        if (historyPushed && !fromPop && window.history.state && window.history.state.jrSelect) window.history.back();
+        if (historyPushed && !fromPop && window.history.state && window.history.state.jrSelect) {
+          // history.back() is asynchronous: its popstate arrives after this sheet is
+          // already gone. Mark it as ours so it isn't mistaken for the person pressing
+          // Back -- otherwise an open Modal (or the nav drawer) underneath closes too,
+          // which is what threw away the Add-project form after picking a category.
+          ownPopPending = true;
+          clearTimeout(ownPopTimer);
+          ownPopTimer = setTimeout(() => { ownPopPending = false; }, 1000);
+          window.history.back();
+        }
         historyPushed = false;
       }
       if (focus) trigger.focus({ preventScroll: true });
@@ -481,6 +494,13 @@ const JRSelect = (function () {
   // Registered before Modal / drawer handlers (this script loads first), so it can
   // stop them from also reacting to the same Back press.
   window.addEventListener('popstate', (e) => {
+    // The popstate caused by a sheet removing its own history entry: consume it.
+    if (ownPopPending) {
+      ownPopPending = false;
+      clearTimeout(ownPopTimer);
+      e.stopImmediatePropagation();
+      return;
+    }
     if (openInst && openInst.trigger && document.querySelector('.jr-select-panel.is-sheet')) {
       openInst.close({ fromPop: true });
       e.stopImmediatePropagation();
