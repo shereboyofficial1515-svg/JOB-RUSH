@@ -103,6 +103,10 @@ services:
         sync: false # Android app push (FCM) — Firebase Console > Project Settings > Service Accounts > Generate new private key; paste the whole JSON file as one line
       - key: VAPID_SUBJECT
         value: mailto:support@jobrush.ng
+      - key: COMPANY_FEEDBACK_URL
+        value: https://shereboytechltd.site # in-app feedback also appears in the company Reviews & Feedback dashboard
+      - key: FEEDBACK_INGEST_SECRET
+        sync: false # same value as FEEDBACK_INGEST_SECRET on the SHEREBOY TECH LTD site
       # See backend/.env.example for the full variable list (email
       # branding, rate limiting, OTP, video-processing tunables, etc.)
       # — only the ones with no safe default are required here;
