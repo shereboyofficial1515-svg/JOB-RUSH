@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 process.env.COMPANY_FEEDBACK_URL = 'https://company.example/';
 process.env.FEEDBACK_INGEST_SECRET = 'test-secret';
-const { deliver, forwardWithRetries, payloadFor } = require('./companyFeedbackForwarder');
+const { deliver, forwardWithRetries, payloadFor, syncPending } = require('./companyFeedbackForwarder');
 
 const row = { id: '7b4f0c1e-0000-4000-8000-000000000001', user_id: 'u-1', type: 'bug_report', message: 'Map does not load', created_at: '2026-10-01T09:00:00.000Z' };
 const answer = (status) => async () => ({ ok: status < 300, status });
@@ -51,6 +51,36 @@ const test = async (name, fn) => { await fn(); passed += 1; console.log('  ok -'
   await test('an already-delivered item counts as delivered', async () => {
     assert.equal((await deliver(row, { fetchImpl: answer(409) })).ok, true);
     assert.equal((await deliver(row, { fetchImpl: answer(200) })).ok, true);
+  });
+
+  await test('sync sends items the dashboard lacks and records each delivery', async () => {
+    const rowsDb = [{ ...row, id: 'a' }, { ...row, id: 'b' }, { ...row, id: 'c' }];
+    const marked = [];
+    const query = async (sql, params) => {
+      if (/^SELECT/.test(sql)) { assert.match(sql, /forwarded_at IS NULL/); return { rows: rowsDb }; }
+      marked.push(params[0]);
+      return { rows: [] };
+    };
+    const send = async (r) => ({ ok: r.id !== 'b' });
+    const r = await syncPending({ query, send, pause: 0 });
+    assert.deepEqual([r.sent, r.failed, r.tracked], [2, 1, true]);
+    assert.deepEqual(marked, ['a', 'c'], 'a failed item stays pending for the next run');
+  });
+
+  await test('before migration 069, sync re-sends everything once per start (the dashboard skips duplicates)', async () => {
+    const missing = Object.assign(new Error('column "forwarded_at" does not exist'), { code: '42703' });
+    let fullReads = 0;
+    const query = async (sql) => {
+      if (/forwarded_at/.test(sql)) throw missing;
+      fullReads += 1;
+      return { rows: [{ ...row, id: 'x' }, { ...row, id: 'y' }] };
+    };
+    const sent = [];
+    const send = async (r) => { sent.push(r.id); return { ok: true }; };
+    assert.equal((await syncPending({ query, send, pause: 0 })).sent, 2);
+    assert.equal((await syncPending({ query, send, pause: 0 })).sent, 0, 'not again until the next start');
+    assert.equal(fullReads, 1);
+    assert.deepEqual(sent, ['x', 'y']);
   });
 
   await test('does nothing when not configured', async () => {

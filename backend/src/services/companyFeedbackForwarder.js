@@ -78,10 +78,74 @@ async function forwardWithRetries(row, { delays = RETRY_DELAYS_MS, wait = (ms) =
   }
 }
 
+// The database is loaded lazily so the signing logic can be tested without one
+const db = () => require('../config/db');
+const MISSING_COLUMN = '42703';
+
+/**
+ * Records that the dashboard has the item (migration 069). Without that column the
+ * sync below still works, it just re-sends after a restart and the dashboard skips duplicates.
+ */
+async function markForwarded(id, { query = db().query } = {}) {
+  try {
+    await query('UPDATE feedback_submissions SET forwarded_at = now() WHERE id = $1', [id]);
+    return true;
+  } catch (err) {
+    if (err.code !== MISSING_COLUMN) logger.error('Could not record a forwarded feedback item', { feedbackId: id, error: err.message });
+    return false;
+  }
+}
+
 /** Fire-and-forget: call after the feedback row is saved. */
 function forwardFeedback(row) {
   if (!settings()) return;
-  forwardWithRetries(row).catch((err) => logger.error('Feedback forwarding crashed', { feedbackId: row.id, error: err.message }));
+  forwardWithRetries(row)
+    .then((r) => (r.ok ? markForwarded(row.id) : null))
+    .catch((err) => logger.error('Feedback forwarding crashed', { feedbackId: row.id, error: err.message }));
 }
 
-module.exports = { forwardFeedback, forwardWithRetries, deliver, payloadFor, sign, settings };
+/**
+ * Sends every in-app feedback item the dashboard does not have yet: items sent while
+ * forwarding was off or failing, and everything from before forwarding existed.
+ * So nothing depends on a one-off manual backfill or on the process staying up.
+ */
+let fullResendDone = false;
+async function syncPending({ query = db().query, send = forwardWithRetries, pause = 300 } = {}) {
+  if (!settings()) return { sent: 0, failed: 0, skipped: true };
+  let rows;
+  let tracked = true;
+  try {
+    ({ rows } = await query('SELECT id, type, message, created_at FROM feedback_submissions WHERE forwarded_at IS NULL ORDER BY created_at LIMIT 100'));
+  } catch (err) {
+    if (err.code !== MISSING_COLUMN) throw err;
+    // Before migration 069: send everything once per start; the dashboard ignores ones it has
+    tracked = false;
+    if (fullResendDone) return { sent: 0, failed: 0, untracked: true };
+    ({ rows } = await query('SELECT id, type, message, created_at FROM feedback_submissions ORDER BY created_at'));
+  }
+  let sent = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const r = await send(row, { delays: [2000] });
+    if (r.ok) { sent += 1; if (tracked) await markForwarded(row.id, { query }); } else failed += 1;
+    if (pause) await new Promise((res) => setTimeout(res, pause));
+  }
+  if (!tracked && !failed) fullResendDone = true;
+  if (rows.length) logger.info('Feedback sync with the SHEREBOY TECH LTD dashboard', { sent, failed, tracked });
+  return { sent, failed, tracked };
+}
+
+/** Starts the background sync, and says plainly in the logs when forwarding is off. */
+function startFeedbackSync({ firstRunMs = 20000, everyMs = 10 * 60 * 1000 } = {}) {
+  if (!settings()) {
+    logger.warn('In-app feedback is NOT being sent to the SHEREBOY TECH LTD dashboard: set COMPANY_FEEDBACK_URL and FEEDBACK_INGEST_SECRET (the same secret as on the company site).');
+    return;
+  }
+  const run = () => syncPending().catch((err) => logger.error('Feedback sync failed', { error: err.message }));
+  const first = setTimeout(run, firstRunMs);
+  const timer = setInterval(run, everyMs);
+  if (first.unref) first.unref();
+  if (timer.unref) timer.unref();
+}
+
+module.exports = { forwardFeedback, forwardWithRetries, deliver, payloadFor, sign, settings, markForwarded, syncPending, startFeedbackSync };
