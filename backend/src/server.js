@@ -320,6 +320,8 @@ app.listen(env.PORT, () => {
   // Unanswered calls are timed out here, on the server, so "missed" never depends on a browser
   // staying open (see callService.sweepStaleCalls).
   require('./services/callService').startCallSweeper();
+  // In-app feedback the company dashboard does not have yet is sent in the background
+  require('./services/companyFeedbackForwarder').startFeedbackSync();
 });
 
 module.exports = app;
