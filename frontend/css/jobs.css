@@ -105,7 +105,7 @@
 /* Professional card */
 .pro-card-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .disc-avatar { flex: none; width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: var(--bg-elevated); }
-.disc-avatar--initials { display: inline-flex; align-items: center; justify-content: center; color: var(--color-primary-navy); font-weight: 700; font-size: var(--text-base); border: 1px solid var(--border-subtle); }
+.disc-avatar--initials { display: inline-flex; align-items: center; justify-content: center; color: var(--icon-on-elevated); font-weight: 700; font-size: var(--text-base); border: 1px solid var(--border-subtle); }
 .pro-card-id { min-width: 0; flex: 1; }
 .pro-card-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .pro-card-name .disc-card-title { -webkit-line-clamp: 1; }

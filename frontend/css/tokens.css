@@ -55,6 +55,10 @@
      wherever gold is the actual color of readable text (ratings,
      prices, links) rather than a background/border/icon fill. */
   --accent-text: #8A6A16;
+  /* Glyphs on a --bg-elevated tile (settings list icons, empty-state icons,
+     initials avatars). Never a fixed brand colour: in dark mode the tile itself
+     is navy, and a navy glyph on it disappears. */
+  --icon-on-elevated: var(--color-primary-navy);
   --border-subtle: rgba(11, 31, 58, 0.12);
   --border-gold: rgba(201, 162, 39, 0.5);
 
@@ -258,6 +262,7 @@ html[data-theme="dark"] {
   --text-primary: var(--color-white);
   --text-secondary: #A9B4C4;
   --accent-text: var(--color-light-gold);
+  --icon-on-elevated: var(--color-light-gold);
   --border-subtle: rgba(255, 255, 255, 0.14);
   --border-gold: rgba(224, 193, 90, 0.55);
   --status-success-bg: rgba(31, 122, 77, 0.22);

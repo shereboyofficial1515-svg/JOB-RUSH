@@ -40,6 +40,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/share.js"></script>
   <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
@@ -110,12 +111,23 @@
 
     let activeVideoInstance = null;
 
+    // Stops and removes a VideoPlayer (the element is gone, but pause first so no
+    // audio keeps playing while it is collected).
+    function destroyVideo(instance, container) {
+      if (!instance) return;
+      container?.querySelector('video')?.pause();
+      instance.destroy();
+    }
+
     function renderMainMedia(media, index) {
       const mount = document.getElementById('pd-main-media');
-      if (activeVideoInstance) {
-        activeVideoInstance.destroy();
-        activeVideoInstance = null;
-      }
+      destroyVideo(activeVideoInstance, mount);
+      activeVideoInstance = null;
+      // Always reset: a click handler left over from a photo used to stay on this
+      // same element after a video replaced it, so tapping the video opened the
+      // previous photo in a "Photo" lightbox.
+      mount.onclick = null;
+      mount.className = 'pd-main-media';
       const m = media[index];
       if (!m) {
         mount.innerHTML = `<div class="pd-main-video-icon"><p class="text-secondary">No media for this project yet.</p></div>`;
@@ -123,11 +135,9 @@
       }
       if (m.media_type === 'video') {
         mount.innerHTML = '';
-        mount.classList.remove('pd-main-media');
-        mount.className = 'pd-main-media';
-        activeVideoInstance = VideoPlayer.mount(mount, { url: m.url });
+        activeVideoInstance = VideoPlayer.mount(mount, { url: m.url, poster: m.thumbnailUrl });
       } else {
-        mount.innerHTML = `<img src="${m.url}" alt="" />`;
+        mount.innerHTML = `<img src="${esc(m.url)}" alt="" />`;
         mount.onclick = () => openLightbox(media, index);
       }
     }
@@ -139,20 +149,89 @@
       });
     }
 
-    function openLightbox(media, index) {
-      const m = media[index];
-      if (!m || m.media_type === 'video') return; // videos already play large inline; no separate lightbox needed
+    /**
+     * Full-screen media viewer. Opened once; Previous / Next, the arrow keys and a
+     * horizontal swipe change what it shows in place. (It used to re-open a whole
+     * new modal on every step, and the new buttons' handlers were attached to the
+     * old, still-closing modal's buttons, so navigation died after one step.)
+     * Photos show as images, videos get the app's VideoPlayer.
+     */
+    function openLightbox(media, startIndex) {
+      if (!media[startIndex]) return;
+      let index = startIndex;
+      let viewerVideo = null;
+      let modalEl = null;
+      const kindOf = (m) => (m.media_type === 'video' ? 'Video' : 'Photo');
+
+      function show(i) {
+        if (!modalEl || i < 0 || i >= media.length) return;
+        index = i;
+        const m = media[index];
+        const stage = modalEl.querySelector('.pd-lightbox-stage');
+        destroyVideo(viewerVideo, stage);
+        viewerVideo = null;
+        stage.className = 'pd-lightbox-stage'; // VideoPlayer adds .video-player to its container
+        const kind = kindOf(m);
+        modalEl.querySelector('#modal-title').textContent = media.length > 1 ? `${kind} ${index + 1} of ${media.length}` : kind;
+        if (m.media_type === 'video') {
+          stage.innerHTML = '';
+          viewerVideo = VideoPlayer.mount(stage, { url: m.url, poster: m.thumbnailUrl });
+        } else {
+          stage.innerHTML = `<img src="${esc(m.url)}" alt="${esc(kind)} ${index + 1} of ${media.length}" class="pd-lightbox-media lightbox-media" />`;
+        }
+        const prev = modalEl.querySelector('[data-lightbox="prev"]');
+        const next = modalEl.querySelector('[data-lightbox="next"]');
+        prev.disabled = index === 0;
+        next.disabled = index === media.length - 1;
+        prev.setAttribute('aria-label', 'Previous item');
+        next.setAttribute('aria-label', 'Next item');
+        // Keep keyboard focus usable when the button the person just pressed disables itself at an end.
+        if (document.activeElement && document.activeElement.disabled) (index === 0 ? next : prev).focus();
+      }
+
+      const onKey = (e) => {
+        if (e.target.closest && e.target.closest('input, textarea, select')) return;
+        if (e.key === 'ArrowLeft') { e.preventDefault(); show(index - 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); show(index + 1); }
+      };
+
       Modal.open({
-        title: 'Photo',
+        title: kindOf(media[index]),
         bodyHtml: `
-          <img src="${m.url}" alt="" class="pd-lightbox-media lightbox-media" id="lightbox-img" />
+          <div class="pd-lightbox-stage" aria-live="polite"></div>
+          ${media.length > 1 ? `
           <div class="pd-lightbox-nav">
-            <button type="button" class="btn btn-ghost btn-sm" id="lightbox-prev" ${index === 0 ? 'disabled' : ''} aria-label="Previous photo">← Previous</button>
-            <button type="button" class="btn btn-ghost btn-sm" id="lightbox-next" ${index === media.length - 1 ? 'disabled' : ''} aria-label="Next photo">Next →</button>
-          </div>`,
-        onMount: () => {
-          document.getElementById('lightbox-prev')?.addEventListener('click', () => openLightbox(media, index - 1));
-          document.getElementById('lightbox-next')?.addEventListener('click', () => openLightbox(media, index + 1));
+            <button type="button" class="btn btn-ghost btn-sm" data-lightbox="prev">← Previous</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-lightbox="next">Next →</button>
+          </div>` : '<div hidden><button data-lightbox="prev"></button><button data-lightbox="next"></button></div>'}`,
+        onMount: (el) => {
+          modalEl = el;
+          el.querySelector('[data-lightbox="prev"]').addEventListener('click', () => show(index - 1));
+          el.querySelector('[data-lightbox="next"]').addEventListener('click', () => show(index + 1));
+          document.addEventListener('keydown', onKey);
+          // Swipe left / right on the photo. Ignored on a video's own controls, where
+          // a horizontal drag means scrubbing.
+          const stage = el.querySelector('.pd-lightbox-stage');
+          let startX = null; let startY = 0;
+          stage.addEventListener('touchstart', (e) => {
+            if (e.touches.length !== 1 || e.target.closest('.video-player-controls, input')) { startX = null; return; }
+            startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+          }, { passive: true });
+          stage.addEventListener('touchend', (e) => {
+            if (startX === null) return;
+            const dx = e.changedTouches[0].clientX - startX;
+            const dy = e.changedTouches[0].clientY - startY;
+            startX = null;
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) show(index + (dx < 0 ? 1 : -1));
+          }, { passive: true });
+          show(index);
+        },
+        onClose: () => {
+          document.removeEventListener('keydown', onKey);
+          destroyVideo(viewerVideo, modalEl && modalEl.querySelector('.pd-lightbox-stage'));
+          viewerVideo = null;
+          // Leave the page showing whatever the person stopped on.
+          setActiveMedia(media, index);
         },
       });
     }
@@ -184,23 +263,13 @@
       </div>`;
     }
 
-    async function shareProject(portfolio) {
-      const url = window.location.href;
-      const shareData = { title: portfolio.title, text: `Check out "${portfolio.title}" on JOB RUSH`, url };
-      if (navigator.share) {
-        try {
-          await navigator.share(shareData);
-        } catch {
-          // User cancelled the share sheet — not an error.
-        }
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(url);
-        Toast.success('Project link copied to clipboard.');
-      } catch {
-        Toast.error('Could not copy the link. Copy it from your address bar instead.');
-      }
+    function shareProject(portfolio) {
+      return Share.link({
+        title: portfolio.title,
+        text: `Check out "${portfolio.title}" on JOB RUSH`,
+        url: window.location.href,
+        copiedMessage: 'Link copied to clipboard!',
+      });
     }
 
     async function openHireModal(portfolio) {

@@ -63,6 +63,7 @@
   <script src="../js/modules/accessibility.js"></script>
   <script src="../js/utils/sanitize.js"></script>
   <script src="../js/utils/toast.js"></script>
+  <script src="../js/utils/share.js"></script>
   <script src="../js/utils/animate.js"></script>
   <script src="../js/utils/formHelpers.js"></script>
   <script src="../js/utils/modal.js"></script>
@@ -799,21 +800,18 @@
     // ---------------------------------------------------------------- share / more / actions
     async function shareProfile(profile) {
       const url = profileUrl(profile);
-      const data = { title: `${profile.full_name} on Job Rush`, text: `View ${profile.full_name}${profile.professional_title ? `, ${profile.professional_title},` : ''} on Job Rush`, url };
-      if (navigator.share) {
-        try { await navigator.share(data); } catch { /* the user closed the share sheet */ }
-        return;
-      }
-      await copyProfileLink(profile);
+      await Share.link({
+        title: `${profile.full_name} on Job Rush`,
+        text: `View ${profile.full_name}${profile.professional_title ? `, ${profile.professional_title},` : ''} on Job Rush`,
+        url,
+        copiedMessage: 'Link copied to clipboard!',
+      });
     }
 
+    // "Copy link" in the More menu: always a straight copy.
     async function copyProfileLink(profile) {
-      try {
-        await navigator.clipboard.writeText(profileUrl(profile));
-        Toast.success('Profile link copied.');
-      } catch {
-        Toast.error('Couldn’t copy the link. Copy it from the address bar instead.');
-      }
+      if (await Share.copy(profileUrl(profile))) Toast.success('Link copied to clipboard!');
+      else Toast.error('Couldn’t copy the link. Copy it from the address bar instead.');
     }
 
     function wireNavRow(profile, user, isOwner) {

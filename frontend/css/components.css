@@ -1682,7 +1682,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
   justify-content: center;
   border-radius: var(--radius-control);
   background: var(--bg-elevated);
-  color: var(--color-primary-navy);
+  color: var(--icon-on-elevated);
 }
 .list-row-icon svg { width: 20px; height: 20px; }
 .list-row-text { flex: 1; min-width: 0; }
@@ -1707,7 +1707,7 @@ a.list-row:hover, button.list-row:hover { background: rgba(11, 31, 58, 0.03); }
   justify-content: center;
   border-radius: 50%;
   background: var(--bg-elevated);
-  color: var(--color-primary-navy);
+  color: var(--icon-on-elevated);
 }
 .state-view-icon svg { width: 26px; height: 26px; }
 .state-view--error .state-view-icon { background: var(--status-danger-bg); color: var(--status-danger); }
