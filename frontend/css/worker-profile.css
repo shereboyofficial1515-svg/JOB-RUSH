@@ -581,6 +581,11 @@ html[data-theme="dark"] .pf-availability.is-available { color: #5BD39B; }
 .pd-external-link-url { color: var(--text-secondary); font-size: var(--text-sm); word-break: break-all; }
 
 .pd-lightbox-media { width: 100%; max-height: 70vh; object-fit: contain; border-radius: var(--radius-md); display: block; margin: 0 auto; }
+/* The viewer's stage holds either a photo or a VideoPlayer; touch-action keeps
+   vertical scrolling native while horizontal swipes reach the viewer. */
+.pd-lightbox-stage { min-height: 200px; touch-action: pan-y; }
+.pd-lightbox-stage.video-player { max-height: 70vh; }
+.pd-lightbox-nav .btn:disabled { visibility: hidden; }
 .pd-lightbox-nav {
   display: flex;
   justify-content: space-between;

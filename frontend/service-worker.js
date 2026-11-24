@@ -52,6 +52,7 @@ const PRECACHE = [
   'js/modules/appHome.js',
   'js/modules/notificationBell.js',
   'js/utils/icons.js',
+  'js/utils/share.js',
   'js/utils/modal.js',
   'js/utils/toast.js',
   'assets/images/logo-48.png',
